@@ -1,0 +1,163 @@
+package types
+
+import(
+	"bytes"
+	"encoding/xml"
+	"fmt"
+	log "github.com/astaxie/beego/logs"
+	"io/ioutil"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"time"
+)
+
+type SqlMapper struct{
+	Filename string
+	Namespace string
+	Maps []*ResultMap
+	SqlNodes []*SqlElement
+	Functions []*SqlFunction
+	NamedMaps map[string]*ResultMap
+	NamedSqls map[string]*SqlElement
+	NamedFunctions map[string]*SqlFunction
+}
+
+func (in *SqlMapper) GenerateFiles(dir,pkg string){
+	for _,mp := range in.Maps {
+		mp.GenerateFile(dir,pkg)
+	}
+	in.generateMapperFile(dir,pkg)
+}
+
+func (in *SqlMapper)generateMapperFile(dir,pkg string) error{
+	sname := GetShortName(in.Namespace)
+	filename := filepath.Join(dir,fmt.Sprintf("%s.go",sname))
+	log.Info("generate mapper file: %v",filename)
+	bts := in.generateContent(pkg)
+	return ioutil.WriteFile(filename,bts,0640)
+}
+
+func (in *SqlMapper)generateContent(pkg string) []byte{
+	var buf bytes.Buffer
+	sname := GetShortName(in.Namespace)
+	buf.WriteString("package %s\n\n",pkg)
+	buf.WriteString("import (\n")
+	buf.WriteString("\t\"github.com/bnulwh/mybatis-go/orm\"\n")
+	buf.WriteString(") \n\n")
+	buf.WriteString(fmt.Sprintf("type %s struct {\n",sname))
+	buf.WriteString("\torm.BaseMapper\n")
+	for _,item := range in.Functions{
+		switch item.Type{
+		case SelectSQL:
+			buf.WriteString(fmt.Sprintf("\t%s \torm.QueryRowsFunc\n",UpperFirst(item.Id)))
+		case InsertSQL,DeleteSQL,UpdateSQL:
+			buf.WriteString(fmt.Sprintf("\t%s \torm.ExecuteFunc\n",UpperFirst(item.Id)))
+		}
+	}
+	buf.WriteString("}\n\n")
+	buf.WriteString("func init() {\n")
+	buf.WriteString(fmt.Sprintf("\torm.RegisterMapper(new(%s))\n",sname))
+	buf.WriteString("}\n\n")
+	return buf.Bytes()
+}
+
+func loadMapper(filename string) *SqlMapper{
+	log.Info("--------------------------------------------------")
+	log.Info("begin load mapper from %v",filename)
+	defer 	log.Info("finish load mapper from %v",filename)
+	node := parseXmlFile(filename)
+	if node == nil{
+		log.Warn("parse xml file %v failed",filename)
+		return nil
+	}
+	mps := filterResultMap(node.Elements)
+	nms := makeNamedMap(mps)
+	sns := filterSqlElement(node.Elements)
+	nss := makeNamedSql(sns)
+	items := filterSqlFunction(node.Elements,nms,nss)
+	nis := makeNamedFuntion(items)
+	return &SqlMapper{
+		Filename: filename,
+		Namespace: node.Attrs["namespace"].Value,
+		Maps: mps,
+		SqlNodes: sns,
+		Functions: items,
+		NamedMaps: nms,
+		NamedSqls: nss,
+		NamedFunctions: nis,
+	}
+}
+
+func filterResultMap(elems []xmlElement) []*ResultMap{
+	var mps []*ResultMap
+	for _,elem := range elems{
+		switch elem.ElementType{
+		case xmlNodeElem:
+			xn := elem.Val.(xmlNode)
+			switch strings.ToLower(xn.Name){
+			case "resultmap":
+				mps = append(mps,parseResultMapFromXmlNode(xn))
+			}
+		}
+	}
+	return mps
+}
+func filterSqlElement(elems []xmlElement) []*SqlElement{
+	var ses []*SqlElement
+	for _,elem := range elems{
+		switch elem.ElementType{
+		case xmlNodeElem:
+			xn := elem.Val.(xmlNode)
+			switch strings.ToLower(xn.Name){
+			case "sql":
+				ses = append(ses,parseSqlElementFromXmlNode(xn))
+			}
+		}
+	}
+	return ses
+}
+func filterSqlFunction(elems []xmlElement,rms map[string]*ResultMap,sns map[string]*SqlElement) []*SqlFunction{
+	var sfs  []*SqlFunction
+	for _,elem := range elems{
+		switch elem.ElementType{
+		case xmlNodeElem:
+			xn := elem.Val.(xmlNode)
+			switch strings.ToLower(xn.Name){
+			case "select","insert","delete","update":
+				sfs = append(sfs,parseSqlFunctionFromXmlNode(xn,rms,sns))
+			}
+		}
+	}
+	return sfs
+}
+
+func makeNamedMap(mps []*ResultMap) map[string]*ResultMap{
+	rmp := map[string]*ResultMap{}
+	for _,m := range mps{
+		rmp[m.Id] = m
+		rmp[buildKey(m.Id)] = m
+		rmp[strings.ToLower(m.Id)] = m
+	}
+	return rmp
+}
+
+func makeNamedSql(ses []*SqlElement) map[string]*SqlElement{
+	nss := map[string]*SqlElement{}
+	for _,se := range ses{
+		nss[se.Id] = se
+		nss[buildKey(se.Id)] = se
+		nss[strings.ToLower(se.Id)] = se
+	}
+	return nss
+}
+
+func makeNamedFuntion(fs []*SqlFunction) map[string]*SqlFunction{
+	fmp := map[string]*SqlFunction{}
+	for _,f := range fs{
+		fmp[f.Id] = f
+		fmp[buildKey(f.Id)] = f
+		fmp[strings.ToLower(f.Id)] = f
+	}
+	return fmp
+}

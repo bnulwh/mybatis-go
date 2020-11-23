@@ -10,7 +10,7 @@ import(
 )
 
 type SqlFunctionType string
-const(
+const (
 	SelectSQL SqlFunctionType="select"
 	UpdateSQL SqlFunctionType="update"
 	DeleteSQL SqlFunctionType="delete"
