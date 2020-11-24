@@ -166,7 +166,11 @@ func main() {
  	}
  }
 ```
-------
+注意：
+* `orm.NewMapper("UserInfoModelMapper").(UserInfoModelMapper)`用来创建dao/mapper的实体对象
+* `orm.NewMapper("UserInfoModelMapper")`创建的对象必须先注册`orm.RegisterMapper(new(UserInfoModelMapper))`
+* 创建后的对象可以使用相关的方法操作数据库
+* `orm.RegisterModel(new(UserInfoModel))`用于注册model类，注册后的类在调用dao/mapper的函数时可以自动创建并填充值
 
 # 路线图
 * 1.支持postgres数据库使用，已经测试通过
