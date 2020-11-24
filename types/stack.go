@@ -7,7 +7,7 @@ import (
 
 type stack struct {
 	list *l.List
-	mu sync.Mutex
+	mu   sync.Mutex
 }
 
 func NewStack() *stack {
@@ -15,13 +15,13 @@ func NewStack() *stack {
 	return &stack{list: list,}
 }
 
-func (s *stack) Push(t interface{}){
+func (s *stack) Push(t interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.list.PushFront(t)
 }
 
-func  (s *stack) Pop() interface{} {
+func (s *stack) Pop() interface{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ele := s.list.Front()

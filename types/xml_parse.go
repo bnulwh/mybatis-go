@@ -14,6 +14,7 @@ const (
 	xmlTextElem XmlElemType = "text" // 静态文本节点
 	xmlNodeElem XmlElemType = "node" // 节点子节点
 )
+
 type xmlElement struct {
 	ElementType XmlElemType
 	Val         interface{}
@@ -26,9 +27,9 @@ type xmlNode struct {
 	Elements []xmlElement
 }
 
-func parseXmlFile(filename string) *xmlNode{
-	content,err := ioutil.ReadFile(filename)
-	if err != nil{
+func parseXmlFile(filename string) *xmlNode {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
 		return nil
 	}
 	r := bytes.NewReader(content)

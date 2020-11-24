@@ -10,7 +10,6 @@ import (
 
 const logPath = "/var/log"
 
-
 type LogConfig struct {
 	Filename string   `json:"filename"`
 	Separate []string `json:"separate"`
@@ -32,7 +31,7 @@ func Initialize(logName string) {
 		}
 	}
 	c := &LogConfig{
-		Filename: filepath.Join(logPath,logName),
+		Filename: filepath.Join(logPath, logName),
 		Separate: []string{"emergency", "alert", "critical", "error", "warning", "notice", "info", "debug"},
 	}
 	value, _ := json.Marshal(c)
