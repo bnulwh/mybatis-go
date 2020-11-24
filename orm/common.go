@@ -86,18 +86,18 @@ func getRealValue(val string, em map[string]string) string {
 }
 func getSqlPtrType(typ reflect.Type) interface{} {
 	switch typ.String() {
-	case "string":
+	case "string", "sql.RawBytes":
 		return new(sql.NullString)
 	case "bool":
 		return new(sql.NullBool)
 	case "int", "int8", "int16", "int32",
 		"uint", "uint8", "uint16", "uint32":
 		return new(sql.NullInt32)
-	case "int64", "uint64":
+	case "int64", "uint64", "sql.NullInt64":
 		return new(sql.NullInt64)
 	case "float32", "float64":
 		return new(sql.NullFloat64)
-	case "time.Time":
+	case "time.Time", "mysql.NullTime":
 		return new(sql.NullTime)
 	}
 	log.Info("not support  type %v", typ)
@@ -106,7 +106,7 @@ func getSqlPtrType(typ reflect.Type) interface{} {
 
 func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
 	switch typ.String() {
-	case "string":
+	case "string", "sql.RawBytes":
 		pval, ok := ptr.(*sql.NullString)
 		if ok && pval.Valid {
 			return pval.String, nil
@@ -190,7 +190,7 @@ func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
 			return pval.Float64, nil
 		}
 		return float64(0.0), nil
-	case "time.Time":
+	case "time.Time", "mysql.NullTime":
 		pval, ok := ptr.(*sql.NullTime)
 		if ok && pval.Valid {
 			return pval.Time, nil

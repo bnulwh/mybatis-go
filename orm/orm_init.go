@@ -17,9 +17,9 @@ var (
 
 func Initialize(filename string) {
 	dc := NewConfig(filename)
-	connStr := dc.DbConfig.GenerateConnString()
+	driverName, connStr := dc.DbConfig.GenerateConn()
 	var err error
-	gDbConn, err = sql.Open("postgres", connStr)
+	gDbConn, err = sql.Open(driverName, connStr)
 	if err != nil {
 		panic(err)
 	}

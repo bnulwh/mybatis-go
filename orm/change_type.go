@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"database/sql"
 	"fmt"
 	log "github.com/astaxie/beego/logs"
 	"reflect"
@@ -421,4 +420,3 @@ func changeType(val interface{}, typ reflect.Type) (interface{}, error) {
 	log.Warn("not support convert type: %v ,value: %v", typ, val)
 	return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, val)
 }
-

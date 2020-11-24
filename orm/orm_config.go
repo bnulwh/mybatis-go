@@ -6,6 +6,14 @@ import (
 	log "github.com/astaxie/beego/logs"
 	"regexp"
 	"strconv"
+	"strings"
+)
+
+type DatabaseType string
+
+const (
+	MySqlDb    DatabaseType = "mysql"
+	PostgresDb DatabaseType = "postgres"
 )
 
 type DatabaseConfig struct {
@@ -14,6 +22,7 @@ type DatabaseConfig struct {
 	Username string
 	Password string
 	DbName   string
+	DbType   DatabaseType
 }
 
 type MyBatisConfig struct {
@@ -33,13 +42,21 @@ func NewConfig(filename string) *MyBatisConfig {
 	}
 }
 
-func (in *DatabaseConfig) GenerateConnString() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		in.Host, in.Port, in.Username, in.Password, in.DbName)
+func (in *DatabaseConfig) GenerateConn() (string, string) {
+	switch in.DbType {
+	case PostgresDb:
+		return "postgres", fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+			in.Host, in.Port, in.Username, in.Password, in.DbName)
+	case MySqlDb:
+		return "mysql", fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+			in.Username, in.Password, in.Host, in.Port, in.DbName)
+	default:
+		panic(fmt.Sprintf("not support database type %v", in.DbType))
+	}
 }
 
 func parseDatabaseConfig(m map[string]string) *DatabaseConfig {
-	h, P, d, err := parseAddr(m)
+	tp, h, P, d, err := parseAddr(m)
 	if err != nil {
 		log.Error("parse postgres addr failed: %v", err)
 		panic(err)
@@ -60,19 +77,29 @@ func parseDatabaseConfig(m map[string]string) *DatabaseConfig {
 		Username: u,
 		Password: p,
 		DbName:   d,
+		DbType:   parseDatabaseType(tp),
 	}
 }
-
-func parseAddr(m map[string]string) (string, int64, string, error) {
+func parseDatabaseType(tps string) DatabaseType {
+	switch strings.ToLower(tps) {
+	case "mysql":
+		return MySqlDb
+	case "postgres", "postgresql":
+		return PostgresDb
+	default:
+		panic(fmt.Sprintf("not support database type %v", tps))
+	}
+}
+func parseAddr(m map[string]string) (string, string, int64, string, error) {
 	val, ok := m["spring.datasource.url"]
 	if !ok {
-		return "", 0, "", errors.New("not found key spring.datasource.url")
+		return "", "", 0, "", errors.New("not found key spring.datasource.url")
 	}
-	re := regexp.MustCompile(`jdbc:postgresql://([\w\\.]+):([\d]+)/([\w_-]+)`)
+	re := regexp.MustCompile(`jdbc:([\w]+)://([\w\\.]+):([\d]+)/([\w_-]+)`)
 	matched := re.FindStringSubmatch(val)
-	if len(matched) < 4 {
-		return "", 0, "", errors.New("unsupport formate of spring.datasource.url")
+	if len(matched) < 5 {
+		return "", "", 0, "", errors.New("unsupport formate of spring.datasource.url")
 	}
-	i, _ := strconv.Atoi(matched[2])
-	return matched[1], int64(i), matched[3], nil
+	i, _ := strconv.Atoi(matched[3])
+	return matched[1], matched[2], int64(i), matched[4], nil
 }
