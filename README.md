@@ -1,5 +1,5 @@
 # mybatis-go
-a mybatis framework build for golang
+a mybatis orm framework build for golang
 # 使用示例（Example）
 ## 生成xml的mapper文件（generate xml mapper files）
 使用命令 
