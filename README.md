@@ -17,15 +17,24 @@ go build -o generator cmd/generator/main.go
 
 ## 使用generator生成模型和mapper文件（可以省略）
 可以使用`./generator -h`查看帮助
+```
+Usage of ./generator:
+  -d string
+    	saving directory,default: temp (default "temp")
+  -m string
+    	sql mapper file directory,default: resources/mapper (default "resources/mapper")
+  -p string
+    	package name,default: temp (default "temp")
+```
 
 ## 确保配置文件正确
 
 配置文件应至少包含如下内容：
 ```
 spring.datasource.url= jdbc:postgresql://localhost:5432/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
- spring.datasource.username= root
- spring.datasource.password= 123456
- mybatis.mapper-locations= resources/mapper
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
 ```
 ----
 ## 开始使用
