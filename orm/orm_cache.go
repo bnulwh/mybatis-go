@@ -139,9 +139,6 @@ func bindMapper(name string,value reflect.Value) {
 	}
 }
 
-
-
-
 func getFullName(typ reflect.Type) string {
 	return typ.PkgPath()+"."+typ.Name()
 }
