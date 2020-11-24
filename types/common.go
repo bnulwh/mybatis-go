@@ -139,7 +139,7 @@ func convert2Slice(val reflect.Value) []interface{}{
 }
 
 func validParams(inPtr interface{}) error{
-	val = reflect.ValueOf(inPtr)
+	val := reflect.ValueOf(inPtr)
 	typ := reflect.Indirect(val).Type()
 
 	if typ.Kind() == reflect.Ptr{

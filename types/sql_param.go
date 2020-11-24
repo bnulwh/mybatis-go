@@ -1,13 +1,11 @@
 package types
 
-import(
-	"bytes"
+import (
 	"encoding/xml"
 	"fmt"
 	log "github.com/astaxie/beego/logs"
 	"reflect"
 	"strings"
-	"time"
 )
 
 type SqlParamType string

@@ -1,8 +1,10 @@
 package types
 
 import (
+	"bytes"
 	"encoding/xml"
 	"io"
+	"io/ioutil"
 	"strings"
 )
 

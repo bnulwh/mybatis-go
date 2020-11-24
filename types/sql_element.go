@@ -1,12 +1,7 @@
 package types
 
 import(
-	"bytes"
-	"fmt"
 	log "github.com/astaxie/beego/logs"
-	"reflect"
-	"strings"
-	"time"
 )
 
 type SqlElement struct{

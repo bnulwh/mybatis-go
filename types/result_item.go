@@ -1,12 +1,8 @@
 package types
 
 import(
-	"bytes"
-	"fmt"
-	log "github.com/astaxie/beego/logs"
 	"reflect"
 	"strings"
-	"time"
 )
 
 type ResultItem struct{
@@ -22,7 +18,7 @@ func parseResultItemFromXmlNode(elem xmlElement) *ResultItem{
 	col := xn.Attrs["column"].Value
 	tpn := xn.Attrs["jdbcType"].Value
 	pro := xn.Attrs["property"].Value
-	typ := parseTypeFrom(tpn)
+	typ := parseJdbcTypeFrom(tpn)
 	return &ResultItem{
 		Column: col,
 		Type: typ,

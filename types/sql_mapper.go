@@ -2,14 +2,11 @@ package types
 
 import(
 	"bytes"
-	"encoding/xml"
 	"fmt"
 	log "github.com/astaxie/beego/logs"
 	"io/ioutil"
 	"path/filepath"
-	"reflect"
 	"strings"
-	"time"
 )
 
 type SqlMapper struct{
@@ -41,7 +38,7 @@ func (in *SqlMapper)generateMapperFile(dir,pkg string) error{
 func (in *SqlMapper)generateContent(pkg string) []byte{
 	var buf bytes.Buffer
 	sname := GetShortName(in.Namespace)
-	buf.WriteString("package %s\n\n",pkg)
+	buf.WriteString(fmt.Sprintf("package %s\n\n",pkg))
 	buf.WriteString("import (\n")
 	buf.WriteString("\t\"github.com/bnulwh/mybatis-go/orm\"\n")
 	buf.WriteString(") \n\n")

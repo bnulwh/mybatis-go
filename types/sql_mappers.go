@@ -1,16 +1,10 @@
 package types
 
-import(
-	"bytes"
-	"encoding/xml"
-	"fmt"
+import (
 	log "github.com/astaxie/beego/logs"
 	"os"
-	"io/ioutil"
 	"path/filepath"
-	"reflect"
 	"strings"
-	"time"
 )
 
 type SqlMappers struct {

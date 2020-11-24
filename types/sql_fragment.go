@@ -1,13 +1,10 @@
 package types
 
 import(
-	"bytes"
-	"encoding/xml"
 	"fmt"
 	log "github.com/astaxie/beego/logs"
 	"reflect"
 	"strings"
-	"time"
 )
 
 type SqlFragmentType string
@@ -114,7 +111,7 @@ func (in *SqlFragment)generateSqlWithParam(mapper* SqlMapper, m interface{}) str
 }
 
 func (in *SqlFragment)generateSqlWithoutParam(mapper* SqlMapper) string{
-	log.Info("sql fragment generate sql with param : %v  ",m)
+	log.Info("sql fragment generate sql without param ")
 	switch in.Type{
 	case SimpleSQL:
 		if in.Sql != nil{
@@ -154,7 +151,7 @@ func parseSqlFragmentFromXmlElement(elem xmlElement,sns map[string]*SqlElement) 
 	panic(fmt.Sprintf("wrong type of element type %v",elem.ElementType))
 }
 
-func parseSqlFragmentFromXmlNode(elem xmlElement,sns map[string]*SqlElement) *SqlFragment{
+func parseSqlFragmentFromXmlNode(node xmlNode,sns map[string]*SqlElement) *SqlFragment{
 	switch strings.ToLower(node.Name){
 	case "if":
 		return parseSqlIfTestFromXmlNode(node.Attrs,node.Elements)

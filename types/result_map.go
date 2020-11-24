@@ -4,9 +4,9 @@ import(
 	"bytes"
 	"fmt"
 	log "github.com/astaxie/beego/logs"
-	"reflect"
 	"strings"
-	"time"
+	"io/ioutil"
+	"path/filepath"
 )
 
 type ResultMap struct{
@@ -40,7 +40,7 @@ func (in *ResultMap)generateContent(pkg string) []byte{
 	}
 	buf.WriteString("}\n\n")
 	buf.WriteString("func init(){\n")
-	buf.WriteString("\torm.RegisterModel(new(%s))\n",sname)
+	buf.WriteString(fmt.Sprintf("\torm.RegisterModel(new(%s))\n",sname))
 	buf.WriteString("}\n\n")
 	return buf.Bytes()
 }

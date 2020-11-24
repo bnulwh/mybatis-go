@@ -6,8 +6,8 @@ import(
 	"fmt"
 	log "github.com/astaxie/beego/logs"
 	"reflect"
+	"regexp"
 	"strings"
-	"time"
 )
 
 type CheckConditionType string
@@ -95,7 +95,7 @@ func (in *SqlForLoop)buildParams(index int,item interface{}, mp map[string]inter
 	case reflect.String,
 		reflect.Bool,
 		reflect.Int,reflect.Int8,reflect.Int16,reflect.Int32,reflect.Int64,
-		reflect.UInt,reflect.UInt8,reflect.UInt16.reflect.UInt32,reflect.UInt64,
+		reflect.Uint,reflect.Uint8,reflect.Uint16,reflect.Uint32,reflect.Uint64,
 		reflect.Float32,reflect.Float64:
 		nmp[buildKey(in.Item)]=getFormatValue(item)
 	}
@@ -123,7 +123,7 @@ func (in *SqlIfTest)generateSqlWithSlice(mapper* SqlMapper, m []interface{},dept
 	return buf.String()
 }
 
-func (in *SqlIfTest)generateSqlWithMap(mapper* SqlMapper, m map[string]interface{},depth int) string{
+func (in *SqlIfTest)generateSqlWithMap(mapper* SqlMapper, mp map[string]interface{},depth int) string{
 	log.Info("sql if test generate sql with map : %v depth: %v",mp,depth)
 	bv := in.checkConditions(mp)
 	if !bv {
@@ -215,7 +215,7 @@ func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr,elems []xmlElement) *Sq
 		switch elem.ElementType{
 		case xmlTextElem:
 			sts = append(sts,&SqlFragment{
-				Sql: parseSimpleSqlFromText(elem.Val.(string))
+				Sql: parseSimpleSqlFromText(elem.Val.(string)),
 				Include: nil,
 				IfTest: nil,
 				ForLoop:nil,
@@ -247,7 +247,7 @@ func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr,elems []xmlElement) *Sq
 }
 
 func parseSqlForLoopFromXmlNode(attrs map[string]xml.Attr,elems []xmlElement) *SqlFragment{
-	ts,ok := attrs["collection"]
+	col,ok := attrs["collection"]
 	if !ok{
 		panic("not found  collection in input for parsing sql for loop")
 	}
@@ -262,10 +262,10 @@ func parseSqlForLoopFromXmlNode(attrs map[string]xml.Attr,elems []xmlElement) *S
 			Index: attrs["index"].Value,
 			Item: attrs["item"].Value,
 			Separator: attrs["separator"].Value,
-			Sql: parseSimpleSqlFromText(elems[0].Val.(string))
+			Sql: parseSimpleSqlFromText(elems[0].Val.(string)),
 		},
 		Sql: nil,
-		ForLoop: nil,
+		IfTest: nil,
 		Include: nil,
 		Choose: nil,
 		Type: ForLoopSQL,

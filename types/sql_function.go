@@ -2,12 +2,8 @@ package types
 
 import(
 	"bytes"
-	"encoding/xml"
-	"fmt"
 	log "github.com/astaxie/beego/logs"
 	"reflect"
-	"strings"
-	"time"
 )
 
 type SqlFunction struct{

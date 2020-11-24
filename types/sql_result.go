@@ -1,13 +1,9 @@
 package types
 
 import(
-	"bytes"
 	"encoding/xml"
-	"fmt"
 	log "github.com/astaxie/beego/logs"
 	"reflect"
-	"strings"
-	"time"
 )
 
 type SqlResult struct{
@@ -36,18 +32,18 @@ func parseSqlResult0(val string,rms map[string]*ResultMap) SqlResult{
 	if ok{
 		return SqlResult{
 			ResultM: r,
-			ResultT: reflect.TypeOf(0),
+			ResultT: reflect.TypeOf(-1),
 		}
 	}
 	log.Warn("can not find result map: %v",val)
 	return SqlResult{
 		ResultM: nil,
-		ResultT: reflect.TypeOf(map[string]interface{}{})
+		ResultT: reflect.TypeOf(map[string]interface{}{}),
 	}
 }
-func parseSqlResult1(val string{
+func parseSqlResult1(val string) SqlResult{
 	return SqlResult{
 		ResultM: nil,
-		ResultT: parseResultTypeFrom(val)
+		ResultT: parseResultTypeFrom(val),
 	}
 }

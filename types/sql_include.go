@@ -1,13 +1,8 @@
 package types
 
 import(
-	"bytes"
 	"encoding/xml"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
-	"reflect"
-	"strings"
-	"time"
 )
 
 type SqlInclude struct{
@@ -15,12 +10,12 @@ type SqlInclude struct{
 	Refid string
 }
 
-func parseSqlIncludeFromXmlNode(attrs map[string]xml.Attr,sns map[string]*SqlElement) *SqlText{
+func parseSqlIncludeFromXmlNode(attrs map[string]xml.Attr,sns map[string]*SqlElement) *SqlFragment{
 	attr,ok := attrs["refid"]
 	if ok{
 		sn,ok := sns[attr.Value]
 		if ok{
-			return &SqlText{
+			return &SqlFragment{
 				Include: &SqlInclude{
 					Sql: sn.Sql,
 					Refid: attr.Value,
