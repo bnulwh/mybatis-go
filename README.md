@@ -26,6 +26,60 @@ Usage of ./generator:
   -p string
     	package name,default: temp (default "temp")
 ```
+生成的模型文件示例如下:
+```
+package temp
+
+import(
+	"github.com/bnulwh/mybatis-go/orm"
+	"time"
+)
+
+type UserInfoModel struct{
+	Id 	int
+	CreatedBy 	string
+	UpdatedBy 	string
+	CreateTime 	time.Time
+	UpdateTime 	time.Time
+	GroupId 	int
+	Username 	string
+	PassMd5 	string
+	Roles 	string
+	Description 	string
+	Avatar 	string
+}
+
+func init(){
+	orm.RegisterModel(new(UserInfoModel))
+}
+```
+生成的dao/mapper文件示例如下:
+```
+package temp
+
+import (
+	"github.com/bnulwh/mybatis-go/orm"
+) 
+
+type UserInfoModelMapper struct {
+	orm.BaseMapper
+	DeleteByPrimaryKey 	orm.ExecuteFunc
+	Insert 	orm.ExecuteFunc
+	UpdateByPrimaryKey 	orm.ExecuteFunc
+	SelectByPrimaryKey 	orm.QueryRowsFunc
+	SelectAll 	orm.QueryRowsFunc
+}
+
+func init() {
+	orm.RegisterMapper(new(UserInfoModelMapper))
+}
+
+```
+注意：
+* orm.BaseMapper为dao/mapper的父类
+* orm.ExecuteFunc表示insert/delete/update相关操作函数，由于golang的继承和函数机制，采用预定义函数接口的方式实现
+* orm.QueryRowsFunc表示select函数，返回多条记录和错误
+* orm.QueryRowFunc表示select函数，返回单条记录和错误
 
 ## 确保配置文件正确
 
