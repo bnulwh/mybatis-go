@@ -47,6 +47,7 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 	buf.WriteString(fmt.Sprintf("package %s\n\n", pkg))
 	buf.WriteString("import (\n")
 	buf.WriteString("\t\"github.com/bnulwh/mybatis-go/orm\"\n")
+	buf.WriteString("\t\"sync\"\n")
 	buf.WriteString(") \n\n")
 	buf.WriteString(fmt.Sprintf("type %s struct {\n", sname))
 	buf.WriteString("\torm.BaseMapper\n")
@@ -59,8 +60,18 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 		}
 	}
 	buf.WriteString("}\n\n")
+	buf.WriteString("var (\n")
+	buf.WriteString(fmt.Sprintf("\tg%s  *%s\n",sname,sname))
+	buf.WriteString(fmt.Sprintf("\tg%sOnce  sync.Once\n",sname))
+	buf.WriteString(")\n\n")
 	buf.WriteString("func init() {\n")
 	buf.WriteString(fmt.Sprintf("\torm.RegisterMapper(new(%s))\n", sname))
+	buf.WriteString("}\n\n")
+	buf.WriteString(fmt.Sprintf("func Get%s() *%s{\n",sname,sname))
+	buf.WriteString(fmt.Sprintf("\tg%sOnce.Do(func() {\n", sname))
+	buf.WriteString(fmt.Sprintf("\t\tg%s = orm.NewMapperPtr(\"%s\").(*%s)\n", sname,sname,sname))
+	buf.WriteString(fmt.Sprintf("\t})\n"))
+	buf.WriteString(fmt.Sprintf("\treturn g%s\n",sname))
 	buf.WriteString("}\n\n")
 	return buf.Bytes()
 }
