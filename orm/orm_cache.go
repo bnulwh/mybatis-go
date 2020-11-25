@@ -100,6 +100,16 @@ func NewMapper(name string) interface{} {
 	return reflect.Indirect(mp).Interface()
 }
 
+func NewMapperPtr(name string) interface{} {
+	mp, err := gCache.createMapper(name)
+	if err != nil {
+		log.Warn("cannot find mapper struct `%s`", name)
+		panic(err)
+	}
+	bindMapper(name, mp)
+	return mp.Interface()
+}
+
 func bindMapper(name string, value reflect.Value) {
 	sn := types.GetShortName(name)
 	mp, ok := gMappers.NamedMappers[strings.ToLower(sn)]
