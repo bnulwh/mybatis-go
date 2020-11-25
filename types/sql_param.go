@@ -90,6 +90,7 @@ func (in *SqlParam) validParam(args []interface{}) error {
 func parseSqlParamTypeFrom(tn string) SqlParamType {
 	switch strings.ToUpper(GetShortName(tn)) {
 	case "STRING", "VARCHAR",
+	    "BOOLEAN","BOOL",
 		"INT", "INTEGER", "INT8", "INT16", "INT32", "INT64",
 		"UINT", "UINT8", "UINT16", "UINT32", "UINT64",
 		"FLOAT", "FLOAT32", "FLOAT64", "DOUBLE",

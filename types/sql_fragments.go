@@ -309,7 +309,7 @@ func parseIfConditionsFromText(text string) []IfCondition {
 	reName := regexp.MustCompile(`[\w]+`)
 	var cs []IfCondition
 	for _, item := range reSplit.Split(text, -1) {
-		item := strings.TrimSpace(item)
+		item = strings.TrimSpace(item)
 		if len(item) == 0 {
 			continue
 		}
@@ -340,7 +340,7 @@ func parseSimpleSqlFromText(text string) *SimpleSql {
 }
 
 func parseSqlFragmentParamFromText(text string) []SqlFragmentParam {
-	re := regexp.MustCompile(`[#$][{}][\s]*([\w]+)[\s]*(,[\s]*([\w]+)[\s]*=[\s]*([\w]+)[\s]*)[}]`)
+	re := regexp.MustCompile(`[#$][{][\s]*([\w]+)[\s]*(,[\s]*([\w]+)[\s]*=[\s]*([\w]+)[\s]*)*[}]`)
 	matches := re.FindAllStringSubmatch(text, -1)
 	var stps []SqlFragmentParam
 	for _, match := range matches {

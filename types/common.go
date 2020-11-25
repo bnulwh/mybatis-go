@@ -124,15 +124,13 @@ func convert2Map(val reflect.Value) map[string]interface{} {
 	switch typ.Kind() {
 	case reflect.Map:
 		for _, key := range val.MapKeys() {
-			nmp[fmt.Sprintf("%v", reflect.Indirect(key).Interface())] = reflect.Indirect(val.MapIndex(key)).Interface()
+			nmp[buildKey(fmt.Sprintf("%v", reflect.Indirect(key).Interface()))] = reflect.Indirect(val.MapIndex(key)).Interface()
 		}
-		break
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
 			fval := val.Field(i)
 			nmp[buildKey(typ.Field(i).Name)] = reflect.Indirect(fval).Interface()
 		}
-		break
 	}
 	return nmp
 }
@@ -165,6 +163,6 @@ func validValue(m interface{}) bool {
 		val := reflect.ValueOf(m)
 		return val.Len() > 0
 	}
-	log.Warn("not support convert type %v", typ)
+	log.Warn("not support valid type %v", typ)
 	return true
 }
