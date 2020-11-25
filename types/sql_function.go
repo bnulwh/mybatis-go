@@ -51,7 +51,7 @@ func (in *SqlFunction) generateDefine() string {
 	case SelectSQL:
 		buf.WriteString("[]")
 		if in.Result.ResultM != nil {
-			buf.WriteString(GetShortName(in.Result.ResultM.Id))
+			buf.WriteString(GetShortName(in.Result.ResultM.TypeName))
 		} else {
 			buf.WriteString(toGolangType(in.Result.ResultT.String()))
 		}
