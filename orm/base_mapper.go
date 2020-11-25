@@ -13,6 +13,47 @@ type BaseMapper struct {
 	mapper *types.SqlMapper
 }
 
+func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) {
+	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
+	if !ok {
+		return nil, fmt.Errorf("%s not contains function %s", in.mapper.Namespace, name)
+	}
+	return item, nil
+}
+
+func (in *BaseMapper)executeMethod(sqlFunc *types.SqlFunction,arg ProxyArg,returnValue *reflect.Value) error  {
+	args := arg.buildArgs()
+	gLock.Lock()
+	defer gLock.Unlock()
+	sqlStr, err := sqlFunc.GenerateSQL(in.mapper, args)
+	if err != nil {
+		log.Warn("generate sql failed: %v",err)
+		return err
+	}
+	stmt, err := gDbConn.Prepare(sqlStr)
+	if err != nil {
+		log.Error("prepare sql %v failed: %v", sqlStr, err)
+		return err
+	}
+	defer closeStmt(stmt)
+	switch sqlFunc.Type {
+	case types.InsertSQL,types.DeleteSQL,types.UpdateSQL:
+		result, err := stmt.Exec()
+		if err != nil {
+			log.Error("execute sql %v failed: %v", sqlStr, err)
+			return err
+		}
+		fillReturnValueWithSqlResult(result,returnValue)
+	case types.SelectSQL:
+		results, err := queryRows(sqlStr, sqlFunc.Result)
+		if err != nil {
+			return err
+		}
+		fillReturnValueWithSlice(results,returnValue)
+	}
+	return nil
+}
+
 func (in *BaseMapper) fetchExecuteFunc(name string) ExecuteFunc {
 	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
 	if !ok {
@@ -97,7 +138,16 @@ func (in *BaseMapper) fetchQueryRowsFunc(name string) QueryRowsFunc {
 	}
 }
 
-func closeStmt(stmt *sql.Stmt)  {
+func fillReturnValueWithSlice(results []interface{},returnValue *reflect.Value)  {
+	*returnValue = reflect.ValueOf(results)
+}
+
+func fillReturnValueWithSqlResult(result sql.Result,returnValue *reflect.Value)  {
+	rf,_ := result.RowsAffected()
+	*returnValue = reflect.ValueOf(rf)
+}
+
+func closeStmt(stmt *sql.Stmt) {
 	err := stmt.Close()
 	if err != nil {
 		log.Warn("close warning: %v", err)

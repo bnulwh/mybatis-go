@@ -87,6 +87,7 @@ func RegisterMapper(inPtr interface{}) {
 	if !ok {
 		panic(fmt.Sprintf("<orm.RegisterMapper> can only use mapper struct `%s` based on <orm.BaseMapper>", fn))
 	}
+	beanCheck(val)
 	gCache.addMapper(typ)
 }
 
@@ -121,29 +122,41 @@ func bindMapper(name string, value reflect.Value) {
 	bmf := outVal.FieldByName("BaseMapper")
 	bmf.Set(reflect.ValueOf(BaseMapper{mapper: mp}))
 	bm := bmf.Interface().(BaseMapper)
-	for i := 0; i < outTyp.NumField(); i++ {
-		field := outTyp.Field(i)
-		fieldTyp := field.Type
-		fieldName := field.Name
-		outFVal := outVal.Field(i)
-		switch fieldTyp.Kind() {
-		case reflect.Func:
-			switch fieldTyp.NumOut() {
-			case 3:
-				funcPtr := bm.fetchExecuteFunc(fieldName)
-				outFVal.Set(reflect.ValueOf(funcPtr))
-			case 2:
-				outft := fieldTyp.Out(0)
-				if outft.Kind() == reflect.Slice {
-					funcPtr := bm.fetchQueryRowsFunc(fieldName)
-					outFVal.Set(reflect.ValueOf(funcPtr))
-				} else {
-					funcPtr := bm.fetchQueryRowFunc(fieldName)
-					outFVal.Set(reflect.ValueOf(funcPtr))
-				}
-			}
+	returnTypeMap := makeReturnTypeMap(outTyp)
+	proxyValue(value, func(funcField reflect.StructField, field reflect.Value) func(arg ProxyArg) []reflect.Value {
+		//构建期
+		var funcName = funcField.Name
+		var returnType = returnTypeMap[funcName]
+		if returnType == nil {
+			panic("[mybatis-go] struct have no return values!")
 		}
-	}
+		//mapper
+		sqlFunc, err := bm.fetchSqlFunction(funcName)
+		if err != nil {
+			panic(err)
+		}
+		methodFieldCheck(&outTyp, &funcField, true)
+		//执行期
+		var proxyFunc = func(arg ProxyArg) []reflect.Value {
+			var returnValue *reflect.Value = nil
+			//build return Type
+			if returnType.ReturnOutType != nil {
+				var returnV = reflect.New(*returnType.ReturnOutType)
+				switch (*returnType.ReturnOutType).Kind() {
+				case reflect.Map:
+					returnV.Elem().Set(reflect.MakeMap(*returnType.ReturnOutType))
+				case reflect.Slice:
+					returnV.Elem().Set(reflect.MakeSlice(*returnType.ReturnOutType, 0, 0))
+				}
+				returnValue = &returnV
+			}
+			//exe sql
+			var e = bm.executeMethod(sqlFunc, arg, returnValue)
+			return buildReturnValues(returnType, returnValue, e)
+		}
+		return proxyFunc
+
+	})
 }
 
 func getFullName(typ reflect.Type) string {
