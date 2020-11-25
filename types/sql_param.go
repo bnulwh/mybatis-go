@@ -90,7 +90,7 @@ func (in *SqlParam) validParam(args []interface{}) error {
 func parseSqlParamTypeFrom(tn string) SqlParamType {
 	switch strings.ToUpper(GetShortName(tn)) {
 	case "STRING", "VARCHAR",
-	    "BOOLEAN","BOOL",
+		"BOOLEAN", "BOOL",
 		"INT", "INTEGER", "INT8", "INT16", "INT32", "INT64",
 		"UINT", "UINT8", "UINT16", "UINT32", "UINT64",
 		"FLOAT", "FLOAT32", "FLOAT64", "DOUBLE",
@@ -102,4 +102,33 @@ func parseSqlParamTypeFrom(tn string) SqlParamType {
 		return MapParam
 	}
 	return StructParam
+}
+
+func toGolangType(tn string) string {
+	sname := GetShortName(tn)
+	switch strings.ToUpper(sname) {
+	case "STRING", "VARCHAR":
+		return "string"
+	case "BOOLEAN", "BOOL":
+		return "bool"
+	case "INT", "INTEGER", "INT8", "INT16", "INT32":
+		return "int32"
+	case "INT64":
+		return "int64"
+	case "UINT", "UINT8", "UINT16", "UINT32":
+		return "uint32"
+	case "UINT64":
+		return "uint64"
+	case "FLOAT", "FLOAT32":
+		return "float32"
+	case "FLOAT64", "DOUBLE":
+		return "float64"
+	case "TIME", "TIMESTAMP":
+		return "time.Time"
+	case "LIST", "ARRAY", "ARRAYLIST", "SLICE":
+		return "[]interface{}"
+	case "MAP", "HASHMAP", "TREEMAP":
+		return "map[string]interface{}"
+	}
+	return sname
 }

@@ -1,4 +1,5 @@
 package main
+
 import (
 	log "github.com/astaxie/beego/logs"
 	"github.com/bnulwh/mybatis-go/logger"
@@ -7,6 +8,7 @@ import (
 	_ "github.com/lib/pq"
 	"time"
 )
+
 type UserInfoModel struct {
 	Id          int
 	CreatedBy   string
@@ -23,11 +25,11 @@ type UserInfoModel struct {
 
 type UserInfoModelMapper struct {
 	orm.BaseMapper
-	DeleteByPrimaryKey orm.ExecuteFunc
-	Insert             orm.ExecuteFunc
-	UpdateByPrimaryKey orm.ExecuteFunc
-	SelectByPrimaryKey orm.QueryRowsFunc
-	SelectAll          orm.QueryRowsFunc
+	DeleteByPrimaryKey func(id int) (int64, error)
+	Insert             func(model UserInfoModel) (int64, error)
+	UpdateByPrimaryKey func(model UserInfoModel) (int64, error)
+	SelectByPrimaryKey func(id int) ([]UserInfoModel, error)
+	SelectAll          func() ([]UserInfoModel, error)
 }
 
 func init() {

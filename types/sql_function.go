@@ -36,6 +36,30 @@ func (in *SqlFunction) GenerateSQL(mapper *SqlMapper, args []interface{}) (strin
 	nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
 	return in.generateSqlWithMap(mapper, nmp), nil
 }
+func (in *SqlFunction) generateDefine() string {
+	var buf bytes.Buffer
+	buf.WriteString("\t")
+	buf.WriteString(in.Id)
+	buf.WriteString(" \tfunc (")
+	if in.Param.Need {
+		buf.WriteString(toGolangType(in.Param.TypeName))
+	}
+	buf.WriteString(") (")
+	switch in.Type {
+	case UpdateSQL, InsertSQL, DeleteSQL:
+		buf.WriteString("int64,error")
+	case SelectSQL:
+		buf.WriteString("[]")
+		if in.Result.ResultM != nil {
+			buf.WriteString(GetShortName(in.Result.ResultM.Id))
+		} else {
+			buf.WriteString(toGolangType(in.Result.ResultT.String()))
+		}
+		buf.WriteString(",error")
+	}
+	buf.WriteString(")\n")
+	return buf.String()
+}
 func (in *SqlFunction) generateSqlWithMap(mapper *SqlMapper, m map[string]interface{}) string {
 	log.Info("sql function %v generate sql with map: %v", in.Id, m)
 	var buf bytes.Buffer

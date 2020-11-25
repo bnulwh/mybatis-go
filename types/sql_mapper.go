@@ -52,12 +52,7 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 	buf.WriteString(fmt.Sprintf("type %s struct {\n", sname))
 	buf.WriteString("\torm.BaseMapper\n")
 	for _, item := range in.Functions {
-		switch item.Type {
-		case SelectSQL:
-			buf.WriteString(fmt.Sprintf("\t%s \torm.QueryRowsFunc\n", UpperFirst(item.Id)))
-		case InsertSQL, DeleteSQL, UpdateSQL:
-			buf.WriteString(fmt.Sprintf("\t%s \torm.ExecuteFunc\n", UpperFirst(item.Id)))
-		}
+		buf.WriteString(item.generateDefine())
 	}
 	buf.WriteString("}\n\n")
 	buf.WriteString("var (\n")
