@@ -21,37 +21,41 @@ func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) 
 	return item, nil
 }
 
-func (in *BaseMapper)executeMethod(sqlFunc *types.SqlFunction,arg ProxyArg,returnValue *reflect.Value) error  {
+func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (reflect.Value, error) {
 	args := arg.buildArgs()
 	gLock.Lock()
 	defer gLock.Unlock()
 	sqlStr, err := sqlFunc.GenerateSQL(in.mapper, args)
 	if err != nil {
-		log.Warn("generate sql failed: %v",err)
-		return err
+		log.Warn("generate sql failed: %v", err)
+		return reflect.Value{}, err
 	}
+	log.Info("sql: %v", sqlStr)
 	stmt, err := gDbConn.Prepare(sqlStr)
 	if err != nil {
 		log.Error("prepare sql %v failed: %v", sqlStr, err)
-		return err
+		return reflect.Value{}, err
 	}
 	defer closeStmt(stmt)
 	switch sqlFunc.Type {
-	case types.InsertSQL,types.DeleteSQL,types.UpdateSQL:
+	case types.InsertSQL, types.DeleteSQL, types.UpdateSQL:
 		result, err := stmt.Exec()
 		if err != nil {
 			log.Error("execute sql %v failed: %v", sqlStr, err)
-			return err
+			return reflect.Value{}, err
 		}
-		fillReturnValueWithSqlResult(result,returnValue)
+		rf, _ := result.RowsAffected()
+		return reflect.ValueOf(rf), nil
 	case types.SelectSQL:
 		results, err := queryRows(sqlStr, sqlFunc.Result)
 		if err != nil {
-			return err
+			return reflect.Value{}, err
 		}
-		fillReturnValueWithSlice(results,returnValue)
+		log.Info("results: %v", types.ToJson(results.Interface()))
+		log.Info("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
+		return results, nil
 	}
-	return nil
+	return reflect.Value{}, nil
 }
 
 func (in *BaseMapper) fetchExecuteFunc(name string) ExecuteFunc {
@@ -69,7 +73,7 @@ func (in *BaseMapper) fetchExecuteFunc(name string) ExecuteFunc {
 		if err != nil {
 			return 0, 0, err
 		}
-		log.Info("sql: %v", sqlStr)
+		log.Debug("sql: %v", sqlStr)
 		if len(sqlStr) == 0 {
 			return 0, 0, fmt.Errorf("generate sql failed. args: %v", args)
 		}
@@ -89,62 +93,63 @@ func (in *BaseMapper) fetchExecuteFunc(name string) ExecuteFunc {
 		return affected, id, nil
 	}
 }
-func (in *BaseMapper) fetchQueryRowFunc(name string) QueryRowFunc {
-	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
-	if !ok {
-		panic(fmt.Sprintf("%s not contains function %s", in.mapper.Namespace, name))
-	}
-	if item.Type != types.SelectSQL {
-		panic(fmt.Sprintf("%s.%s  function not define select operation", in.mapper.Namespace, name))
-	}
-	return func(args ...interface{}) (interface{}, error) {
-		gLock.Lock()
-		defer gLock.Unlock()
-		sqlStr, err := item.GenerateSQL(in.mapper, args)
-		if err != nil {
-			return nil, err
-		}
-		log.Info("sql: %v", sqlStr)
-		if len(sqlStr) == 0 {
-			return nil, fmt.Errorf("generate sql failed. args: %v", args)
-		}
-		results, err := queryRows(sqlStr, item.Result)
-		if err != nil {
-			return nil, err
-		}
-		return results[0], err
-	}
-}
-func (in *BaseMapper) fetchQueryRowsFunc(name string) QueryRowsFunc {
-	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
-	if !ok {
-		panic(fmt.Sprintf("%s not contains function %s", in.mapper.Namespace, name))
-	}
-	if item.Type != types.SelectSQL {
-		panic(fmt.Sprintf("%s.%s  function not define select operation", in.mapper.Namespace, name))
-	}
-	return func(args ...interface{}) ([]interface{}, error) {
-		gLock.Lock()
-		defer gLock.Unlock()
-		sqlStr, err := item.GenerateSQL(in.mapper, args)
-		if err != nil {
-			return nil, err
-		}
-		log.Info("sql: %v", sqlStr)
-		if len(sqlStr) == 0 {
-			return nil, fmt.Errorf("generate sql failed. args: %v", args)
-		}
-		return queryRows(sqlStr, item.Result)
-	}
+
+//func (in *BaseMapper) fetchQueryRowFunc(name string) QueryRowFunc {
+//	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
+//	if !ok {
+//		panic(fmt.Sprintf("%s not contains function %s", in.mapper.Namespace, name))
+//	}
+//	if item.Type != types.SelectSQL {
+//		panic(fmt.Sprintf("%s.%s  function not define select operation", in.mapper.Namespace, name))
+//	}
+//	return func(args ...interface{}) (interface{}, error) {
+//		gLock.Lock()
+//		defer gLock.Unlock()
+//		sqlStr, err := item.GenerateSQL(in.mapper, args)
+//		if err != nil {
+//			return nil, err
+//		}
+//		log.Debug("sql: %v", sqlStr)
+//		if len(sqlStr) == 0 {
+//			return nil, fmt.Errorf("generate sql failed. args: %v", args)
+//		}
+//		results, err := queryRows(sqlStr, item.Result)
+//		if err != nil {
+//			return nil, err
+//		}
+//		return results.Index(0).Interface(), err
+//	}
+//}
+//func (in *BaseMapper) fetchQueryRowsFunc(name string) QueryRowFunc {
+//	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
+//	if !ok {
+//		panic(fmt.Sprintf("%s not contains function %s", in.mapper.Namespace, name))
+//	}
+//	if item.Type != types.SelectSQL {
+//		panic(fmt.Sprintf("%s.%s  function not define select operation", in.mapper.Namespace, name))
+//	}
+//	return func(args ...interface{}) (interface{}, error) {
+//		gLock.Lock()
+//		defer gLock.Unlock()
+//		sqlStr, err := item.GenerateSQL(in.mapper, args)
+//		if err != nil {
+//			return nil, err
+//		}
+//		log.Debug("sql: %v", sqlStr)
+//		if len(sqlStr) == 0 {
+//			return nil, fmt.Errorf("generate sql failed. args: %v", args)
+//		}
+//		return queryRows(sqlStr, item.Result)
+//	}
+//}
+
+func fillReturnValueWithSlice(results reflect.Value, returnValue *reflect.Value) {
+	returnValue = &results
 }
 
-func fillReturnValueWithSlice(results []interface{},returnValue *reflect.Value)  {
-	*returnValue = reflect.ValueOf(results)
-}
-
-func fillReturnValueWithSqlResult(result sql.Result,returnValue *reflect.Value)  {
-	rf,_ := result.RowsAffected()
-	*returnValue = reflect.ValueOf(rf)
+func fillReturnValueWithSqlResult(result sql.Result, returnValue *reflect.Value) {
+	rf, _ := result.RowsAffected()
+	*returnValue = reflect.ValueOf(&rf)
 }
 
 func closeStmt(stmt *sql.Stmt) {
@@ -154,28 +159,32 @@ func closeStmt(stmt *sql.Stmt) {
 	}
 }
 
-func queryRows(sqlStr string, resInfo types.SqlResult) ([]interface{}, error) {
+func queryRows(sqlStr string, resInfo types.SqlResult) (reflect.Value, error) {
 	stmt, err := gDbConn.Prepare(sqlStr)
 	if err != nil {
 		log.Error("prepare sql %v failed: %v", sqlStr, err)
-		return nil, err
+		return reflect.Value{}, err
 	}
 	defer closeStmt(stmt)
 	rows, err := stmt.Query()
 	if err != nil {
 		log.Error("query sql %v failed: %v", sqlStr, err)
-		return nil, err
+		return reflect.Value{}, err
 	}
 	colTypes, err := rows.ColumnTypes()
 	if err != nil {
 		log.Error("fill sql %v result failed: %v", sqlStr, err)
-		return nil, err
+		return reflect.Value{}, err
 	}
 	results := fetchRows(rows, colTypes, resInfo)
 	return results, nil
 }
-func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, resInfo types.SqlResult) []interface{} {
-	var results []interface{}
+func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, resInfo types.SqlResult) reflect.Value {
+	//var results []interface{}
+	itemTyp := getResultType(resInfo)
+	itemsTyp := reflect.SliceOf(itemTyp)
+	resultsPtr := reflect.New(itemsTyp)
+	results := reflect.Indirect(resultsPtr)
 	for rows.Next() {
 		tempItems := prepareColumns(colTypes)
 		err := rows.Scan(tempItems...)
@@ -188,13 +197,17 @@ func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, resInfo types.SqlResu
 			log.Warn("fill result failed: %v", err)
 			continue
 		}
-		results = append(results, result)
+
+		results = reflect.Append(results, reflect.ValueOf(result))
 	}
+	log.Info("results: %v", types.ToJson(results.Interface()))
+	log.Info("results ptr: %v", types.ToJson(reflect.Indirect(resultsPtr).Interface()))
 	return results
 }
 func prepareColumns(colTypes []*sql.ColumnType) []interface{} {
 	var ptrs []interface{}
 	for _, coltyp := range colTypes {
+		log.Debug("name: %v,dbtype: %v,scan type: %v", coltyp.Name(), coltyp.DatabaseTypeName(), coltyp.ScanType())
 		ptrs = append(ptrs, getSqlPtrType(coltyp.ScanType()))
 	}
 	return ptrs
@@ -221,6 +234,14 @@ func convert2Result(rmp *types.ResultMap, mp map[string]interface{}) (interface{
 	}
 	setColumnValues(inst, rmp, mp)
 	return reflect.Indirect(inst).Interface(), nil
+}
+func getResultType(resInfo types.SqlResult) reflect.Type {
+	if resInfo.ResultM != nil {
+		name := types.GetShortName(resInfo.ResultM.TypeName)
+		inst, _ := gCache.createModel(name)
+		return reflect.Indirect(inst).Type()
+	}
+	return resInfo.ResultT
 }
 func createResult(colTypes []*sql.ColumnType, resInfo types.SqlResult, ptrs []interface{}) (interface{}, error) {
 	mp := createMap(colTypes, ptrs)

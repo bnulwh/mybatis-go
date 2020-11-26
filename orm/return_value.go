@@ -1,13 +1,18 @@
 package orm
 
-import "reflect"
+import (
+	log "github.com/astaxie/beego/logs"
+	"github.com/bnulwh/mybatis-go/types"
+	"reflect"
+)
 
-func buildReturnValues(returnType *ReturnType, returnValue *reflect.Value, e error) []reflect.Value {
+func buildReturnValues(returnType *ReturnType, returnValue reflect.Value, e error) []reflect.Value {
 	var returnValues = make([]reflect.Value, returnType.NumOut)
 	for index, _ := range returnValues {
 		if index == returnType.ReturnIndex {
-			if returnValue != nil {
-				returnValues[index] = (*returnValue).Elem()
+			if !returnValue.IsZero() {
+				returnValues[index] = returnValue
+				log.Info("results: %v", types.ToJson(reflect.Indirect(returnValue).Interface()))
 			}
 		} else {
 			if e != nil {

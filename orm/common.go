@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	log "github.com/astaxie/beego/logs"
+	"github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -86,7 +87,7 @@ func getRealValue(val string, em map[string]string) string {
 }
 func getSqlPtrType(typ reflect.Type) interface{} {
 	switch typ.String() {
-	case "string", "sql.RawBytes":
+	case "string":
 		return new(sql.NullString)
 	case "bool":
 		return new(sql.NullBool)
@@ -97,19 +98,29 @@ func getSqlPtrType(typ reflect.Type) interface{} {
 		return new(sql.NullInt64)
 	case "float32", "float64":
 		return new(sql.NullFloat64)
-	case "time.Time", "mysql.NullTime":
+	case "time.Time":
 		return new(sql.NullTime)
+	case "sql.RawBytes":
+		return new(sql.RawBytes)
+	case "mysql.NullTime":
+		return new(mysql.NullTime)
 	}
-	log.Info("not support  type %v", typ)
+	log.Debug("not support  type %v", typ)
 	return new(sql.NullString)
 }
 
 func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
 	switch typ.String() {
-	case "string", "sql.RawBytes":
+	case "string":
 		pval, ok := ptr.(*sql.NullString)
 		if ok && pval.Valid {
 			return pval.String, nil
+		}
+		return "", nil
+	case "sql.RawBytes":
+		pval, ok := ptr.(*sql.RawBytes)
+		if ok {
+			return string(*pval), nil
 		}
 		return "", nil
 	case "bool":
@@ -166,7 +177,7 @@ func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
 			return uint32(pval.Int32), nil
 		}
 		return uint32(0), nil
-	case "int64":
+	case "int64", "sql.NullInt64":
 		pval, ok := ptr.(*sql.NullInt64)
 		if ok && pval.Valid {
 			return pval.Int64, nil
@@ -190,8 +201,14 @@ func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
 			return pval.Float64, nil
 		}
 		return float64(0.0), nil
-	case "time.Time", "mysql.NullTime":
+	case "time.Time":
 		pval, ok := ptr.(*sql.NullTime)
+		if ok && pval.Valid {
+			return pval.Time, nil
+		}
+		return time.Time{}, nil
+	case "mysql.NullTime":
+		pval, ok := ptr.(*mysql.NullTime)
 		if ok && pval.Valid {
 			return pval.Time, nil
 		}

@@ -161,7 +161,7 @@ func main() {
  		log.Error("select failed: %v", err)
  	} else {
  		for _, row := range rs {
- 			log.Info("row: %v", utils.ToJson(row))
+ 			log.Info("row: %v", types.ToJson(row))
  		}
  	}
  }

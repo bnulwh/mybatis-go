@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	log "github.com/astaxie/beego/logs"
 	"reflect"
@@ -17,12 +18,21 @@ const (
 	DeleteSQL SqlFunctionType = "delete"
 	InsertSQL SqlFunctionType = "insert"
 )
+
 func GetShortName(name string) string {
 	pos := strings.LastIndex(name, ".")
 	if pos > 0 {
 		return name[pos+1:]
 	}
 	return name
+}
+func ToJson(v interface{}) string {
+	dt, err := json.Marshal(v)
+	if err != nil {
+		fmt.Printf("to json failed: %v", err)
+		return ""
+	}
+	return string(dt)
 }
 
 func parseSqlFunctionType(tps string) SqlFunctionType {
@@ -41,7 +51,7 @@ func parseSqlFunctionType(tps string) SqlFunctionType {
 	return SelectSQL
 }
 
-func getFormatString(ms string) string  {
+func getFormatString(ms string) string {
 	var buf bytes.Buffer
 	if strings.Compare(ms[0:1], "'") != 0 {
 		buf.WriteString("'")
@@ -76,7 +86,6 @@ func buildKey(key string) string {
 	return strings.ToLower(strings.TrimSpace(key))
 }
 
-
 func parseResultTypeFrom(tps string) reflect.Type {
 	switch strings.ToUpper(GetShortName(tps)) {
 	case "VARCHAR", "STRING":
@@ -107,7 +116,7 @@ func parseJdbcTypeFrom(tps string) reflect.Type {
 	case "DOUBLE":
 		return reflect.TypeOf(0.0)
 	default:
-		log.Warn("unsupport type to parse: %v", tps)
+		log.Warn("unsupport jdbc type to parse: %v", tps)
 	}
 	return reflect.TypeOf("")
 }
@@ -163,6 +172,6 @@ func validValue(m interface{}) bool {
 		val := reflect.ValueOf(m)
 		return val.Len() > 0
 	}
-	log.Warn("not support valid type %v", typ)
+	log.Warn("not support valid value: %v ,type: %v", m, typ)
 	return true
 }

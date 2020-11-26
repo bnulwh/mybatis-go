@@ -12,7 +12,8 @@ type SqlResult struct {
 }
 
 func parseSqlResultFromXmlAttrs(attrs map[string]xml.Attr, rms map[string]*ResultMap) SqlResult {
-	log.Info("begin parse sql result from: %v", attrs)
+	log.Debug("--begin parse sql result from: %v", ToJson(attrs))
+	defer log.Debug("--finish parse sql result from: %v", ToJson(attrs))
 	attr, ok := attrs["resultMap"]
 	if ok {
 		return parseSqlResult0(attr.Value, rms)

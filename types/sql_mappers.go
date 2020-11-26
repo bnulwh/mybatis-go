@@ -17,7 +17,7 @@ func NewSqlMappers(dir string) *SqlMappers {
 	var mps []SqlMapper
 	nmp := map[string]*SqlMapper{}
 	for _, filename := range filenames {
-		log.Info("begin parse mapper file: %v", filename)
+		log.Debug("begin parse mapper file: %v", filename)
 		mp := loadMapper(filename)
 		if mp != nil {
 			mps = append(mps, *mp)

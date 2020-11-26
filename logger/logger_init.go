@@ -39,7 +39,7 @@ func Initialize(logName string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	err = log.SetLogger(log.AdapterConsole, `{"level":6}`)
+	err = log.SetLogger(log.AdapterConsole, `{"level":7}`)
 	if err != nil {
 		fmt.Println(err)
 	}

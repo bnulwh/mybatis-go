@@ -20,7 +20,7 @@ type ResultMap struct {
 func (in *ResultMap) GenerateFile(dir, pkg string) error {
 	sname := GetShortName(in.TypeName)
 	filename := filepath.Join(dir, fmt.Sprintf("%s.go", sname))
-	log.Info("generate file %v", filename)
+	log.Debug("generate file %v", filename)
 	bts := in.generateContent(pkg)
 	return ioutil.WriteFile(filename, bts, 0640)
 }
@@ -55,6 +55,8 @@ func (in *ResultMap) hasTimeItem() bool {
 }
 
 func parseResultMapFromXmlNode(node xmlNode) *ResultMap {
+	log.Debug("begin parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
+	defer log.Debug("finish parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
 	id := node.Id
 	tn := node.Attrs["type"].Value
 	var arr []*ResultItem

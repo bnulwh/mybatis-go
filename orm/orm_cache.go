@@ -69,7 +69,7 @@ func RegisterModel(inPtr interface{}) {
 	if typ.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("<orm.RegisterModel> only allow ptr model struct,it looks you use two reference to the struct `%s`", fn))
 	}
-	log.Info("register  model struct `%s`", fn)
+	log.Debug("register  model struct `%s`", fn)
 	gCache.addModel(typ)
 }
 func RegisterMapper(inPtr interface{}) {
@@ -82,7 +82,7 @@ func RegisterMapper(inPtr interface{}) {
 	if typ.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("<orm.RegisterMapper> only allow ptr mapper struct,it looks you use two reference to the struct `%s`", fn))
 	}
-	log.Info("register  mapper struct `%s`", fn)
+	log.Debug("register  mapper struct `%s`", fn)
 	_, ok := typ.FieldByName("BaseMapper")
 	if !ok {
 		panic(fmt.Sprintf("<orm.RegisterMapper> can only use mapper struct `%s` based on <orm.BaseMapper>", fn))
@@ -138,21 +138,21 @@ func bindMapper(name string, value reflect.Value) {
 		methodFieldCheck(&outTyp, &funcField, true)
 		//执行期
 		var proxyFunc = func(arg ProxyArg) []reflect.Value {
-			var returnValue *reflect.Value = nil
-			//build return Type
-			if returnType.ReturnOutType != nil {
-				var returnV = reflect.New(*returnType.ReturnOutType)
-				switch (*returnType.ReturnOutType).Kind() {
-				case reflect.Map:
-					returnV.Elem().Set(reflect.MakeMap(*returnType.ReturnOutType))
-				case reflect.Slice:
-					returnV.Elem().Set(reflect.MakeSlice(*returnType.ReturnOutType, 0, 0))
-				}
-				returnValue = &returnV
-			}
+			//var returnValue *reflect.Value = nil
+			////build return Type
+			//if returnType.ReturnOutType != nil {
+			//	var returnV = reflect.New(*returnType.ReturnOutType)
+			//	switch (*returnType.ReturnOutType).Kind() {
+			//	case reflect.Map:
+			//		returnV.Elem().Set(reflect.MakeMap(*returnType.ReturnOutType))
+			//	case reflect.Slice:
+			//		returnV.Elem().Set(reflect.MakeSlice(*returnType.ReturnOutType, 0, 0))
+			//	}
+			//	returnValue = &returnV
+			//}
 			//exe sql
-			var e = bm.executeMethod(sqlFunc, arg, returnValue)
-			return buildReturnValues(returnType, returnValue, e)
+			rv, e := bm.executeMethod(sqlFunc, arg)
+			return buildReturnValues(returnType, rv, e)
 		}
 		return proxyFunc
 

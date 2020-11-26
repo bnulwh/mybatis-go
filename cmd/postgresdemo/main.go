@@ -4,7 +4,7 @@ import (
 	log "github.com/astaxie/beego/logs"
 	"github.com/bnulwh/mybatis-go/logger"
 	"github.com/bnulwh/mybatis-go/orm"
-	"github.com/bnulwh/mybatis-go/utils"
+	"github.com/bnulwh/mybatis-go/types"
 	_ "github.com/lib/pq"
 	"time"
 )
@@ -46,7 +46,7 @@ func main() {
 		log.Error("select failed: %v", err)
 	} else {
 		for _, row := range rs {
-			log.Info("row: %v", utils.ToJson(row))
+			log.Info("row: %v", types.ToJson(row))
 		}
 	}
 }

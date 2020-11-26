@@ -1,6 +1,7 @@
 package types
 
 import (
+	log "github.com/astaxie/beego/logs"
 	"reflect"
 	"strings"
 )
@@ -13,6 +14,7 @@ type ResultItem struct {
 }
 
 func parseResultItemFromXmlNode(elem xmlElement) *ResultItem {
+	log.Debug("--parse result item from: %v",ToJson(elem))
 	xn := elem.Val.(xmlNode)
 	bpk := strings.Compare(xn.Name, "id") == 0
 	col := xn.Attrs["column"].Value

@@ -25,7 +25,8 @@ type SqlParam struct {
 }
 
 func parseSqlParamFromXmlAttrs(attrs map[string]xml.Attr) SqlParam {
-	log.Info("parse sql param from: %v", attrs)
+	log.Debug("--begin parse sql param from: %v", ToJson(attrs))
+	defer log.Debug("--finish parse sql param from: %v", ToJson(attrs))
 	attr, ok := attrs["parameterType"]
 	if !ok {
 		return SqlParam{Need: false}
@@ -41,6 +42,7 @@ func parseSqlParamFromXmlAttrs(attrs map[string]xml.Attr) SqlParam {
 }
 
 func (in *SqlParam) validParam(args []interface{}) error {
+	log.Debug("sql param valid param %v", args)
 	if !in.Need {
 		return nil
 	}

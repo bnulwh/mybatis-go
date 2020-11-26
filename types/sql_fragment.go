@@ -27,7 +27,7 @@ type SqlFragment struct {
 }
 
 func (in *SqlFragment) generateSqlWithSlice(mapper *SqlMapper, m []interface{}, depth int) string {
-	log.Info("sql fragment generate sql with slice : %v  depth: %v", m, depth)
+	log.Debug("sql fragment [%v] generate sql with slice : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case SimpleSQL:
 		if in.Sql != nil {
@@ -52,7 +52,7 @@ func (in *SqlFragment) generateSqlWithSlice(mapper *SqlMapper, m []interface{}, 
 	return ""
 }
 func (in *SqlFragment) generateSqlWithMap(mapper *SqlMapper, m map[string]interface{}, depth int) string {
-	log.Info("sql fragment generate sql with map : %v  depth: %v", m, depth)
+	log.Debug("sql fragment [%v] generate sql with map : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case SimpleSQL:
 		if in.Sql != nil {
@@ -86,7 +86,7 @@ func (in *SqlFragment) generateSqlWithMap(mapper *SqlMapper, m map[string]interf
 }
 
 func (in *SqlFragment) generateSqlWithParam(mapper *SqlMapper, m interface{}) string {
-	log.Info("sql fragment generate sql with param : %v  ", m)
+	log.Debug("sql fragment [%v] generate sql with param : %v  ", in.Type, m)
 	switch in.Type {
 	case SimpleSQL:
 		if in.Sql != nil {
@@ -111,7 +111,7 @@ func (in *SqlFragment) generateSqlWithParam(mapper *SqlMapper, m interface{}) st
 }
 
 func (in *SqlFragment) generateSqlWithoutParam(mapper *SqlMapper) string {
-	log.Info("sql fragment generate sql without param ")
+	log.Debug("sql fragment [%v] generate sql without param ",in.Type)
 	switch in.Type {
 	case SimpleSQL:
 		if in.Sql != nil {
@@ -132,8 +132,9 @@ func (in *SqlFragment) generateSqlWithoutParam(mapper *SqlMapper) string {
 }
 
 func parseSqlFragmentFromXmlElement(elem xmlElement, sns map[string]*SqlElement) *SqlFragment {
-	log.Info("++begin parse sql fragment from element: %v", elem)
-	defer log.Info("++finish parse sql fragment from element: %v", elem)
+	log.Debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+	log.Debug("++begin parse sql fragment from element: %v", ToJson(elem))
+	defer log.Debug("++finish parse sql fragment from element: %v", ToJson(elem))
 	switch elem.ElementType {
 	case xmlTextElem:
 		return &SqlFragment{

@@ -56,7 +56,7 @@ type SqlChoose struct {
 }
 
 func (in *SqlForLoop) generateSql(mapper *SqlMapper, mp map[string]interface{}, items []interface{}, depth int) string {
-	log.Info("sql for loop generate sql params: %v %v depth: %v", mp, items, depth)
+	log.Debug("sql for loop generate sql params: %v %v depth: %v", mp, items, depth)
 	if items == nil || len(items) == 0 {
 		return ""
 	}
@@ -99,12 +99,12 @@ func (in *SqlForLoop) buildParams(index int, item interface{}, mp map[string]int
 		reflect.Float32, reflect.Float64:
 		nmp[buildKey(in.Item)] = getFormatValue(item)
 	}
-	log.Info("build param result: %v", nmp)
+	log.Debug("build param result: %v", nmp)
 	return nmp
 }
 
 func (in *SqlIfTest) generateSqlWithSlice(mapper *SqlMapper, m []interface{}, depth int) string {
-	log.Info("sql if test generate sql with slice : %v  depth: %v", m, depth)
+	log.Debug("sql if test generate sql with slice : %v  depth: %v", m, depth)
 	if len(m) < 1 {
 		return ""
 	}
@@ -117,14 +117,14 @@ func (in *SqlIfTest) generateSqlWithSlice(mapper *SqlMapper, m []interface{}, de
 		case ForLoopSQL:
 			buf.WriteString(item.ForLoop.generateSql(mapper, map[string]interface{}{}, m, depth+1))
 		default:
-			log.Warn("unsupport type %v", item.Type)
+			log.Warn("unsupport if test type %v", item.Type)
 		}
 	}
 	return buf.String()
 }
 
 func (in *SqlIfTest) generateSqlWithMap(mapper *SqlMapper, mp map[string]interface{}, depth int) string {
-	log.Info("sql if test generate sql with map : %v depth: %v", mp, depth)
+	log.Debug("sql if test generate sql with map : %v depth: %v", mp, depth)
 	bv := in.checkConditions(mp)
 	if !bv {
 		return ""
@@ -138,7 +138,7 @@ func (in *SqlIfTest) generateSqlWithMap(mapper *SqlMapper, mp map[string]interfa
 }
 
 func (in *SqlIfTest) generateSqlWithParam(mapper *SqlMapper, m interface{}) string {
-	log.Info("sql if test generate sql with param: %v", m)
+	log.Debug("sql if test generate sql with param: %v", m)
 	var buf bytes.Buffer
 	for _, item := range in.Sql {
 		buf.WriteString(" ")
@@ -147,7 +147,7 @@ func (in *SqlIfTest) generateSqlWithParam(mapper *SqlMapper, m interface{}) stri
 	return buf.String()
 }
 func (in *SqlIfTest) checkConditions(m map[string]interface{}) bool {
-	log.Info("sql if test check conditions with param: %v", m)
+	log.Debug("sql if test check conditions with param: %v", m)
 	for _, cond := range in.Conditions {
 		bv := cond.checkValue(m)
 		if !bv {
@@ -157,7 +157,7 @@ func (in *SqlIfTest) checkConditions(m map[string]interface{}) bool {
 	return true
 }
 func (in *IfCondition) checkValue(m map[string]interface{}) bool {
-	log.Info("if condition %v check value: %v", in.CheckName, m)
+	log.Debug("if condition %v check value: %v", in.CheckName, m)
 	val, ok := m[buildKey(in.CheckName)]
 	if !ok {
 		return false
@@ -169,7 +169,7 @@ func (in *IfCondition) checkValue(m map[string]interface{}) bool {
 }
 
 func (in *SqlChoose) generateSqlWithMap(mapper *SqlMapper, mp map[string]interface{}, depth int) string {
-	log.Info("sql choose generate sql with map: %v", mp)
+	log.Debug("sql choose generate sql with map: %v", mp)
 	for _, item := range in.When {
 		if item.checkConditions(mp) {
 			return item.generateSqlWithMap(mapper, mp, depth+1)
@@ -178,7 +178,7 @@ func (in *SqlChoose) generateSqlWithMap(mapper *SqlMapper, mp map[string]interfa
 	return in.Otherwise.generateSqlWithMap(mapper, mp, depth+1)
 }
 func (in *SimpleSql) generateSqlWithMap(mapper *SqlMapper, mp map[string]interface{}, depth int) string {
-	log.Info("simple sql generate sql with map: %v", mp)
+	log.Debug("simple sql generate sql with map: %v", mp)
 	sqlstr := in.Sql
 	for _, param := range in.Params {
 		key := buildKey(param.Name)
@@ -193,7 +193,7 @@ func (in *SimpleSql) generateSqlWithMap(mapper *SqlMapper, mp map[string]interfa
 	return sqlstr
 }
 func (in *SimpleSql) generateSqlWithParam(mapper *SqlMapper, m interface{}) string {
-	log.Info("sql if test generate sql with param: %v", m)
+	log.Debug("sql if test generate sql with param: %v", m)
 	sqlstr := in.Sql
 	valstr := getFormatValue(m)
 	for _, param := range in.Params {

@@ -72,9 +72,9 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 }
 
 func loadMapper(filename string) *SqlMapper {
-	log.Info("--------------------------------------------------")
-	log.Info("begin load mapper from %v", filename)
-	defer log.Info("finish load mapper from %v", filename)
+	log.Debug("--------------------------------------------------")
+	log.Debug("begin load mapper from %v", filename)
+	defer log.Debug("finish load mapper from %v", filename)
 	node := parseXmlFile(filename)
 	if node == nil {
 		log.Warn("parse xml file %v failed", filename)
