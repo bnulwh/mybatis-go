@@ -58,41 +58,41 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 	return reflect.Value{}, nil
 }
 
-func (in *BaseMapper) fetchExecuteFunc(name string) ExecuteFunc {
-	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
-	if !ok {
-		panic(fmt.Sprintf("%s not contains function %s", in.mapper.Namespace, name))
-	}
-	if item.Type == types.SelectSQL {
-		panic(fmt.Sprintf("%s.%s  function define select operation", in.mapper.Namespace, name))
-	}
-	return func(args ...interface{}) (int64, int64, error) {
-		gLock.Lock()
-		defer gLock.Unlock()
-		sqlStr, err := item.GenerateSQL(in.mapper, args)
-		if err != nil {
-			return 0, 0, err
-		}
-		log.Debug("sql: %v", sqlStr)
-		if len(sqlStr) == 0 {
-			return 0, 0, fmt.Errorf("generate sql failed. args: %v", args)
-		}
-		stmt, err := gDbConn.Prepare(sqlStr)
-		if err != nil {
-			log.Error("prepare sql %v failed: %v", sqlStr, err)
-			return 0, 0, err
-		}
-		defer closeStmt(stmt)
-		result, err := stmt.Exec()
-		if err != nil {
-			log.Error("execute sql %v failed: %v", sqlStr, err)
-			return 0, 0, err
-		}
-		affected, _ := result.RowsAffected()
-		id, _ := result.LastInsertId()
-		return affected, id, nil
-	}
-}
+// func (in *BaseMapper) fetchExecuteFunc(name string) ExecuteFunc {
+// 	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
+// 	if !ok {
+// 		panic(fmt.Sprintf("%s not contains function %s", in.mapper.Namespace, name))
+// 	}
+// 	if item.Type == types.SelectSQL {
+// 		panic(fmt.Sprintf("%s.%s  function define select operation", in.mapper.Namespace, name))
+// 	}
+// 	return func(args ...interface{}) (int64, int64, error) {
+// 		gLock.Lock()
+// 		defer gLock.Unlock()
+// 		sqlStr, err := item.GenerateSQL(in.mapper, args)
+// 		if err != nil {
+// 			return 0, 0, err
+// 		}
+// 		log.Debug("sql: %v", sqlStr)
+// 		if len(sqlStr) == 0 {
+// 			return 0, 0, fmt.Errorf("generate sql failed. args: %v", args)
+// 		}
+// 		stmt, err := gDbConn.Prepare(sqlStr)
+// 		if err != nil {
+// 			log.Error("prepare sql %v failed: %v", sqlStr, err)
+// 			return 0, 0, err
+// 		}
+// 		defer closeStmt(stmt)
+// 		result, err := stmt.Exec()
+// 		if err != nil {
+// 			log.Error("execute sql %v failed: %v", sqlStr, err)
+// 			return 0, 0, err
+// 		}
+// 		affected, _ := result.RowsAffected()
+// 		id, _ := result.LastInsertId()
+// 		return affected, id, nil
+// 	}
+// }
 
 //func (in *BaseMapper) fetchQueryRowFunc(name string) QueryRowFunc {
 //	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
