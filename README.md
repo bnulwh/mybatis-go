@@ -63,11 +63,11 @@ import (
 
 type UserInfoModelMapper struct {
 	orm.BaseMapper
-	DeleteByPrimaryKey 	orm.ExecuteFunc
-	Insert 	orm.ExecuteFunc
-	UpdateByPrimaryKey 	orm.ExecuteFunc
-	SelectByPrimaryKey 	orm.QueryRowsFunc
-	SelectAll 	orm.QueryRowsFunc
+	DeleteByPrimaryKey func(int32) (int64, error) `args:id`
+	Insert             func(UserInfoModel) (int64, error)
+	UpdateByPrimaryKey func(UserInfoModel) (int64, error)
+	SelectByPrimaryKey func(int32) ([]UserInfoModel, error) `args:id`
+	SelectAll          func() ([]UserInfoModel, error)
 }
 
 func init() {
@@ -77,9 +77,9 @@ func init() {
 ```
 注意：
 * orm.BaseMapper为dao/mapper的父类
-* orm.ExecuteFunc表示insert/delete/update相关操作函数，由于golang的继承和函数机制，采用预定义函数接口的方式实现
-* orm.QueryRowsFunc表示select函数，返回多条记录和错误
-* orm.QueryRowFunc表示select函数，返回单条记录和错误
+* Mapper struct的各个func类型属性会在生成时赋值，对应XML中的SQL函数
+* func类型的返回值个数只能有两个，SELECT类型的为返回的查询结果和error类型，INSERT/UPDATE/DELETE类型的返回值要求为int64和error类型
+* func类型属性的tag字段可以用来标示输入参数的名称
 
 ## 确保配置文件正确
 
@@ -132,11 +132,11 @@ type UserInfoModel struct {
 ```
 type UserInfoModelMapper struct {
  	orm.BaseMapper
- 	DeleteByPrimaryKey orm.ExecuteFunc
- 	Insert             orm.ExecuteFunc
- 	UpdateByPrimaryKey orm.ExecuteFunc
- 	SelectByPrimaryKey orm.QueryRowsFunc
- 	SelectAll          orm.QueryRowsFunc
+	DeleteByPrimaryKey func(int32) (int64, error)
+	Insert             func(UserInfoModel) (int64, error)
+	UpdateByPrimaryKey func(UserInfoModel) (int64, error)
+	SelectByPrimaryKey func(int32) ([]UserInfoModel, error)
+	SelectAll          func() ([]UserInfoModel, error)
  }
 ```
 ----
