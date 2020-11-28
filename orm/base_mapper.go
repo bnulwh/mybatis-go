@@ -143,14 +143,14 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 //	}
 //}
 
-func fillReturnValueWithSlice(results reflect.Value, returnValue *reflect.Value) {
-	returnValue = &results
-}
-
-func fillReturnValueWithSqlResult(result sql.Result, returnValue *reflect.Value) {
-	rf, _ := result.RowsAffected()
-	*returnValue = reflect.ValueOf(&rf)
-}
+//func fillReturnValueWithSlice(results reflect.Value, returnValue *reflect.Value) {
+//	returnValue = &results
+//}
+//
+//func fillReturnValueWithSqlResult(result sql.Result, returnValue *reflect.Value) {
+//	rf, _ := result.RowsAffected()
+//	*returnValue = reflect.ValueOf(&rf)
+//}
 
 func closeStmt(stmt *sql.Stmt) {
 	err := stmt.Close()
@@ -200,8 +200,8 @@ func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, resInfo types.SqlResu
 
 		results = reflect.Append(results, reflect.ValueOf(result))
 	}
-	log.Info("results: %v", types.ToJson(results.Interface()))
-	log.Info("results ptr: %v", types.ToJson(reflect.Indirect(resultsPtr).Interface()))
+	log.Debug("results: %v", types.ToJson(results.Interface()))
+	//log.Info("results ptr: %v", types.ToJson(reflect.Indirect(resultsPtr).Interface()))
 	return results
 }
 func prepareColumns(colTypes []*sql.ColumnType) []interface{} {

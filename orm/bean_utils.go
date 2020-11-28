@@ -68,7 +68,7 @@ func methodFieldCheck(beanType *reflect.Type, methodType *reflect.StructField, w
 	}
 
 	var args = methodType.Tag.Get("args")
-	if methodType.Type.NumOut() > 1 && args == "" {
+	if methodType.Type.NumIn() > 1 && args == "" {
 		if warning {
 			log.Warn("[mybatis-go] warning ======================== " + (*beanType).Name() + "." + methodType.Name + "() have not define tag args:\"\",maybe can not get param value!")
 		}

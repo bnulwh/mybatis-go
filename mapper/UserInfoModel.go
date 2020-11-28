@@ -1,4 +1,4 @@
-package temp
+package mapper
 
 import(
 	"github.com/bnulwh/mybatis-go/orm"
