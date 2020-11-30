@@ -9,8 +9,8 @@ import (
 )
 
 type ormCache struct {
-	modelCache  map[string]reflect.Type
-	mapperCache map[string]reflect.Type
+	models  modelCache
+	mappers mapperCache
 }
 
 var (
@@ -19,76 +19,25 @@ var (
 
 func init() {
 	gCache = ormCache{
-		modelCache:  map[string]reflect.Type{},
-		mapperCache: map[string]reflect.Type{},
+		models:  modelCache{Models: map[string]reflect.Type{}},
+		mappers: mapperCache{Mappers: map[string]*mapperInfo{}},
 	}
 }
 
-func (in *ormCache) addModel(typ reflect.Type) {
-	name := typ.Name()
-	sn := types.GetShortName(name)
-	in.modelCache[name] = typ
-	in.modelCache[strings.ToLower(name)] = typ
-	in.modelCache[sn] = typ
-	in.modelCache[strings.ToLower(sn)] = typ
-	in.modelCache[getFullName(typ)] = typ
-}
-func (in *ormCache) addMapper(typ reflect.Type) {
-	name := typ.Name()
-	sn := types.GetShortName(name)
-	in.mapperCache[name] = typ
-	in.mapperCache[strings.ToLower(name)] = typ
-	in.mapperCache[sn] = typ
-	in.mapperCache[strings.ToLower(sn)] = typ
-	in.mapperCache[getFullName(typ)] = typ
-}
 
 func (in *ormCache) createModel(name string) (reflect.Value, error) {
-	typ, ok := in.modelCache[strings.ToLower(strings.TrimSpace(name))]
-	if !ok {
-		return reflect.ValueOf(-1), fmt.Errorf("model type %s not registered!!!", name)
-	}
-	return reflect.New(typ), nil
+	return in.models.createModel(name)
 }
 
 func (in *ormCache) createMapper(name string) (reflect.Value, error) {
-	typ, ok := in.mapperCache[strings.ToLower(strings.TrimSpace(name))]
-	if !ok {
-		return reflect.ValueOf(-1), fmt.Errorf("mapper type %s not registered!!!", name)
-	}
-	return reflect.New(typ), nil
+	return in.mappers.createMapper(name)
 }
 
 func RegisterModel(inPtr interface{}) {
-	val := reflect.ValueOf(inPtr)
-	typ := reflect.Indirect(val).Type()
-	fn := getFullName(typ)
-	if val.Kind() != reflect.Ptr {
-		panic(fmt.Sprintf("<orm.RegisterModel> cannot use non-ptr model struct `%s`", fn))
-	}
-	if typ.Kind() == reflect.Ptr {
-		panic(fmt.Sprintf("<orm.RegisterModel> only allow ptr model struct,it looks you use two reference to the struct `%s`", fn))
-	}
-	log.Debug("register  model struct `%s`", fn)
-	gCache.addModel(typ)
+	gCache.models.registerModel(inPtr)
 }
 func RegisterMapper(inPtr interface{}) {
-	val := reflect.ValueOf(inPtr)
-	typ := reflect.Indirect(val).Type()
-	fn := getFullName(typ)
-	if val.Kind() != reflect.Ptr {
-		panic(fmt.Sprintf("<orm.RegisterMapper> cannot use non-ptr mapper struct `%s`", fn))
-	}
-	if typ.Kind() == reflect.Ptr {
-		panic(fmt.Sprintf("<orm.RegisterMapper> only allow ptr mapper struct,it looks you use two reference to the struct `%s`", fn))
-	}
-	log.Debug("register  mapper struct `%s`", fn)
-	_, ok := typ.FieldByName("BaseMapper")
-	if !ok {
-		panic(fmt.Sprintf("<orm.RegisterMapper> can only use mapper struct `%s` based on <orm.BaseMapper>", fn))
-	}
-	beanCheck(val)
-	gCache.addMapper(typ)
+	gCache.mappers.registerMapper(inPtr)
 }
 
 func NewMapper(name string) interface{} {

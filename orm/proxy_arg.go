@@ -18,6 +18,24 @@ type ProxyArg struct {
 	ArgsLen    int
 }
 
+func parseTagArgs(tagstr string) []TagArg {
+	var tagArgs = make([]TagArg, 0)
+	if len(tagstr) == 0 {
+		return tagArgs
+	}
+	tagParams := strings.Split(tagstr, `,`)
+	if len(tagParams) != 0 {
+		for index, v := range tagParams {
+			var tagArg = TagArg{
+				Index: index,
+				Name:  v,
+			}
+			tagArgs = append(tagArgs, tagArg)
+		}
+	}
+	return tagArgs
+}
+
 func (it ProxyArg) New(tagArgs []TagArg, args []reflect.Value) ProxyArg {
 	return ProxyArg{
 		TagArgs:    tagArgs,
@@ -84,21 +102,21 @@ func buildProxy(v reflect.Value, buildFunc func(funcField reflect.StructField, f
 	}
 	count := obj.NumField()
 	for i := 0; i < count; i++ {
-		f := obj.Field(i)
-		ft := f.Type()
-		sf := et.Field(i)
-		if ft.Kind() == reflect.Ptr {
-			ft = ft.Elem()
+		fieldVal := obj.Field(i)
+		fieldTyp := fieldVal.Type()
+		sructField := et.Field(i)
+		if fieldTyp.Kind() == reflect.Ptr {
+			fieldTyp = fieldTyp.Elem()
 		}
-		if f.CanSet() {
-			switch ft.Kind() {
+		if fieldVal.CanSet() {
+			switch fieldTyp.Kind() {
 			case reflect.Struct:
 				if buildFunc != nil {
-					buildProxy(f, buildFunc) //循环扫描
+					buildProxy(fieldVal, buildFunc) //循环扫描
 				}
 			case reflect.Func:
 				if buildFunc != nil {
-					buildRemoteMethod(v, f, ft, sf, buildFunc(sf, f))
+					buildRemoteMethod(v, fieldVal, fieldTyp, sructField, buildFunc(sructField, fieldVal))
 				}
 			}
 		}
@@ -110,29 +128,14 @@ func buildProxy(v reflect.Value, buildFunc func(funcField reflect.StructField, f
 	}
 }
 
-func buildRemoteMethod(source reflect.Value, f reflect.Value, ft reflect.Type, sf reflect.StructField, proxyFunc func(arg ProxyArg) []reflect.Value) {
-	var tagParams []string
-	var args = sf.Tag.Get(`args`)
-	if args != `` {
-		tagParams = strings.Split(args, `,`)
-	}
-	var tagParamsLen = len(tagParams)
-	if tagParamsLen > ft.NumIn() {
-		panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + sf.Name)
-	}
-	var tagArgs = make([]TagArg, 0)
-	if tagParamsLen != 0 {
-		for index, v := range tagParams {
-			var tagArg = TagArg{
-				Index: index,
-				Name:  v,
-			}
-			tagArgs = append(tagArgs, tagArg)
-		}
+func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp reflect.Type, sructField reflect.StructField, proxyFunc func(arg ProxyArg) []reflect.Value) {
+	var tagArgs = parseTagArgs(sructField.Tag.Get(`args`))
+	if len(tagArgs) > fieldTyp.NumIn() {
+		panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + sructField.Name)
 	}
 	var tagArgsLen = len(tagArgs)
-	if tagArgsLen > 0 && ft.NumIn() != tagArgsLen {
-		panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + sf.Name)
+	if tagArgsLen > 0 && fieldTyp.NumIn() != tagArgsLen {
+		panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + sructField.Name)
 	}
 	var fn = func(args []reflect.Value) (results []reflect.Value) {
 		proxyResults := proxyFunc(ProxyArg{}.New(tagArgs, args))
@@ -141,13 +144,13 @@ func buildRemoteMethod(source reflect.Value, f reflect.Value, ft reflect.Type, s
 		}
 		return results
 	}
-	if f.Kind() == reflect.Ptr {
-		fp := reflect.New(ft)
-		fp.Elem().Set(reflect.MakeFunc(ft, fn))
-		f.Set(fp)
+	if fieldVal.Kind() == reflect.Ptr {
+		fp := reflect.New(fieldTyp)
+		fp.Elem().Set(reflect.MakeFunc(fieldTyp, fn))
+		fieldVal.Set(fp)
 	} else {
-		f.Set(reflect.MakeFunc(ft, fn))
+		fieldVal.Set(reflect.MakeFunc(fieldTyp, fn))
 	}
 	//println("[mybatis-go] write method success:" + source.Type().Name() + " > " + sf.Name + " " + f.Type().String())
-	tagParams = nil
+	//tagParams = nil
 }
