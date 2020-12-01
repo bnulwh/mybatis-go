@@ -34,6 +34,7 @@ func getFunctions(typ reflect.Type) []*funcInfo {
 		if fieldType.Kind() != reflect.Func {
 			continue
 		}
+		methodFieldCheck(&typ, &fieldType, true)
 		infos = append(infos, &funcInfo{
 			Name: fieldName,
 			Type: fieldType,

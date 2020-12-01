@@ -84,7 +84,7 @@ func bindMapper(name string, value reflect.Value) {
 		if err != nil {
 			panic(err)
 		}
-		methodFieldCheck(&outTyp, &funcField, true)
+		// methodFieldCheck(&outTyp, &funcField, true)
 		//执行期
 		var proxyFunc = func(arg ProxyArg) []reflect.Value {
 			//var returnValue *reflect.Value = nil
