@@ -13,6 +13,42 @@ type BaseMapper struct {
 	mapper *types.SqlMapper
 }
 
+func Execute(sqlStr string,args ...interface{}) (int64,error){
+	gLock.Lock()
+	defer gLock.Unlock()	
+	return execute(sqlStr,args...)
+}
+func Query(sqlStr string,args ...interface{}) ([]map[string]interface{},error){
+	gLock.Lock()
+	defer gLock.Unlock()
+	log.Info("sql: %v", sqlStr)
+	results, err := queryRows(sqlStr, types.SqlResult{
+		ResultM: nil,
+		ResultT: reflect.TypeOf(map[string]interface{}{}),
+	},args...)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("results: %v", types.ToJson(results.Interface()))
+	log.Info("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
+	return results.Interface(), nil
+}
+func Execute(sqlStr string,args ...interface{}) (int64,error){
+	log.Info("sql: %v", sqlStr)
+	stmt, err := gDbConn.Prepare(sqlStr)
+	if err != nil {
+		log.Error("prepare sql %v failed: %v", sqlStr, err)
+		return 0, err
+	}
+	defer closeStmt(stmt)
+	result, err := stmt.Exec(args...)
+	if err != nil {
+		log.Error("execute sql %v failed: %v", sqlStr, err)
+		return 0, err
+	}
+	rf, _ := result.RowsAffected()
+	return rf, nil
+}
 func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) {
 	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
 	if !ok {
@@ -31,20 +67,12 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 		return reflect.Value{}, err
 	}
 	log.Info("sql: %v", sqlStr)
-	stmt, err := gDbConn.Prepare(sqlStr)
-	if err != nil {
-		log.Error("prepare sql %v failed: %v", sqlStr, err)
-		return reflect.Value{}, err
-	}
-	defer closeStmt(stmt)
 	switch sqlFunc.Type {
 	case types.InsertSQL, types.DeleteSQL, types.UpdateSQL:
-		result, err := stmt.Exec()
-		if err != nil {
-			log.Error("execute sql %v failed: %v", sqlStr, err)
-			return reflect.Value{}, err
+		rf,err := execute(sqlStr)
+		if err != nil{
+			return reflect.Value{},err
 		}
-		rf, _ := result.RowsAffected()
 		return reflect.ValueOf(rf), nil
 	case types.SelectSQL:
 		results, err := queryRows(sqlStr, sqlFunc.Result)
@@ -65,14 +93,14 @@ func closeStmt(stmt *sql.Stmt) {
 	}
 }
 
-func queryRows(sqlStr string, resInfo types.SqlResult) (reflect.Value, error) {
+func queryRows(sqlStr string, resInfo types.SqlResult,args ...interface{}) (reflect.Value, error) {
 	stmt, err := gDbConn.Prepare(sqlStr)
 	if err != nil {
 		log.Error("prepare sql %v failed: %v", sqlStr, err)
 		return reflect.Value{}, err
 	}
 	defer closeStmt(stmt)
-	rows, err := stmt.Query()
+	rows, err := stmt.Query(args...)
 	if err != nil {
 		log.Error("query sql %v failed: %v", sqlStr, err)
 		return reflect.Value{}, err
