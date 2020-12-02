@@ -24,7 +24,7 @@ func parseSqlResultFromXmlAttrs(attrs map[string]xml.Attr, rms map[string]*Resul
 	}
 	return SqlResult{
 		ResultM: nil,
-		ResultT: reflect.TypeOf(0),
+		ResultT: reflect.TypeOf(int64(0)),
 	}
 }
 

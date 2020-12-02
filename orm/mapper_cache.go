@@ -9,9 +9,12 @@ import (
 )
 
 type funcInfo struct {
-	Name string
-	Type reflect.Type
-	Tag  reflect.StructTag
+	Name       string
+	Type       reflect.Type
+	Tag        reflect.StructTag
+	ParamType  *ParamType
+	ReturnType *ReturnType
+	SqlFunc    *types.SqlFunction
 }
 
 type mapperInfo struct {
@@ -19,12 +22,32 @@ type mapperInfo struct {
 	Type           reflect.Type
 	Functions      []*funcInfo
 	NamedFunctions map[string]*funcInfo
+	SqlMapper      *types.SqlMapper
 }
 
 type mapperCache struct {
 	Mappers map[string]*mapperInfo
 }
 
+func (in *funcInfo) bindSql(f *types.SqlFunction) {
+	if in.Type.Kind() == reflect.Func {
+		in.ParamType.checkSql(f, in.Name)
+		in.ReturnType.checkSql(f, in.Name)
+		in.SqlFunc = f
+	}
+}
+
+func (in *mapperInfo) bindSql(smp *types.SqlMapper) {
+	for i, fi := range in.Functions {
+		sname := strings.ToLower(fi.Name)
+		sf, ok := smp.NamedFunctions[sname]
+		if !ok {
+			panic(fmt.Sprintf("%v.%v has no sql function to map in %v", in.Name, fi.Name, smp.Filename))
+		}
+		in.Functions[i].bindSql(sf)
+	}
+	log.Debug("%v bind sql mapper %v ok", in.Name, smp.Filename)
+}
 func getFunctions(typ reflect.Type) []*funcInfo {
 	var infos []*funcInfo
 	for i := 0; i < typ.NumField(); i++ {
@@ -37,9 +60,12 @@ func getFunctions(typ reflect.Type) []*funcInfo {
 		}
 		methodFieldCheck(&typ, &field, true)
 		infos = append(infos, &funcInfo{
-			Name: fieldName,
-			Type: fieldType,
-			Tag:  fieldTag,
+			Name:       fieldName,
+			Type:       fieldType,
+			Tag:        fieldTag,
+			ParamType:  makeParamType(fieldName, fieldType, fieldTag),
+			ReturnType: makeReturnType(fieldName, fieldType),
+			SqlFunc:    nil,
 		})
 	}
 	return infos

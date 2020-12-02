@@ -40,5 +40,5 @@ func Close() {
 			log.Error("close db error: %v", err)
 		}
 	}
-	gDone <- "done"
+	//gDone <- "done"
 }

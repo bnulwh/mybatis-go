@@ -34,8 +34,20 @@ func (in *ormCache) createMapper(name string) (reflect.Value, error) {
 	return in.mappers.createMapper(name)
 }
 
-func (in *ormCache) initSqls(dir string)  {
+func (in *ormCache) initSqls(dir string) {
 	in.sqls = types.NewSqlMappers(dir)
+	in.bindSqls()
+}
+
+func (in *ormCache) bindSqls() {
+	for name := range in.mappers.Mappers {
+		sn := types.GetShortName(name)
+		smp, ok := gCache.sqls.NamedMappers[strings.ToLower(sn)]
+		if !ok {
+			continue
+		}
+		in.mappers.Mappers[name].bindSql(smp)
+	}
 }
 
 func RegisterModel(inPtr interface{}) {
@@ -43,6 +55,9 @@ func RegisterModel(inPtr interface{}) {
 }
 func RegisterMapper(inPtr interface{}) {
 	gCache.mappers.registerMapper(inPtr)
+	if gCache.sqls != nil {
+		gCache.bindSqls()
+	}
 }
 
 func NewMapper(name string) interface{} {

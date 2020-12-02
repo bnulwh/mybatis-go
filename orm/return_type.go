@@ -1,7 +1,10 @@
 package orm
 
 import (
+	"fmt"
+	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
+	"strings"
 )
 
 type ReturnType struct {
@@ -9,6 +12,60 @@ type ReturnType struct {
 	ReturnOutType *reflect.Type
 	ReturnIndex   int //返回数据位置索引
 	NumOut        int //返回总数
+}
+
+func (in *ReturnType) checkSql(f *types.SqlFunction, name string) {
+	typ := *in.ReturnOutType
+	if typ.Kind() == reflect.Slice {
+		typ = typ.Elem()
+	}
+	if f.Result.ResultM != nil && typ.Kind() == reflect.Struct {
+		rname := types.GetShortName(f.Result.ResultM.TypeName)
+		sname := types.GetShortName(typ.Name())
+		if strings.Compare(strings.ToLower(rname), strings.ToLower(sname)) != 0 {
+			panic(fmt.Sprintf("%v check sql function %v failed, return type valid failed `%v` != `%v` ",
+				name, f.Id, f.Result.ResultM.TypeName, typ.String()))
+		}
+	} else {
+		rname := f.Result.ResultT.String()
+		sname := typ.String()
+		if strings.Compare(strings.ToLower(rname), strings.ToLower(sname)) != 0 {
+			panic(fmt.Sprintf("%v check sql function %v failed, return type valid failed `%v` != `%v`",
+				name, f.Id, f.Result.ResultT.String(), typ.String()))
+		}
+	}
+}
+
+func makeReturnType(funcName string, funcType reflect.Type) *ReturnType {
+	if funcType.Kind() != reflect.Func {
+		return nil
+	}
+	var numOut = funcType.NumOut()
+	if numOut > 2 || numOut == 0 {
+		panic("[mybatis-go] func '" + funcName + "()' return num out must = 1 or = 2!")
+	}
+	returnType := &ReturnType{
+		ReturnIndex: -1,
+		NumOut:      numOut,
+	}
+	for f := 0; f < numOut; f++ {
+		var outType = funcType.Out(f)
+		//过滤NewSession方法
+		if outType.Kind() == reflect.Ptr || (outType.Kind() == reflect.Interface && outType.String() != "error") {
+			panic("[mybatis-go] func '" + funcName + "()' return '" + outType.String() + "' can not be a 'ptr' or 'interface'!")
+		}
+		if outType.String() != "error" {
+			returnType.ReturnIndex = f
+			returnType.ReturnOutType = &outType
+		} else {
+			//error
+			returnType.ErrorType = &outType
+		}
+	}
+	if returnType.ErrorType == nil {
+		panic("[mybatis-go] func '" + funcName + "()' must return an 'error'!")
+	}
+	return returnType
 }
 
 func makeReturnTypeMap(value reflect.Type) map[string]*ReturnType {
@@ -27,36 +84,7 @@ func makeReturnTypeMap(value reflect.Type) map[string]*ReturnType {
 			}
 			continue
 		}
-
-		var numOut = funcType.NumOut()
-		if numOut > 2 || numOut == 0 {
-			panic("[mybatis-go] func '" + funcName + "()' return num out must = 1 or = 2!")
-		}
-		for f := 0; f < numOut; f++ {
-			var outType = funcType.Out(f)
-			//过滤NewSession方法
-			if outType.Kind() == reflect.Ptr || (outType.Kind() == reflect.Interface && outType.String() != "error") {
-				panic("[mybatis-go] func '" + funcName + "()' return '" + outType.String() + "' can not be a 'ptr' or 'interface'!")
-			}
-
-			var returnType = returnMap[funcName]
-			if returnType == nil {
-				returnMap[funcName] = &ReturnType{
-					ReturnIndex: -1,
-					NumOut:      numOut,
-				}
-			}
-			if outType.String() != "error" {
-				returnMap[funcName].ReturnIndex = f
-				returnMap[funcName].ReturnOutType = &outType
-			} else {
-				//error
-				returnMap[funcName].ErrorType = &outType
-			}
-		}
-		if returnMap[funcName].ErrorType == nil {
-			panic("[mybatis-go] func '" + funcName + "()' must return an 'error'!")
-		}
+		returnMap[funcName] = makeReturnType(funcName, funcType)
 	}
 	return returnMap
 }
