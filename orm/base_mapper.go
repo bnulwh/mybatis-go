@@ -33,7 +33,7 @@ func Query(sqlStr string,args ...interface{}) ([]map[string]interface{},error){
 	log.Info("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
 	return results.Interface(), nil
 }
-func Execute(sqlStr string,args ...interface{}) (int64,error){
+func execute(sqlStr string,args ...interface{}) (int64,error){
 	log.Info("sql: %v", sqlStr)
 	stmt, err := gDbConn.Prepare(sqlStr)
 	if err != nil {

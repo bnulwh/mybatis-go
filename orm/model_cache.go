@@ -28,7 +28,9 @@ func (in *modelCache) registerModel(inPtr interface{}) {
 
 func (in *modelCache) addModel(typ reflect.Type) {
 	name := typ.Name()
+	log.Debug("name: %v", name)
 	sn := types.GetShortName(name)
+	log.Debug("short name: %v", sn)
 	in.Models[name] = typ
 	in.Models[strings.ToLower(name)] = typ
 	in.Models[sn] = typ
