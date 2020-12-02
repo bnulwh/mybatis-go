@@ -22,16 +22,7 @@ func Query(sqlStr string,args ...interface{}) ([]map[string]interface{},error){
 	gLock.Lock()
 	defer gLock.Unlock()
 	log.Info("sql: %v", sqlStr)
-	results, err := queryRows(sqlStr, types.SqlResult{
-		ResultM: nil,
-		ResultT: reflect.TypeOf(map[string]interface{}{}),
-	},args...)
-	if err != nil {
-		return nil, err
-	}
-	log.Info("results: %v", types.ToJson(results.Interface()))
-	log.Info("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
-	return results.Interface(), nil
+	return queryRows(sqlStr,args...)
 }
 func execute(sqlStr string,args ...interface{}) (int64,error){
 	log.Info("sql: %v", sqlStr)
@@ -75,10 +66,11 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 		}
 		return reflect.ValueOf(rf), nil
 	case types.SelectSQL:
-		results, err := queryRows(sqlStr, sqlFunc.Result)
+		rows, err := queryRows(sqlStr)
 		if err != nil {
 			return reflect.Value{}, err
 		}
+		results := convert2Results(rows,sqlFunc.Result)
 		log.Info("results: %v", types.ToJson(results.Interface()))
 		log.Info("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
 		return results, nil
@@ -93,32 +85,29 @@ func closeStmt(stmt *sql.Stmt) {
 	}
 }
 
-func queryRows(sqlStr string, resInfo types.SqlResult,args ...interface{}) (reflect.Value, error) {
+func queryRows(sqlStr string, args ...interface{}) ( []map[string]interface{}, error) {
 	stmt, err := gDbConn.Prepare(sqlStr)
 	if err != nil {
 		log.Error("prepare sql %v failed: %v", sqlStr, err)
-		return reflect.Value{}, err
+		return nil, err
 	}
 	defer closeStmt(stmt)
 	rows, err := stmt.Query(args...)
 	if err != nil {
 		log.Error("query sql %v failed: %v", sqlStr, err)
-		return reflect.Value{}, err
+		return nil, err
 	}
 	colTypes, err := rows.ColumnTypes()
 	if err != nil {
 		log.Error("fill sql %v result failed: %v", sqlStr, err)
-		return reflect.Value{}, err
+		return nil, err
 	}
-	results := fetchRows(rows, colTypes, resInfo)
+	results := fetchRows(rows, colTypes)
 	return results, nil
 }
-func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, resInfo types.SqlResult) reflect.Value {
+func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType) []map[string]interface{} {
 	//var results []interface{}
-	itemTyp := getResultType(resInfo)
-	itemsTyp := reflect.SliceOf(itemTyp)
-	resultsPtr := reflect.New(itemsTyp)
-	results := reflect.Indirect(resultsPtr)
+	var results []map[string]interface{}
 	for rows.Next() {
 		tempItems := prepareColumns(colTypes)
 		err := rows.Scan(tempItems...)
@@ -126,12 +115,24 @@ func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, resInfo types.SqlResu
 			log.Warn("scan error: %v", err)
 			continue
 		}
-		result, err := createResult(colTypes, resInfo, tempItems)
+		mp := createMap(tempItems,colTypes)
+		results = append(results, mp)
+	}
+	log.Debug("results: %v", types.ToJson(results))
+	return results
+}
+func convert2Results(rows []map[string]interface{}, resInfo types.SqlResult) reflect.Value {
+	//var results []interface{}
+	itemTyp := getResultType(resInfo)
+	itemsTyp := reflect.SliceOf(itemTyp)
+	resultsPtr := reflect.New(itemsTyp)
+	results := reflect.Indirect(resultsPtr)
+	for _,row := range rows {
+		result, err := createResult(row,resInfo)
 		if err != nil {
 			log.Warn("fill result failed: %v", err)
 			continue
 		}
-
 		results = reflect.Append(results, reflect.ValueOf(result))
 	}
 	log.Debug("results: %v", types.ToJson(results.Interface()))
@@ -146,7 +147,7 @@ func prepareColumns(colTypes []*sql.ColumnType) []interface{} {
 	}
 	return ptrs
 }
-func createMap(colTypes []*sql.ColumnType, ptrs []interface{}) map[string]interface{} {
+func createMap(ptrs []interface{},colTypes []*sql.ColumnType ) map[string]interface{} {
 	mp := map[string]interface{}{}
 	for i, coltyp := range colTypes {
 		v, err := convertValue(ptrs[i], coltyp.ScanType())
@@ -159,7 +160,7 @@ func createMap(colTypes []*sql.ColumnType, ptrs []interface{}) map[string]interf
 	return mp
 }
 
-func convert2Result(rmp *types.ResultMap, mp map[string]interface{}) (interface{}, error) {
+func convert2Result(mp map[string]interface{},rmp *types.ResultMap) (interface{}, error) {
 	name := types.GetShortName(rmp.TypeName)
 	inst, err := gCache.createModel(name)
 	if err != nil {
@@ -177,13 +178,14 @@ func getResultType(resInfo types.SqlResult) reflect.Type {
 	}
 	return resInfo.ResultT
 }
-func createResult(colTypes []*sql.ColumnType, resInfo types.SqlResult, ptrs []interface{}) (interface{}, error) {
-	mp := createMap(colTypes, ptrs)
-	if len(ptrs) == 1 {
-		return mp[colTypes[0].Name()], nil
-	}
+func createResult(mp map[string]interface{}, resInfo types.SqlResult) (interface{}, error) {
 	if resInfo.ResultM != nil {
-		return convert2Result(resInfo.ResultM, mp)
+		return convert2Result(mp,resInfo.ResultM)
+	}
+	if resInfo.ResultT.Kind() != reflect.Map {
+		for _,v :=range mp{
+			return v,nil
+		}
 	}
 	return mp, nil
 }

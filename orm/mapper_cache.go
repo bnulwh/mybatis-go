@@ -28,13 +28,14 @@ type mapperCache struct {
 func getFunctions(typ reflect.Type) []*funcInfo {
 	var infos []*funcInfo
 	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
 		fieldName := typ.Field(i).Name
 		fieldType := typ.Field(i).Type
 		fieldTag := typ.Field(i).Tag
 		if fieldType.Kind() != reflect.Func {
 			continue
 		}
-		methodFieldCheck(&typ, &fieldType, true)
+		methodFieldCheck(&typ, &field, true)
 		infos = append(infos, &funcInfo{
 			Name: fieldName,
 			Type: fieldType,
