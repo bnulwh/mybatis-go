@@ -11,6 +11,7 @@ import (
 type ormCache struct {
 	models  modelCache
 	mappers mapperCache
+	sqls    *types.SqlMappers
 }
 
 var (
@@ -21,6 +22,7 @@ func init() {
 	gCache = ormCache{
 		models:  modelCache{Models: map[string]reflect.Type{}},
 		mappers: mapperCache{Mappers: map[string]*mapperInfo{}},
+		sqls:    nil,
 	}
 }
 
@@ -30,6 +32,10 @@ func (in *ormCache) createModel(name string) (reflect.Value, error) {
 
 func (in *ormCache) createMapper(name string) (reflect.Value, error) {
 	return in.mappers.createMapper(name)
+}
+
+func (in *ormCache) initSqls(dir string)  {
+	in.sqls = types.NewSqlMappers(dir)
 }
 
 func RegisterModel(inPtr interface{}) {
@@ -61,7 +67,7 @@ func NewMapperPtr(name string) interface{} {
 
 func bindMapper(name string, value reflect.Value) {
 	sn := types.GetShortName(name)
-	mp, ok := gMappers.NamedMappers[strings.ToLower(sn)]
+	mp, ok := gCache.sqls.NamedMappers[strings.ToLower(sn)]
 	if !ok {
 		panic(fmt.Sprintf("bind mapper struct `%s` failed,not found in xml files", name))
 	}

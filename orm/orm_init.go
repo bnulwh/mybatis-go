@@ -3,16 +3,14 @@ package orm
 import (
 	"database/sql"
 	log "github.com/astaxie/beego/logs"
-	"github.com/bnulwh/mybatis-go/types"
 	"sync"
 	"time"
 )
 
 var (
-	gDbConn  *sql.DB
-	gLock    sync.Mutex
-	gDone    chan interface{}
-	gMappers *types.SqlMappers
+	gDbConn *sql.DB
+	gLock   sync.Mutex
+	gDone   chan interface{}
 )
 
 func Initialize(filename string) {
@@ -32,11 +30,15 @@ func Initialize(filename string) {
 	if err != nil {
 		panic(err)
 	}
-	gMappers = types.NewSqlMappers(dc.MapperLocations)
+	gCache.initSqls(dc.MapperLocations)
 }
 
 func Close() {
 	if gDbConn != nil {
-		gDbConn.Close()
+		err := gDbConn.Close()
+		if err != nil {
+			log.Error("close db error: %v", err)
+		}
 	}
+	gDone <- "done"
 }
