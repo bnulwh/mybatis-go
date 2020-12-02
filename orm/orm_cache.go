@@ -24,7 +24,6 @@ func init() {
 	}
 }
 
-
 func (in *ormCache) createModel(name string) (reflect.Value, error) {
 	return in.models.createModel(name)
 }
@@ -101,6 +100,14 @@ func bindMapper(name string, value reflect.Value) {
 			//}
 			//exe sql
 			rv, e := bm.executeMethod(sqlFunc, arg)
+			if returnType.ReturnOutType != nil {
+				switch (*returnType.ReturnOutType).Kind() {
+				case reflect.Slice:
+					return buildReturnValues(returnType, rv, e)
+				}
+				item := rv.Index(0)
+				return buildReturnValues(returnType, item, e)
+			}
 			return buildReturnValues(returnType, rv, e)
 		}
 		return proxyFunc
