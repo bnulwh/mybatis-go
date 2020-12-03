@@ -13,10 +13,10 @@ import (
 type SqlFunctionType string
 
 const (
-	SelectSQL SqlFunctionType = "select"
-	UpdateSQL SqlFunctionType = "update"
-	DeleteSQL SqlFunctionType = "delete"
-	InsertSQL SqlFunctionType = "insert"
+	SelectFunction SqlFunctionType = "select"
+	UpdateFunction SqlFunctionType = "update"
+	DeleteFunction SqlFunctionType = "delete"
+	InsertFunction SqlFunctionType = "insert"
 )
 
 func GetShortName(name string) string {
@@ -38,17 +38,17 @@ func ToJson(v interface{}) string {
 func parseSqlFunctionType(tps string) SqlFunctionType {
 	switch strings.ToLower(strings.TrimSpace(tps)) {
 	case "update":
-		return UpdateSQL
+		return UpdateFunction
 	case "delete":
-		return DeleteSQL
+		return DeleteFunction
 	case "insert":
-		return InsertSQL
+		return InsertFunction
 	case "select":
-		return SelectSQL
+		return SelectFunction
 	default:
 		log.Warn("unsupport sql function type: %v", tps)
 	}
-	return SelectSQL
+	return SelectFunction
 }
 
 func getFormatString(ms string) string {

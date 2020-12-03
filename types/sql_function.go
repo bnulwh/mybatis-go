@@ -11,10 +11,11 @@ type SqlFunction struct {
 	Type   SqlFunctionType
 	Param  SqlParam
 	Result SqlResult
-	Items  []*SqlFragment
+	Items  []*sqlFragment
 }
 
-func (in *SqlFunction) GenerateSQL(mapper *SqlMapper, args []interface{}) (string, error) {
+//GenerateSQL
+func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, error) {
 	log.Debug("========================================")
 	log.Debug("sql function %v begin generate sql args: %v", in.Id, args)
 	defer log.Debug("sql function %v finish  generate sql", in.Id)
@@ -24,17 +25,17 @@ func (in *SqlFunction) GenerateSQL(mapper *SqlMapper, args []interface{}) (strin
 		return "", nil
 	}
 	if !in.Param.Need {
-		return in.generateSqlWithoutParam(mapper), nil
+		return in.generateSqlWithoutParam(), nil
 	}
 	switch in.Param.Type {
 	case BaseParam:
-		return in.generateSqlWithParam(mapper, args[0]), nil
+		return in.generateSqlWithParam(args[0]), nil
 	case SliceParam:
 		smp := convert2Slice(reflect.Indirect(reflect.ValueOf(args)))
-		return in.generateSqlWithSlice(mapper, smp), nil
+		return in.generateSqlWithSlice(smp), nil
 	}
 	nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
-	return in.generateSqlWithMap(mapper, nmp), nil
+	return in.generateSqlWithMap(nmp), nil
 }
 func (in *SqlFunction) generateDefine() string {
 	var buf bytes.Buffer
@@ -46,9 +47,9 @@ func (in *SqlFunction) generateDefine() string {
 	}
 	buf.WriteString(") (")
 	switch in.Type {
-	case UpdateSQL, InsertSQL, DeleteSQL:
+	case UpdateFunction, InsertFunction, DeleteFunction:
 		buf.WriteString("int64,error")
-	case SelectSQL:
+	case SelectFunction:
 		buf.WriteString("[]")
 		if in.Result.ResultM != nil {
 			buf.WriteString(GetShortName(in.Result.ResultM.TypeName))
@@ -60,40 +61,40 @@ func (in *SqlFunction) generateDefine() string {
 	buf.WriteString(")\n")
 	return buf.String()
 }
-func (in *SqlFunction) generateSqlWithMap(mapper *SqlMapper, m map[string]interface{}) string {
+func (in *SqlFunction) generateSqlWithMap(m map[string]interface{}) string {
 	log.Debug("sql function %v generate sql with map: %v", in.Id, m)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithMap(mapper, m, 0))
+		buf.WriteString(item.generateSqlWithMap(m, 0))
 	}
 	return buf.String()
 }
-func (in *SqlFunction) generateSqlWithSlice(mapper *SqlMapper, m []interface{}) string {
+func (in *SqlFunction) generateSqlWithSlice(m []interface{}) string {
 	log.Debug("sql function %v generate sql with slice: %v", in.Id, m)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithSlice(mapper, m, 0))
+		buf.WriteString(item.generateSqlWithSlice(m, 0))
 	}
 	return buf.String()
 }
-func (in *SqlFunction) generateSqlWithParam(mapper *SqlMapper, m interface{}) string {
+func (in *SqlFunction) generateSqlWithParam(m interface{}) string {
 	log.Debug("sql function %v generate sql with param: %v", in.Id, m)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithParam(mapper, m))
+		buf.WriteString(item.generateSqlWithParam(m))
 	}
 	return buf.String()
 }
 
-func (in *SqlFunction) generateSqlWithoutParam(mapper *SqlMapper) string {
+func (in *SqlFunction) generateSqlWithoutParam() string {
 	log.Debug("sql function %v generate sql without param", in.Id)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithoutParam(mapper))
+		buf.WriteString(item.generateSqlWithoutParam())
 	}
 	return buf.String()
 }
@@ -107,13 +108,13 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		Id:     node.Id,
 		Param:  parseSqlParamFromXmlAttrs(node.Attrs),
 		Result: parseSqlResultFromXmlAttrs(node.Attrs, rms),
-		Items:  parseSqlFragmentsFromXmlElements(node.Elements, sns),
+		Items:  parsesqlFragmentsFromXmlElements(node.Elements, sns),
 	}
 }
-func parseSqlFragmentsFromXmlElements(elems []xmlElement, sns map[string]*SqlElement) []*SqlFragment {
-	var sts []*SqlFragment
+func parsesqlFragmentsFromXmlElements(elems []xmlElement, sns map[string]*SqlElement) []*sqlFragment {
+	var sts []*sqlFragment
 	for _, elem := range elems {
-		sts = append(sts, parseSqlFragmentFromXmlElement(elem, sns))
+		sts = append(sts, parsesqlFragmentFromXmlElement(elem, sns))
 	}
 	return sts
 }

@@ -10,38 +10,38 @@ import (
 	"strings"
 )
 
-type CheckConditionType string
+type checkConditionType string
 
 const (
-	NullCheckCond  CheckConditionType = "null"
-	EmptyCheckCond CheckConditionType = "empty"
+	nullCheckCond  checkConditionType = "null"
+	emptyCheckCond checkConditionType = "empty"
 )
 
-type SqlFragmentParam struct {
+type sqlFragmentParam struct {
 	Name     string
 	TypeName string
 	Type     reflect.Type
 	Origin   string
 }
 
-type SimpleSql struct {
+type simpleSql struct {
 	Sql    string
-	Params []SqlFragmentParam
+	Params []sqlFragmentParam
 }
 
-type IfCondition struct {
+type ifCondition struct {
 	CheckName string
-	CheckType CheckConditionType
+	CheckType checkConditionType
 }
 
-type SqlIfTest struct {
-	Sql        []*SqlFragment
+type sqlIfTest struct {
+	Sql        []*sqlFragment
 	Test       string
-	Conditions []IfCondition
+	Conditions []ifCondition
 }
 
-type SqlForLoop struct {
-	Sql        *SimpleSql
+type sqlForLoop struct {
+	Sql        *simpleSql
 	Collection string
 	Item       string
 	Index      string
@@ -50,12 +50,12 @@ type SqlForLoop struct {
 	Close      string
 }
 
-type SqlChoose struct {
-	Otherwise *SimpleSql
-	When      []*SqlIfTest
+type sqlChoose struct {
+	Otherwise *simpleSql
+	When      []*sqlIfTest
 }
 
-func (in *SqlForLoop) generateSql(mapper *SqlMapper, mp map[string]interface{}, items []interface{}, depth int) string {
+func (in *sqlForLoop) generateSql(mp map[string]interface{}, items []interface{}, depth int) string {
 	log.Debug("sql for loop generate sql params: %v %v depth: %v", mp, items, depth)
 	if items == nil || len(items) == 0 {
 		return ""
@@ -66,7 +66,7 @@ func (in *SqlForLoop) generateSql(mapper *SqlMapper, mp map[string]interface{}, 
 	for i, item := range items {
 		buf.WriteString(" ")
 		nmp := in.buildParams(i, item, mp)
-		buf.WriteString(in.Sql.generateSqlWithMap(mapper, nmp, depth+1))
+		buf.WriteString(in.Sql.generateSqlWithMap(nmp, depth+1))
 		if i < len(items)-1 {
 			buf.WriteString(in.Separator)
 		}
@@ -74,7 +74,7 @@ func (in *SqlForLoop) generateSql(mapper *SqlMapper, mp map[string]interface{}, 
 	buf.WriteString(in.Close)
 	return buf.String()
 }
-func (in *SqlForLoop) buildParams(index int, item interface{}, mp map[string]interface{}) map[string]interface{} {
+func (in *sqlForLoop) buildParams(index int, item interface{}, mp map[string]interface{}) map[string]interface{} {
 	nmp := map[string]interface{}{buildKey(in.Index): fmt.Sprintf("%v", index)}
 	for k, v := range mp {
 		nmp[k] = v
@@ -103,7 +103,7 @@ func (in *SqlForLoop) buildParams(index int, item interface{}, mp map[string]int
 	return nmp
 }
 
-func (in *SqlIfTest) generateSqlWithSlice(mapper *SqlMapper, m []interface{}, depth int) string {
+func (in *sqlIfTest) generateSqlWithSlice(m []interface{}, depth int) string {
 	log.Debug("sql if test generate sql with slice : %v  depth: %v", m, depth)
 	if len(m) < 1 {
 		return ""
@@ -112,10 +112,10 @@ func (in *SqlIfTest) generateSqlWithSlice(mapper *SqlMapper, m []interface{}, de
 	for _, item := range in.Sql {
 		buf.WriteString(" ")
 		switch item.Type {
-		case IncludeSQL:
+		case includeSqlFragment:
 			buf.WriteString(item.Include.Sql)
-		case ForLoopSQL:
-			buf.WriteString(item.ForLoop.generateSql(mapper, map[string]interface{}{}, m, depth+1))
+		case forLoopSqlFragment:
+			buf.WriteString(item.ForLoop.generateSql(map[string]interface{}{}, m, depth+1))
 		default:
 			log.Warn("unsupport if test type %v", item.Type)
 		}
@@ -123,7 +123,7 @@ func (in *SqlIfTest) generateSqlWithSlice(mapper *SqlMapper, m []interface{}, de
 	return buf.String()
 }
 
-func (in *SqlIfTest) generateSqlWithMap(mapper *SqlMapper, mp map[string]interface{}, depth int) string {
+func (in *sqlIfTest) generateSqlWithMap(mp map[string]interface{}, depth int) string {
 	log.Debug("sql if test generate sql with map : %v depth: %v", mp, depth)
 	bv := in.checkConditions(mp)
 	if !bv {
@@ -132,21 +132,21 @@ func (in *SqlIfTest) generateSqlWithMap(mapper *SqlMapper, mp map[string]interfa
 	var buf bytes.Buffer
 	for _, item := range in.Sql {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithMap(mapper, mp, depth+1))
+		buf.WriteString(item.generateSqlWithMap(mp, depth+1))
 	}
 	return buf.String()
 }
 
-func (in *SqlIfTest) generateSqlWithParam(mapper *SqlMapper, m interface{}) string {
+func (in *sqlIfTest) generateSqlWithParam(m interface{}) string {
 	log.Debug("sql if test generate sql with param: %v", m)
 	var buf bytes.Buffer
 	for _, item := range in.Sql {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithParam(mapper, m))
+		buf.WriteString(item.generateSqlWithParam(m))
 	}
 	return buf.String()
 }
-func (in *SqlIfTest) checkConditions(m map[string]interface{}) bool {
+func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 	log.Debug("sql if test check conditions with param: %v", m)
 	for _, cond := range in.Conditions {
 		bv := cond.checkValue(m)
@@ -156,7 +156,7 @@ func (in *SqlIfTest) checkConditions(m map[string]interface{}) bool {
 	}
 	return true
 }
-func (in *IfCondition) checkValue(m map[string]interface{}) bool {
+func (in *ifCondition) checkValue(m map[string]interface{}) bool {
 	log.Debug("if condition %v check value: %v", in.CheckName, m)
 	val, ok := m[buildKey(in.CheckName)]
 	if !ok {
@@ -168,16 +168,16 @@ func (in *IfCondition) checkValue(m map[string]interface{}) bool {
 	return validValue(val)
 }
 
-func (in *SqlChoose) generateSqlWithMap(mapper *SqlMapper, mp map[string]interface{}, depth int) string {
+func (in *sqlChoose) generateSqlWithMap(mp map[string]interface{}, depth int) string {
 	log.Debug("sql choose generate sql with map: %v", mp)
 	for _, item := range in.When {
 		if item.checkConditions(mp) {
-			return item.generateSqlWithMap(mapper, mp, depth+1)
+			return item.generateSqlWithMap(mp, depth+1)
 		}
 	}
-	return in.Otherwise.generateSqlWithMap(mapper, mp, depth+1)
+	return in.Otherwise.generateSqlWithMap(mp, depth+1)
 }
-func (in *SimpleSql) generateSqlWithMap(mapper *SqlMapper, mp map[string]interface{}, depth int) string {
+func (in *simpleSql) generateSqlWithMap(mp map[string]interface{}, depth int) string {
 	log.Debug("simple sql generate sql with map: %v", mp)
 	sqlstr := in.Sql
 	for _, param := range in.Params {
@@ -192,7 +192,7 @@ func (in *SimpleSql) generateSqlWithMap(mapper *SqlMapper, mp map[string]interfa
 	}
 	return sqlstr
 }
-func (in *SimpleSql) generateSqlWithParam(mapper *SqlMapper, m interface{}) string {
+func (in *simpleSql) generateSqlWithParam(m interface{}) string {
 	log.Debug("sql if test generate sql with param: %v", m)
 	sqlstr := in.Sql
 	valstr := getFormatValue(m)
@@ -202,7 +202,7 @@ func (in *SimpleSql) generateSqlWithParam(mapper *SqlMapper, m interface{}) stri
 	return sqlstr
 }
 
-func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *SqlFragment {
+func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *sqlFragment {
 	ts, ok := attrs["test"]
 	if !ok {
 		panic("not found test attr in input")
@@ -210,17 +210,17 @@ func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *S
 	if len(elems) < 1 {
 		panic("wrong input for if test sql")
 	}
-	var sts []*SqlFragment
+	var sts []*sqlFragment
 	for _, elem := range elems {
 		switch elem.ElementType {
 		case xmlTextElem:
-			sts = append(sts, &SqlFragment{
+			sts = append(sts, &sqlFragment{
 				Sql:     parseSimpleSqlFromText(elem.Val.(string)),
 				Include: nil,
 				IfTest:  nil,
 				ForLoop: nil,
 				Choose:  nil,
-				Type:    SimpleSQL,
+				Type:    simpleSqlFragment,
 			})
 		case xmlNodeElem:
 			xn := elem.Val.(xmlNode)
@@ -232,8 +232,8 @@ func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *S
 			}
 		}
 	}
-	return &SqlFragment{
-		IfTest: &SqlIfTest{
+	return &sqlFragment{
+		IfTest: &sqlIfTest{
 			Test:       ts.Value,
 			Sql:        sts,
 			Conditions: parseIfConditionsFromText(ts.Value),
@@ -242,11 +242,11 @@ func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *S
 		ForLoop: nil,
 		Include: nil,
 		Choose:  nil,
-		Type:    IfTestSQL,
+		Type:    ifTestSqlFragment,
 	}
 }
 
-func parseSqlForLoopFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *SqlFragment {
+func parseSqlForLoopFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *sqlFragment {
 	col, ok := attrs["collection"]
 	if !ok {
 		panic("not found  collection in input for parsing sql for loop")
@@ -254,8 +254,8 @@ func parseSqlForLoopFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *
 	if len(elems) < 1 {
 		panic("wrong input for parsing sql for loop")
 	}
-	return &SqlFragment{
-		ForLoop: &SqlForLoop{
+	return &sqlFragment{
+		ForLoop: &sqlForLoop{
 			Collection: col.Value,
 			Open:       attrs["open"].Value,
 			Close:      attrs["close"].Value,
@@ -268,13 +268,13 @@ func parseSqlForLoopFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *
 		IfTest:  nil,
 		Include: nil,
 		Choose:  nil,
-		Type:    ForLoopSQL,
+		Type:    forLoopSqlFragment,
 	}
 }
 
-func parseSqlChooseFromXmlNode(elems []xmlElement) *SqlFragment {
-	var conds []*SqlIfTest
-	var defCond []*SimpleSql
+func parseSqlChooseFromXmlNode(elems []xmlElement) *sqlFragment {
+	var conds []*sqlIfTest
+	var defCond []*simpleSql
 	for _, elem := range elems {
 		xn := elem.Val.(xmlNode)
 		switch strings.ToLower(xn.Name) {
@@ -289,8 +289,8 @@ func parseSqlChooseFromXmlNode(elems []xmlElement) *SqlFragment {
 	if len(defCond) < 1 {
 		panic("choose sql not contains otherwise")
 	}
-	return &SqlFragment{
-		Choose: &SqlChoose{
+	return &sqlFragment{
+		Choose: &sqlChoose{
 			When:      conds,
 			Otherwise: defCond[0],
 		},
@@ -298,16 +298,16 @@ func parseSqlChooseFromXmlNode(elems []xmlElement) *SqlFragment {
 		ForLoop: nil,
 		IfTest:  nil,
 		Sql:     nil,
-		Type:    ChooseSQL,
+		Type:    chooseSqlFragment,
 	}
 }
 
-func parseIfConditionsFromText(text string) []IfCondition {
+func parseIfConditionsFromText(text string) []ifCondition {
 	reSplit := regexp.MustCompile("[aA][nN][dD]")
 	reNC := regexp.MustCompile(`[\w]+[\s]*[!][=][\s]*null`)
 	reEC := regexp.MustCompile(`[\w]+[\s]*[!][=][\s]*[']{2}`)
 	reName := regexp.MustCompile(`[\w]+`)
-	var cs []IfCondition
+	var cs []ifCondition
 	for _, item := range reSplit.Split(text, -1) {
 		item = strings.TrimSpace(item)
 		if len(item) == 0 {
@@ -318,48 +318,48 @@ func parseIfConditionsFromText(text string) []IfCondition {
 			continue
 		}
 		if reNC.MatchString(item) {
-			cs = append(cs, IfCondition{
+			cs = append(cs, ifCondition{
 				CheckName: matches[0],
-				CheckType: NullCheckCond,
+				CheckType: nullCheckCond,
 			})
 		} else if reEC.MatchString(item) {
-			cs = append(cs, IfCondition{
+			cs = append(cs, ifCondition{
 				CheckName: matches[0],
-				CheckType: EmptyCheckCond,
+				CheckType: emptyCheckCond,
 			})
 		}
 	}
 	return cs
 }
 
-func parseSimpleSqlFromText(text string) *SimpleSql {
-	return &SimpleSql{
+func parseSimpleSqlFromText(text string) *simpleSql {
+	return &simpleSql{
 		Sql:    text,
 		Params: parseSqlFragmentParamFromText(text),
 	}
 }
 
-func parseSqlFragmentParamFromText(text string) []SqlFragmentParam {
+func parseSqlFragmentParamFromText(text string) []sqlFragmentParam {
 	re := regexp.MustCompile(`[#$][{][\s]*([\w]+)[\s]*(,[\s]*([\w]+)[\s]*=[\s]*([\w]+)[\s]*)*[}]`)
 	matches := re.FindAllStringSubmatch(text, -1)
-	var stps []SqlFragmentParam
+	var stps []sqlFragmentParam
 	for _, match := range matches {
 		if len(match) == 2 {
-			stps = append(stps, SqlFragmentParam{
+			stps = append(stps, sqlFragmentParam{
 				Origin:   match[0],
 				Name:     match[1],
 				TypeName: "",
 			})
 		} else if len(match) == 5 {
 			if len(match[4]) > 0 {
-				stps = append(stps, SqlFragmentParam{
+				stps = append(stps, sqlFragmentParam{
 					Origin:   match[0],
 					Name:     match[1],
 					TypeName: match[4],
 					Type:     parseJdbcTypeFrom(match[4]),
 				})
 			} else {
-				stps = append(stps, SqlFragmentParam{
+				stps = append(stps, sqlFragmentParam{
 					Origin:   match[0],
 					Name:     match[1],
 					TypeName: "",

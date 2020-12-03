@@ -107,18 +107,6 @@ func bindMapper(name string, value reflect.Value) {
 		// methodFieldCheck(&outTyp, &funcField, true)
 		//执行期
 		var proxyFunc = func(arg ProxyArg) []reflect.Value {
-			//var returnValue *reflect.Value = nil
-			////build return Type
-			//if returnType.ReturnOutType != nil {
-			//	var returnV = reflect.New(*returnType.ReturnOutType)
-			//	switch (*returnType.ReturnOutType).Kind() {
-			//	case reflect.Map:
-			//		returnV.Elem().Set(reflect.MakeMap(*returnType.ReturnOutType))
-			//	case reflect.Slice:
-			//		returnV.Elem().Set(reflect.MakeSlice(*returnType.ReturnOutType, 0, 0))
-			//	}
-			//	returnValue = &returnV
-			//}
 			//exe sql
 			rv, e := bm.executeMethod(sqlFunc, arg)
 			if returnType.ReturnOutType != nil {

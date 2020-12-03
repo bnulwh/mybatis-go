@@ -7,66 +7,66 @@ import (
 	"strings"
 )
 
-type SqlFragmentType string
+type sqlFragmentType string
 
 const (
-	SimpleSQL  SqlFragmentType = "sql"
-	IfTestSQL  SqlFragmentType = "if"
-	ForLoopSQL SqlFragmentType = "for"
-	IncludeSQL SqlFragmentType = "include"
-	ChooseSQL  SqlFragmentType = "choose"
+	simpleSqlFragment  sqlFragmentType = "sql"
+	ifTestSqlFragment  sqlFragmentType = "if"
+	forLoopSqlFragment sqlFragmentType = "for"
+	includeSqlFragment sqlFragmentType = "include"
+	chooseSqlFragment  sqlFragmentType = "choose"
 )
 
-type SqlFragment struct {
-	Sql     *SimpleSql
-	Include *SqlInclude
-	IfTest  *SqlIfTest
-	ForLoop *SqlForLoop
-	Choose  *SqlChoose
-	Type    SqlFragmentType
+type sqlFragment struct {
+	Sql     *simpleSql
+	Include *sqlInclude
+	IfTest  *sqlIfTest
+	ForLoop *sqlForLoop
+	Choose  *sqlChoose
+	Type    sqlFragmentType
 }
 
-func (in *SqlFragment) generateSqlWithSlice(mapper *SqlMapper, m []interface{}, depth int) string {
+func (in *sqlFragment) generateSqlWithSlice(m []interface{}, depth int) string {
 	log.Debug("sql fragment [%v] generate sql with slice : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
-	case SimpleSQL:
+	case simpleSqlFragment:
 		if in.Sql != nil {
 			if len(in.Sql.Params) == 0 {
 				return in.Sql.Sql
 			}
 			panic("simple sql has param not replaced!!!!")
 		}
-	case IncludeSQL:
+	case includeSqlFragment:
 		if in.Include != nil {
 			return in.Include.Sql
 		}
-	case IfTestSQL:
+	case ifTestSqlFragment:
 		if in.IfTest != nil {
-			return in.IfTest.generateSqlWithSlice(mapper, m, depth+1)
+			return in.IfTest.generateSqlWithSlice(m, depth+1)
 		}
-	case ForLoopSQL:
+	case forLoopSqlFragment:
 		if in.ForLoop != nil {
-			return in.ForLoop.generateSql(mapper, map[string]interface{}{}, m, depth+1)
+			return in.ForLoop.generateSql(map[string]interface{}{}, m, depth+1)
 		}
 	}
 	return ""
 }
-func (in *SqlFragment) generateSqlWithMap(mapper *SqlMapper, m map[string]interface{}, depth int) string {
+func (in *sqlFragment) generateSqlWithMap(m map[string]interface{}, depth int) string {
 	log.Debug("sql fragment [%v] generate sql with map : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
-	case SimpleSQL:
+	case simpleSqlFragment:
 		if in.Sql != nil {
-			return in.Sql.generateSqlWithMap(mapper, m, depth+1)
+			return in.Sql.generateSqlWithMap(m, depth+1)
 		}
-	case IncludeSQL:
+	case includeSqlFragment:
 		if in.Include != nil {
 			return in.Include.Sql
 		}
-	case IfTestSQL:
+	case ifTestSqlFragment:
 		if in.IfTest != nil {
-			return in.IfTest.generateSqlWithMap(mapper, m, depth+1)
+			return in.IfTest.generateSqlWithMap(m, depth+1)
 		}
-	case ForLoopSQL:
+	case forLoopSqlFragment:
 		if in.ForLoop != nil {
 			val, ok := m[buildKey(in.ForLoop.Collection)]
 			if !ok {
@@ -74,56 +74,56 @@ func (in *SqlFragment) generateSqlWithMap(mapper *SqlMapper, m map[string]interf
 			}
 			if reflect.TypeOf(val).Kind() == reflect.Slice {
 				sval := convert2Slice(reflect.ValueOf(val))
-				return in.ForLoop.generateSql(mapper, m, sval, depth+1)
+				return in.ForLoop.generateSql(m, sval, depth+1)
 			}
 		}
-	case ChooseSQL:
+	case chooseSqlFragment:
 		if in.Choose != nil {
-			return in.Choose.generateSqlWithMap(mapper, m, depth+1)
+			return in.Choose.generateSqlWithMap(m, depth+1)
 		}
 	}
 	return ""
 }
 
-func (in *SqlFragment) generateSqlWithParam(mapper *SqlMapper, m interface{}) string {
+func (in *sqlFragment) generateSqlWithParam(m interface{}) string {
 	log.Debug("sql fragment [%v] generate sql with param : %v  ", in.Type, m)
 	switch in.Type {
-	case SimpleSQL:
+	case simpleSqlFragment:
 		if in.Sql != nil {
-			return in.Sql.generateSqlWithParam(mapper, m)
+			return in.Sql.generateSqlWithParam(m)
 		}
-	case IncludeSQL:
+	case includeSqlFragment:
 		if in.Include != nil {
 			return in.Include.Sql
 		}
-	case IfTestSQL:
+	case ifTestSqlFragment:
 		if in.IfTest != nil {
-			return in.IfTest.generateSqlWithParam(mapper, m)
+			return in.IfTest.generateSqlWithParam(m)
 		}
-	case ForLoopSQL:
+	case forLoopSqlFragment:
 		return ""
-	case ChooseSQL:
+	case chooseSqlFragment:
 		if in.Choose != nil {
-			return in.Choose.Otherwise.generateSqlWithParam(mapper, m)
+			return in.Choose.Otherwise.generateSqlWithParam(m)
 		}
 	}
 	return ""
 }
 
-func (in *SqlFragment) generateSqlWithoutParam(mapper *SqlMapper) string {
-	log.Debug("sql fragment [%v] generate sql without param ",in.Type)
+func (in *sqlFragment) generateSqlWithoutParam() string {
+	log.Debug("sql fragment [%v] generate sql without param ", in.Type)
 	switch in.Type {
-	case SimpleSQL:
+	case simpleSqlFragment:
 		if in.Sql != nil {
 			return in.Sql.Sql
 		}
-	case IncludeSQL:
+	case includeSqlFragment:
 		if in.Include != nil {
 			return in.Include.Sql
 		}
-	case IfTestSQL, ForLoopSQL:
+	case ifTestSqlFragment, forLoopSqlFragment:
 		return ""
-	case ChooseSQL:
+	case chooseSqlFragment:
 		if in.Choose != nil {
 			return in.Choose.Otherwise.Sql
 		}
@@ -131,28 +131,28 @@ func (in *SqlFragment) generateSqlWithoutParam(mapper *SqlMapper) string {
 	return ""
 }
 
-func parseSqlFragmentFromXmlElement(elem xmlElement, sns map[string]*SqlElement) *SqlFragment {
+func parsesqlFragmentFromXmlElement(elem xmlElement, sns map[string]*SqlElement) *sqlFragment {
 	log.Debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 	log.Debug("++begin parse sql fragment from element: %v", ToJson(elem))
 	defer log.Debug("++finish parse sql fragment from element: %v", ToJson(elem))
 	switch elem.ElementType {
 	case xmlTextElem:
-		return &SqlFragment{
+		return &sqlFragment{
 			Sql:     parseSimpleSqlFromText(elem.Val.(string)),
 			ForLoop: nil,
 			IfTest:  nil,
 			Include: nil,
 			Choose:  nil,
-			Type:    SimpleSQL,
+			Type:    simpleSqlFragment,
 		}
 	case xmlNodeElem:
 		xn := elem.Val.(xmlNode)
-		return parseSqlFragmentFromXmlNode(xn, sns)
+		return parsesqlFragmentFromXmlNode(xn, sns)
 	}
 	panic(fmt.Sprintf("wrong type of element type %v", elem.ElementType))
 }
 
-func parseSqlFragmentFromXmlNode(node xmlNode, sns map[string]*SqlElement) *SqlFragment {
+func parsesqlFragmentFromXmlNode(node xmlNode, sns map[string]*SqlElement) *sqlFragment {
 	switch strings.ToLower(node.Name) {
 	case "if":
 		return parseSqlIfTestFromXmlNode(node.Attrs, node.Elements)

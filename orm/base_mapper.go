@@ -52,20 +52,20 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 	args := arg.buildArgs()
 	gLock.Lock()
 	defer gLock.Unlock()
-	sqlStr, err := sqlFunc.GenerateSQL(in.mapper, args)
+	sqlStr, err := sqlFunc.GenerateSQL(args...)
 	if err != nil {
 		log.Warn("generate sql failed: %v", err)
 		return reflect.Value{}, err
 	}
 	log.Info("sql: %v", sqlStr)
 	switch sqlFunc.Type {
-	case types.InsertSQL, types.DeleteSQL, types.UpdateSQL:
+	case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
 		rf,err := execute(sqlStr)
 		if err != nil{
 			return reflect.Value{},err
 		}
 		return reflect.ValueOf(rf), nil
-	case types.SelectSQL:
+	case types.SelectFunction:
 		rows, err := queryRows(sqlStr)
 		if err != nil {
 			return reflect.Value{}, err

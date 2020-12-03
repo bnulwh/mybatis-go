@@ -8,15 +8,15 @@ import (
 	"strings"
 )
 
-type XmlElemType string
+type xmlElemType string
 
 const (
-	xmlTextElem XmlElemType = "text" // 静态文本节点
-	xmlNodeElem XmlElemType = "node" // 节点子节点
+	xmlTextElem xmlElemType = "text" // 静态文本节点
+	xmlNodeElem xmlElemType = "node" // 节点子节点
 )
 
 type xmlElement struct {
-	ElementType XmlElemType
+	ElementType xmlElemType
 	Val         interface{}
 }
 
@@ -40,7 +40,7 @@ func parseXmlNode(r io.Reader) *xmlNode {
 	parser := xml.NewDecoder(r)
 	var root xmlNode
 
-	st := NewStack()
+	st := newStack()
 	for {
 		token, err := parser.Token()
 		if err != nil {

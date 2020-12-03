@@ -10,7 +10,7 @@ type stack struct {
 	mu   sync.Mutex
 }
 
-func NewStack() *stack {
+func newStack() *stack {
 	list := l.New()
 	return &stack{list: list,}
 }
