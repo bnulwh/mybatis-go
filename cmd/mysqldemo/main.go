@@ -9,7 +9,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-
 func init() {
 	logger.Initialize("mysqldemo.log")
 	orm.Initialize("application-mysql.properties")
@@ -28,5 +27,9 @@ func main() {
 		for _, row := range rs {
 			log.Info("row: %v", types.ToJson(row))
 		}
+	}
+	item, err := mp.SelectByPrimaryKey(1)
+	if err == nil {
+		log.Info("item: %v", types.ToJson(item))
 	}
 }

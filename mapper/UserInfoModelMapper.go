@@ -10,7 +10,7 @@ type UserInfoModelMapper struct {
 	DeleteByPrimaryKey 	func (int32) (int64,error)
 	Insert 	func (UserInfoModel) (int64,error)
 	UpdateByPrimaryKey 	func (UserInfoModel) (int64,error)
-	SelectByPrimaryKey 	func (int32) ([]UserInfoModel,error)
+	SelectByPrimaryKey 	func (int32) (UserInfoModel,error)
 	SelectAll 	func () ([]UserInfoModel,error)
 }
 
