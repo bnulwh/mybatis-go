@@ -22,7 +22,7 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, error) {
 	err := in.Param.validParam(args)
 	if err != nil {
 		log.Warn("valid param failed: %v", err)
-		return "", nil
+		return "", err
 	}
 	if !in.Param.Need {
 		return in.generateSqlWithoutParam(), nil
@@ -36,6 +36,32 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, error) {
 	}
 	nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
 	return in.generateSqlWithMap(nmp), nil
+}
+func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []interface{}, error) {
+	log.Debug("========================================")
+	log.Debug("sql function %v begin prepare sql args: %v", in.Id, args)
+	defer log.Debug("sql function %v finish  prepare sql", in.Id)
+	err := in.Param.validParam(args)
+	if err != nil {
+		log.Warn("valid param failed: %v", err)
+		return "", nil, err
+	}
+	if !in.Param.Need {
+		return in.generateSqlWithoutParam(), []interface{}{}, nil
+	}
+	switch in.Param.Type {
+	case BaseSqlParam:
+		sqlstr, results := in.prepareSqlWithParam(args[0])
+		return sqlstr, results, nil
+	case SliceSqlParam:
+		smp := convert2Slice(reflect.Indirect(reflect.ValueOf(args)))
+		sqlstr, results := in.prepareSqlWithSlice(smp)
+		return sqlstr, results, nil
+	}
+	nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
+	sqlstr, results := in.prepareSqlWithMap(nmp)
+	return sqlstr, results, nil
+
 }
 func (in *SqlFunction) generateDefine() string {
 	var buf bytes.Buffer
@@ -61,14 +87,38 @@ func (in *SqlFunction) generateDefine() string {
 	buf.WriteString(")\n")
 	return buf.String()
 }
-func (in *SqlFunction) generateSqlWithMap(m map[string]interface{}) string {
+func (in *SqlFunction) prepareSqlWithMap(m map[string]interface{}) (string, []interface{}) {
 	log.Debug("sql function %v generate sql with map: %v", in.Id, m)
+	var buf bytes.Buffer
+	var results []interface{}
+	for _, item := range in.Items {
+		buf.WriteString(" ")
+		sqlstr, items := item.prepareSqlWithMap(m, 0)
+		buf.WriteString(sqlstr)
+		results = append(results, items...)
+	}
+	return buf.String(), results
+}
+func (in *SqlFunction) generateSqlWithMap(m map[string]interface{}) string {
+	log.Debug("sql function %v prepare sql with map: %v", in.Id, m)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
 		buf.WriteString(item.generateSqlWithMap(m, 0))
 	}
 	return buf.String()
+}
+func (in *SqlFunction) prepareSqlWithSlice(m []interface{}) (string, []interface{}) {
+	log.Debug("sql function %v prepare sql with slice: %v", in.Id, m)
+	var buf bytes.Buffer
+	var results []interface{}
+	for _, item := range in.Items {
+		buf.WriteString(" ")
+		sqlstr, items := item.prepareSqlWithSlice(m, 0)
+		buf.WriteString(sqlstr)
+		results = append(results, items...)
+	}
+	return buf.String(), results
 }
 func (in *SqlFunction) generateSqlWithSlice(m []interface{}) string {
 	log.Debug("sql function %v generate sql with slice: %v", in.Id, m)
@@ -78,6 +128,18 @@ func (in *SqlFunction) generateSqlWithSlice(m []interface{}) string {
 		buf.WriteString(item.generateSqlWithSlice(m, 0))
 	}
 	return buf.String()
+}
+func (in *SqlFunction) prepareSqlWithParam(m interface{}) (string, []interface{}) {
+	log.Debug("sql function %v generate sql with param: %v", in.Id, m)
+	var buf bytes.Buffer
+	var results []interface{}
+	for _, item := range in.Items {
+		buf.WriteString(" ")
+		sqlstr, items := item.prepareSqlWithParam(m)
+		buf.WriteString(sqlstr)
+		results = append(results, items...)
+	}
+	return buf.String(), results
 }
 func (in *SqlFunction) generateSqlWithParam(m interface{}) string {
 	log.Debug("sql function %v generate sql with param: %v", in.Id, m)

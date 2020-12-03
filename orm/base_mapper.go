@@ -13,18 +13,18 @@ type BaseMapper struct {
 	mapper *types.SqlMapper
 }
 
-func Execute(sqlStr string,args ...interface{}) (int64,error){
+func Execute(sqlStr string, args ...interface{}) (int64, error) {
 	gLock.Lock()
-	defer gLock.Unlock()	
-	return execute(sqlStr,args...)
+	defer gLock.Unlock()
+	return execute(sqlStr, args...)
 }
-func Query(sqlStr string,args ...interface{}) ([]map[string]interface{},error){
+func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
 	gLock.Lock()
 	defer gLock.Unlock()
 	log.Info("sql: %v", sqlStr)
-	return queryRows(sqlStr,args...)
+	return queryRows(sqlStr, args...)
 }
-func execute(sqlStr string,args ...interface{}) (int64,error){
+func execute(sqlStr string, args ...interface{}) (int64, error) {
 	log.Info("sql: %v", sqlStr)
 	stmt, err := gDbConn.Prepare(sqlStr)
 	if err != nil {
@@ -52,7 +52,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 	args := arg.buildArgs()
 	gLock.Lock()
 	defer gLock.Unlock()
-	sqlStr, err := sqlFunc.GenerateSQL(args...)
+	sqlStr, items, err := sqlFunc.PrepareSQL(args...)
 	if err != nil {
 		log.Warn("generate sql failed: %v", err)
 		return reflect.Value{}, err
@@ -60,17 +60,17 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 	log.Info("sql: %v", sqlStr)
 	switch sqlFunc.Type {
 	case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
-		rf,err := execute(sqlStr)
-		if err != nil{
-			return reflect.Value{},err
-		}
-		return reflect.ValueOf(rf), nil
-	case types.SelectFunction:
-		rows, err := queryRows(sqlStr)
+		rf, err := execute(sqlStr, items...)
 		if err != nil {
 			return reflect.Value{}, err
 		}
-		results := convert2Results(rows,sqlFunc.Result)
+		return reflect.ValueOf(rf), nil
+	case types.SelectFunction:
+		rows, err := queryRows(sqlStr, items...)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		results := convert2Results(rows, sqlFunc.Result)
 		log.Info("results: %v", types.ToJson(results.Interface()))
 		log.Info("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
 		return results, nil
@@ -85,7 +85,7 @@ func closeStmt(stmt *sql.Stmt) {
 	}
 }
 
-func queryRows(sqlStr string, args ...interface{}) ( []map[string]interface{}, error) {
+func queryRows(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
 	stmt, err := gDbConn.Prepare(sqlStr)
 	if err != nil {
 		log.Error("prepare sql %v failed: %v", sqlStr, err)
@@ -115,7 +115,7 @@ func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType) []map[string]interfac
 			log.Warn("scan error: %v", err)
 			continue
 		}
-		mp := createMap(tempItems,colTypes)
+		mp := createMap(tempItems, colTypes)
 		results = append(results, mp)
 	}
 	log.Debug("results: %v", types.ToJson(results))
@@ -127,8 +127,8 @@ func convert2Results(rows []map[string]interface{}, resInfo types.SqlResult) ref
 	itemsTyp := reflect.SliceOf(itemTyp)
 	resultsPtr := reflect.New(itemsTyp)
 	results := reflect.Indirect(resultsPtr)
-	for _,row := range rows {
-		result, err := createResult(row,resInfo)
+	for _, row := range rows {
+		result, err := createResult(row, resInfo)
 		if err != nil {
 			log.Warn("fill result failed: %v", err)
 			continue
@@ -147,7 +147,7 @@ func prepareColumns(colTypes []*sql.ColumnType) []interface{} {
 	}
 	return ptrs
 }
-func createMap(ptrs []interface{},colTypes []*sql.ColumnType ) map[string]interface{} {
+func createMap(ptrs []interface{}, colTypes []*sql.ColumnType) map[string]interface{} {
 	mp := map[string]interface{}{}
 	for i, coltyp := range colTypes {
 		v, err := convertValue(ptrs[i], coltyp.ScanType())
@@ -160,7 +160,7 @@ func createMap(ptrs []interface{},colTypes []*sql.ColumnType ) map[string]interf
 	return mp
 }
 
-func convert2Result(mp map[string]interface{},rmp *types.ResultMap) (interface{}, error) {
+func convert2Result(mp map[string]interface{}, rmp *types.ResultMap) (interface{}, error) {
 	name := types.GetShortName(rmp.TypeName)
 	inst, err := gCache.createModel(name)
 	if err != nil {
@@ -180,11 +180,11 @@ func getResultType(resInfo types.SqlResult) reflect.Type {
 }
 func createResult(mp map[string]interface{}, resInfo types.SqlResult) (interface{}, error) {
 	if resInfo.ResultM != nil {
-		return convert2Result(mp,resInfo.ResultM)
+		return convert2Result(mp, resInfo.ResultM)
 	}
 	if resInfo.ResultT.Kind() != reflect.Map {
-		for _,v :=range mp{
-			return v,nil
+		for _, v := range mp {
+			return v, nil
 		}
 	}
 	return mp, nil
