@@ -12,10 +12,6 @@ import (
 	"time"
 )
 
-type ExecuteFunc func(args ...interface{}) (int64, int64, error)
-type QueryRowFunc func(args ...interface{}) (interface{}, error)
-type QueryRowsFunc func(args ...interface{}) ([]interface{}, error)
-
 func GetAllEnv() map[string]string {
 	envMap := map[string]string{}
 	for _, envLine := range os.Environ() {

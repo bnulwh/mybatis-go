@@ -28,9 +28,9 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, error) {
 		return in.generateSqlWithoutParam(), nil
 	}
 	switch in.Param.Type {
-	case BaseParam:
+	case BaseSqlParam:
 		return in.generateSqlWithParam(args[0]), nil
-	case SliceParam:
+	case SliceSqlParam:
 		smp := convert2Slice(reflect.Indirect(reflect.ValueOf(args)))
 		return in.generateSqlWithSlice(smp), nil
 	}

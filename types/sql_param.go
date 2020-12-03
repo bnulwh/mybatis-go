@@ -11,10 +11,10 @@ import (
 type SqlParamType string
 
 const (
-	BaseParam   SqlParamType = "base"
-	SliceParam  SqlParamType = "slice"
-	MapParam    SqlParamType = "map"
-	StructParam SqlParamType = "struct"
+	BaseSqlParam   SqlParamType = "base"
+	SliceSqlParam  SqlParamType = "slice"
+	MapSqlParam    SqlParamType = "map"
+	StructSqlParam SqlParamType = "struct"
 )
 
 type SqlParam struct {
@@ -47,7 +47,7 @@ func (in *SqlParam) validParam(args []interface{}) error {
 		return nil
 	}
 	switch in.Type {
-	case BaseParam:
+	case BaseSqlParam:
 		if len(args) == 0 {
 			return fmt.Errorf("need param, type: %v", in.TypeName)
 		}
@@ -64,9 +64,9 @@ func (in *SqlParam) validParam(args []interface{}) error {
 			return nil
 		}
 		return fmt.Errorf("not support param type: %v ,need type: %v", typ, in.TypeName)
-	case SliceParam:
+	case SliceSqlParam:
 		return nil
-	case MapParam, StructParam:
+	case MapSqlParam, StructSqlParam:
 		if len(args) == 0 {
 			return fmt.Errorf("need param, type: %v", in.TypeName)
 		}
@@ -97,13 +97,13 @@ func parseSqlParamTypeFrom(tn string) SqlParamType {
 		"UINT", "UINT8", "UINT16", "UINT32", "UINT64",
 		"FLOAT", "FLOAT32", "FLOAT64", "DOUBLE",
 		"TIME", "TIMESTAMP":
-		return BaseParam
+		return BaseSqlParam
 	case "LIST", "ARRAY", "ARRAYLIST", "SLICE":
-		return SliceParam
+		return SliceSqlParam
 	case "MAP", "HASHMAP", "TREEMAP":
-		return MapParam
+		return MapSqlParam
 	}
-	return StructParam
+	return StructSqlParam
 }
 
 func toGolangType(tn string) string {
