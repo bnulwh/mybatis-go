@@ -420,3 +420,51 @@ func changeType(val interface{}, typ reflect.Type) (interface{}, error) {
 	log.Warn("not support convert type: %v ,value: %v", typ, val)
 	return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, val)
 }
+func isNumberType(typ reflect.Type) bool{
+	switch strings.ToLower(typ.String()){
+	case "int8":
+		return true
+	case "int16":
+		return true
+	case "int32":
+		return true
+	case "int64":
+		return true
+	case "uint":
+		return true
+	case "uint8":
+		return true
+	case "uint16":
+		return true
+	case "uint32":
+		return true
+	case "uint64":
+		return true
+	case "float32":
+		return true
+	case "float64":
+		return true
+	}
+	return false
+}
+
+func isStringType(typ reflect.Type) bool{
+	return strings.Compare(strings.ToLower(typ.String()),"string")==0
+}
+
+func sameTypeCheck(typA,typB reflect.Type) bool{
+	if strings.Compare(strings.ToLower(typA.String()),strings.ToLower(typB.String()))==0{
+		return true
+	}
+	if isNumberType(typA) && isNumberType(typB){
+		return true
+	}
+	if isNumberType(typA) && isStringType(typB){
+		return true
+	}
+	if isStringType(typA) && isNumberType(typB){
+		return true
+	}
+	return false
+}
+
