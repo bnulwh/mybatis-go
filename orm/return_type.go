@@ -27,7 +27,7 @@ func (in *ReturnType) checkSql(f *types.SqlFunction, name string) {
 				name, f.Id, f.Result.ResultM.TypeName, typ.String()))
 		}
 	} else {
-		if !sameTypeCheck(f.Result.ResultT,typ) {
+		if !sameTypeCheck(f.Result.ResultT, typ) {
 			panic(fmt.Sprintf("%v check sql function %v failed, return type valid failed `%v` != `%v`",
 				name, f.Id, f.Result.ResultT.String(), typ.String()))
 		}
