@@ -15,27 +15,27 @@ type SqlFunction struct {
 }
 
 //GenerateSQL
-func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, error) {
+func (in *SqlFunction) GenerateSQL(args ...interface{}) (string,  []interface{}, error) {
 	log.Debug("========================================")
 	log.Debug("sql function %v begin generate sql args: %v", in.Id, args)
 	defer log.Debug("sql function %v finish  generate sql", in.Id)
 	err := in.Param.validParam(args)
 	if err != nil {
 		log.Warn("valid param failed: %v", err)
-		return "", err
+		return "",[]interface{}{}, err
 	}
 	if !in.Param.Need {
-		return in.generateSqlWithoutParam(), nil
+		return in.generateSqlWithoutParam(),[]interface{}{}, nil
 	}
 	switch in.Param.Type {
 	case BaseSqlParam:
-		return in.generateSqlWithParam(args[0]), nil
+		return in.generateSqlWithParam(args[0]),[]interface{}{}, nil
 	case SliceSqlParam:
 		smp := convert2Slice(reflect.Indirect(reflect.ValueOf(args)))
-		return in.generateSqlWithSlice(smp), nil
+		return in.generateSqlWithSlice(smp),[]interface{}{}, nil
 	}
 	nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
-	return in.generateSqlWithMap(nmp), nil
+	return in.generateSqlWithMap(nmp),[]interface{}{}, nil
 }
 func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []interface{}, error) {
 	log.Debug("========================================")

@@ -52,7 +52,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 	args := arg.buildArgs()
 	gLock.Lock()
 	defer gLock.Unlock()
-	sqlStr, items, err := sqlFunc.PrepareSQL(args...)
+	sqlStr, items, err := sqlFunc.GenerateSQL(args...)
 	if err != nil {
 		log.Warn("generate sql failed: %v", err)
 		return reflect.Value{}, err
