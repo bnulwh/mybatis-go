@@ -184,7 +184,7 @@ func createResult(mp map[string]interface{}, resInfo types.SqlResult) (interface
 	}
 	if resInfo.ResultT.Kind() != reflect.Map {
 		for _, v := range mp {
-			return v, nil
+			return changeType(v,resInfo.ResultT)
 		}
 	}
 	return mp, nil
