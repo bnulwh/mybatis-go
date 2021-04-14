@@ -53,6 +53,9 @@ func parseSqlFunctionType(tps string) SqlFunctionType {
 
 func getFormatString(ms string) string {
 	var buf bytes.Buffer
+	if len(ms) == 0{
+		return "''"
+	}
 	if strings.Compare(ms[0:1], "'") != 0 {
 		buf.WriteString("'")
 	}
