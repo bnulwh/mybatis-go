@@ -113,11 +113,13 @@ func bindMapper(name string, value reflect.Value) {
 				switch (*returnType.ReturnOutType).Kind() {
 				case reflect.Slice:
 					return buildReturnValues(returnType, rv, e)
-				case reflect.Int64:
-					return buildReturnValues(returnType, rv, e)
 				}
-				item := rv.Index(0)
-				return buildReturnValues(returnType, item, e)
+				switch (rv.Kind()){
+				case reflect.Slice:
+					item := rv.Index(0)
+					return buildReturnValues(returnType, item, e)
+				}
+				return buildReturnValues(returnType, rv, e)
 			}
 			return buildReturnValues(returnType, rv, e)
 		}
