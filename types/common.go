@@ -56,13 +56,9 @@ func getFormatString(ms string) string {
 	if len(ms) == 0{
 		return "''"
 	}
-	if strings.Compare(ms[0:1], "'") != 0 {
-		buf.WriteString("'")
-	}
-	buf.WriteString(ms)
-	if strings.Compare(ms[len(ms)-1:], "'") != 0 {
-		buf.WriteString("'")
-	}
+	buf.WriteString("'")
+	buf.WriteString(strings.ReplaceAll(ms,"'","\""))
+	buf.WriteString("'")
 	return buf.String()
 }
 
