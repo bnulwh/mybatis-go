@@ -14,7 +14,7 @@ func buildReturnValues(returnType *ReturnType, returnValue reflect.Value, e erro
 				returnValues[index] = reflect.Zero(*returnType.ReturnOutType)
 			}else{
 				returnValues[index] = returnValue
-				log.Info("results: %v", types.ToJson(reflect.Indirect(returnValue).Interface()))
+				log.Debug("results: %v", types.ToJson(reflect.Indirect(returnValue).Interface()))
 			}
 		} else {
 			if e != nil {

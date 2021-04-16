@@ -21,11 +21,11 @@ func Execute(sqlStr string, args ...interface{}) (int64, error) {
 func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
 	gLock.Lock()
 	defer gLock.Unlock()
-	log.Info("sql: %v", sqlStr)
+	log.Debug("sql: %v", sqlStr)
 	return queryRows(sqlStr, args...)
 }
 func execute(sqlStr string, args ...interface{}) (int64, error) {
-	log.Info("sql: %v", sqlStr)
+	log.Debug("sql: %v", sqlStr)
 	stmt, err := gDbConn.Prepare(sqlStr)
 	if err != nil {
 		log.Error("prepare sql %v failed: %v", sqlStr, err)
@@ -57,7 +57,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 		log.Warn("generate sql failed: %v", err)
 		return reflect.Value{}, err
 	}
-	log.Info("sql: %v", sqlStr)
+	log.Debug("sql: %v", sqlStr)
 	switch sqlFunc.Type {
 	case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
 		rf, err := execute(sqlStr, items...)
@@ -71,8 +71,8 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 			return reflect.Value{}, err
 		}
 		results := convert2Results(rows, sqlFunc.Result)
-		log.Info("results: %v", types.ToJson(results.Interface()))
-		log.Info("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
+		log.Debug("results: %v", types.ToJson(results.Interface()))
+		log.Debug("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
 		return results, nil
 	}
 	return reflect.Value{}, nil
