@@ -53,11 +53,11 @@ func parseSqlFunctionType(tps string) SqlFunctionType {
 
 func getFormatString(ms string) string {
 	var buf bytes.Buffer
-	if len(ms) == 0{
+	if len(ms) == 0 {
 		return "''"
 	}
 	buf.WriteString("'")
-	buf.WriteString(strings.ReplaceAll(ms,"'","\""))
+	buf.WriteString(strings.ReplaceAll(ms, "'", "\""))
 	buf.WriteString("'")
 	return buf.String()
 }
@@ -91,11 +91,13 @@ func parseResultTypeFrom(tps string) reflect.Type {
 		return reflect.TypeOf("")
 	case "TIMESTAMP", "TIME":
 		return reflect.TypeOf(time.Now())
-	case "INTEGER", "INT", "LONG", "BIGINT":
+	case "INTEGER", "INT":
 		return reflect.TypeOf(0)
+	case "LONG", "BIGINT":
+		return reflect.TypeOf(int64(0))
 	case "BOOLEAN", "BIT", "BOOL":
 		return reflect.TypeOf(true)
-	case "DOUBLE":
+	case "DOUBLE", "FLOAT":
 		return reflect.TypeOf(0.0)
 	default:
 		log.Warn("unsupport type to parse: %v", tps)
