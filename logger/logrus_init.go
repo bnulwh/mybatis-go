@@ -3,17 +3,16 @@ package logger
 import (
 	"github.com/lestrrat-go/file-rotatelogs"
 	"github.com/pkg/errors"
-	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
 	"io"
 	"path"
 	"time"
 )
 
-func createFileLogger(level, logPath string) (*rotatelogs.RotateLogs, error){
+func createFileLogger(level, logPath string) (*rotatelogs.RotateLogs, error) {
 	prefix := ""
-	if len(level) >0{
-		prefix = "."+level
+	if len(level) > 0 {
+		prefix = "." + level
 	}
 	return rotatelogs.New(
 		logPath+prefix+".%Y%m%d%H%M.log",
@@ -23,7 +22,7 @@ func createFileLogger(level, logPath string) (*rotatelogs.RotateLogs, error){
 	)
 }
 
-func ConfigLocalFileSystemLogger(logPath,logFileName string){
+func ConfigLocalFileSystemLogger(logPath, logFileName string) {
 	baseLogPath := path.Join(logPath, logFileName)
 	debugWriter, err := createFileLogger("debug", baseLogPath)
 	infoWriter, err := createFileLogger("info", baseLogPath)
@@ -34,14 +33,14 @@ func ConfigLocalFileSystemLogger(logPath,logFileName string){
 	if err != nil {
 		logrus.Errorf("config local file system logger error: %+v", errors.WithStack(err))
 	}
-	lfHook := lfshook.NewHook(lfshook.WriterMap{
+	lfHook := NewLocalFileSystemHook(WriterMap{
 		logrus.DebugLevel: io.MultiWriter(debugWriter, commonWriter),
-		logrus.InfoLevel: io.MultiWriter(infoWriter,commonWriter),
-		logrus.WarnLevel: io.MultiWriter(warnWriter,commonWriter),
+		logrus.InfoLevel:  io.MultiWriter(infoWriter, commonWriter),
+		logrus.WarnLevel:  io.MultiWriter(warnWriter, commonWriter),
 		logrus.ErrorLevel: multiErrorWriter,
 		logrus.FatalLevel: multiErrorWriter,
 		logrus.PanicLevel: multiErrorWriter,
-	},&SimpleFormatter{}	)
+	}, &SimpleFormatter{})
 	logrus.AddHook(NewContextHook())
 	logrus.AddHook(lfHook)
 	logrus.SetFormatter(&SimpleFormatter{Colored: true})
