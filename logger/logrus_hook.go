@@ -40,7 +40,7 @@ func (hook contextHook) Fire(entry *logrus.Entry) error {
 	var line int 
 	var ok bool
 	for i:=0;i<10;i++{
-		pc, file, line, ok := runtime.Caller(hook.Skip+i)
+		pc, file, line, ok = runtime.Caller(hook.Skip+i)
 		if !ok{
 			continue
 		}
