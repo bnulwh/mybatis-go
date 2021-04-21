@@ -2,7 +2,7 @@ package orm
 
 import (
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
@@ -22,15 +22,15 @@ func (in *modelCache) registerModel(inPtr interface{}) {
 	if typ.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("<orm.RegisterModel> only allow ptr model struct,it looks you use two reference to the struct `%s`", fn))
 	}
-	log.Debug("register  model struct `%s`", fn)
+	log.Debugf("register  model struct `%s`", fn)
 	in.addModel(typ)
 }
 
 func (in *modelCache) addModel(typ reflect.Type) {
 	name := typ.Name()
-	log.Debug("name: %v", name)
+	log.Debugf("name: %v", name)
 	sn := types.GetShortName(name)
-	log.Debug("short name: %v", sn)
+	log.Debugf("short name: %v", sn)
 	in.Models[name] = typ
 	in.Models[strings.ToLower(name)] = typ
 	in.Models[sn] = typ

@@ -2,7 +2,7 @@ package types
 
 import (
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 	"strings"
 )
@@ -26,7 +26,7 @@ type sqlFragment struct {
 	Type    sqlFragmentType
 }
 func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string,[]interface{}) {
-	log.Debug("sql fragment [%v] generate sql with slice : %v  depth: %v", in.Type, m, depth)
+	log.Debugf("sql fragment [%v] generate sql with slice : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
@@ -52,7 +52,7 @@ func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string,[
 }
 
 func (in *sqlFragment) generateSqlWithSlice(m []interface{}, depth int) string {
-	log.Debug("sql fragment [%v] generate sql with slice : %v  depth: %v", in.Type, m, depth)
+	log.Debugf("sql fragment [%v] generate sql with slice : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
@@ -77,7 +77,7 @@ func (in *sqlFragment) generateSqlWithSlice(m []interface{}, depth int) string {
 	return ""
 }
 func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (string,[]interface{}) {
-	log.Debug("sql fragment [%v] generate sql with map : %v  depth: %v", in.Type, m, depth)
+	log.Debugf("sql fragment [%v] generate sql with map : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
@@ -111,7 +111,7 @@ func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (s
 }
 
 func (in *sqlFragment) generateSqlWithMap(m map[string]interface{}, depth int) string {
-	log.Debug("sql fragment [%v] generate sql with map : %v  depth: %v", in.Type, m, depth)
+	log.Debugf("sql fragment [%v] generate sql with map : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
@@ -144,7 +144,7 @@ func (in *sqlFragment) generateSqlWithMap(m map[string]interface{}, depth int) s
 	return ""
 }
 func (in *sqlFragment) prepareSqlWithParam(m interface{}) (string, []interface{}) {
-	log.Debug("sql fragment [%v] prepare sql with param : %v  ", in.Type, m)
+	log.Debugf("sql fragment [%v] prepare sql with param : %v  ", in.Type, m)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
@@ -168,7 +168,7 @@ func (in *sqlFragment) prepareSqlWithParam(m interface{}) (string, []interface{}
 	return "", []interface{}{}
 }
 func (in *sqlFragment) generateSqlWithParam(m interface{}) string {
-	log.Debug("sql fragment [%v] generate sql with param : %v  ", in.Type, m)
+	log.Debugf("sql fragment [%v] generate sql with param : %v  ", in.Type, m)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
@@ -193,7 +193,7 @@ func (in *sqlFragment) generateSqlWithParam(m interface{}) string {
 }
 
 func (in *sqlFragment) generateSqlWithoutParam() string {
-	log.Debug("sql fragment [%v] generate sql without param ", in.Type)
+	log.Debugf("sql fragment [%v] generate sql without param ", in.Type)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
@@ -214,9 +214,9 @@ func (in *sqlFragment) generateSqlWithoutParam() string {
 }
 
 func parsesqlFragmentFromXmlElement(elem xmlElement, sns map[string]*SqlElement) *sqlFragment {
-	log.Debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-	log.Debug("++begin parse sql fragment from element: %v", ToJson(elem))
-	defer log.Debug("++finish parse sql fragment from element: %v", ToJson(elem))
+	log.Debugf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+	log.Debugf("++begin parse sql fragment from element: %v", ToJson(elem))
+	defer log.Debugf("++finish parse sql fragment from element: %v", ToJson(elem))
 	switch elem.ElementType {
 	case xmlTextElem:
 		return &sqlFragment{

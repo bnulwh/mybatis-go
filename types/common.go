@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 	"strings"
 	"time"
@@ -46,7 +46,7 @@ func parseSqlFunctionType(tps string) SqlFunctionType {
 	case "select":
 		return SelectFunction
 	default:
-		log.Warn("unsupport sql function type: %v", tps)
+		log.Warnf("unsupport sql function type: %v", tps)
 	}
 	return SelectFunction
 }
@@ -76,7 +76,7 @@ func getFormatValue(m interface{}) string {
 	case "time.Time":
 		return fmt.Sprintf("'%v'", m.(time.Time).Format("2006-01-02 15:04:05"))
 	default:
-		log.Warn("not support convert type %v", typ)
+		log.Warnf("not support convert type %v", typ)
 	}
 	return ""
 }
@@ -100,7 +100,7 @@ func parseResultTypeFrom(tps string) reflect.Type {
 	case "DOUBLE", "FLOAT":
 		return reflect.TypeOf(0.0)
 	default:
-		log.Warn("unsupport type to parse: %v", tps)
+		log.Warnf("unsupport type to parse: %v", tps)
 	}
 	return reflect.TypeOf(map[string]interface{}{})
 }
@@ -119,7 +119,7 @@ func parseJdbcTypeFrom(tps string) reflect.Type {
 	case "DOUBLE":
 		return reflect.TypeOf(0.0)
 	default:
-		log.Warn("unsupport jdbc type to parse: %v", tps)
+		log.Warnf("unsupport jdbc type to parse: %v", tps)
 	}
 	return reflect.TypeOf("")
 }
@@ -175,6 +175,6 @@ func validValue(m interface{}) bool {
 		val := reflect.ValueOf(m)
 		return val.Len() > 0
 	}
-	log.Warn("not support valid value: %v ,type: %v", m, typ)
+	log.Warnf("not support valid value: %v ,type: %v", m, typ)
 	return true
 }

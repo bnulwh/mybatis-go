@@ -1,7 +1,7 @@
 package orm
 
 import (
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 )
@@ -14,7 +14,7 @@ func buildReturnValues(returnType *ReturnType, returnValue reflect.Value, e erro
 				returnValues[index] = reflect.Zero(*returnType.ReturnOutType)
 			}else{
 				returnValues[index] = returnValue
-				log.Debug("results: %v", types.ToJson(reflect.Indirect(returnValue).Interface()))
+				log.Debugf("results: %v", types.ToJson(reflect.Indirect(returnValue).Interface()))
 			}
 		} else {
 			if e != nil {

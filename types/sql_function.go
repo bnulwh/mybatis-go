@@ -2,7 +2,7 @@ package types
 
 import (
 	"bytes"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 )
 
@@ -16,12 +16,12 @@ type SqlFunction struct {
 
 //GenerateSQL
 func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, error) {
-	log.Debug("========================================")
-	log.Debug("sql function %v begin generate sql args: %v", in.Id, args)
-	defer log.Debug("sql function %v finish  generate sql", in.Id)
+	log.Debugf("========================================")
+	log.Debugf("sql function %v begin generate sql args: %v", in.Id, args)
+	defer log.Debugf("sql function %v finish  generate sql", in.Id)
 	err := in.Param.validParam(args)
 	if err != nil {
-		log.Warn("valid param failed: %v", err)
+		log.Warnf("valid param failed: %v", err)
 		return "", []interface{}{}, err
 	}
 	if !in.Param.Need {
@@ -38,12 +38,12 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, 
 	return in.generateSqlWithMap(nmp), []interface{}{}, nil
 }
 func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []interface{}, error) {
-	log.Debug("========================================")
-	log.Debug("sql function %v begin prepare sql args: %v", in.Id, args)
-	defer log.Debug("sql function %v finish  prepare sql", in.Id)
+	log.Debugf("========================================")
+	log.Debugf("sql function %v begin prepare sql args: %v", in.Id, args)
+	defer log.Debugf("sql function %v finish  prepare sql", in.Id)
 	err := in.Param.validParam(args)
 	if err != nil {
-		log.Warn("valid param failed: %v", err)
+		log.Warnf("valid param failed: %v", err)
 		return "", nil, err
 	}
 	if !in.Param.Need {
@@ -88,7 +88,7 @@ func (in *SqlFunction) generateDefine() string {
 	return buf.String()
 }
 func (in *SqlFunction) prepareSqlWithMap(m map[string]interface{}) (string, []interface{}) {
-	log.Debug("sql function %v generate sql with map: %v", in.Id, m)
+	log.Debugf("sql function %v generate sql with map: %v", in.Id, m)
 	var buf bytes.Buffer
 	var results []interface{}
 	for _, item := range in.Items {
@@ -100,7 +100,7 @@ func (in *SqlFunction) prepareSqlWithMap(m map[string]interface{}) (string, []in
 	return buf.String(), results
 }
 func (in *SqlFunction) generateSqlWithMap(m map[string]interface{}) string {
-	log.Debug("sql function %v prepare sql with map: %v", in.Id, m)
+	log.Debugf("sql function %v prepare sql with map: %v", in.Id, m)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
@@ -109,7 +109,7 @@ func (in *SqlFunction) generateSqlWithMap(m map[string]interface{}) string {
 	return buf.String()
 }
 func (in *SqlFunction) prepareSqlWithSlice(m []interface{}) (string, []interface{}) {
-	log.Debug("sql function %v prepare sql with slice: %v", in.Id, m)
+	log.Debugf("sql function %v prepare sql with slice: %v", in.Id, m)
 	var buf bytes.Buffer
 	var results []interface{}
 	for _, item := range in.Items {
@@ -121,7 +121,7 @@ func (in *SqlFunction) prepareSqlWithSlice(m []interface{}) (string, []interface
 	return buf.String(), results
 }
 func (in *SqlFunction) generateSqlWithSlice(m []interface{}) string {
-	log.Debug("sql function %v generate sql with slice: %v", in.Id, m)
+	log.Debugf("sql function %v generate sql with slice: %v", in.Id, m)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
@@ -130,7 +130,7 @@ func (in *SqlFunction) generateSqlWithSlice(m []interface{}) string {
 	return buf.String()
 }
 func (in *SqlFunction) prepareSqlWithParam(m interface{}) (string, []interface{}) {
-	log.Debug("sql function %v generate sql with param: %v", in.Id, m)
+	log.Debugf("sql function %v generate sql with param: %v", in.Id, m)
 	var buf bytes.Buffer
 	var results []interface{}
 	for _, item := range in.Items {
@@ -142,7 +142,7 @@ func (in *SqlFunction) prepareSqlWithParam(m interface{}) (string, []interface{}
 	return buf.String(), results
 }
 func (in *SqlFunction) generateSqlWithParam(m interface{}) string {
-	log.Debug("sql function %v generate sql with param: %v", in.Id, m)
+	log.Debugf("sql function %v generate sql with param: %v", in.Id, m)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
@@ -152,7 +152,7 @@ func (in *SqlFunction) generateSqlWithParam(m interface{}) string {
 }
 
 func (in *SqlFunction) generateSqlWithoutParam() string {
-	log.Debug("sql function %v generate sql without param", in.Id)
+	log.Debugf("sql function %v generate sql without param", in.Id)
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
@@ -162,8 +162,8 @@ func (in *SqlFunction) generateSqlWithoutParam() string {
 }
 
 func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns map[string]*SqlElement) *SqlFunction {
-	log.Debug("begin parse sql function from %v %v", node.Id, node.Name)
-	defer log.Debug("finish parse sql function from %v %v", node.Id, node.Name)
+	log.Debugf("begin parse sql function from %v %v", node.Id, node.Name)
+	defer log.Debugf("finish parse sql function from %v %v", node.Id, node.Name)
 	tp := parseSqlFunctionType(node.Name)
 	return &SqlFunction{
 		Type:   tp,

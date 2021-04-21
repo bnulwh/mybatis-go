@@ -3,7 +3,7 @@ package types
 import (
 	"encoding/xml"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 	"strings"
 )
@@ -25,8 +25,8 @@ type SqlParam struct {
 }
 
 func parseSqlParamFromXmlAttrs(attrs map[string]xml.Attr) SqlParam {
-	log.Debug("--begin parse sql param from: %v", ToJson(attrs))
-	defer log.Debug("--finish parse sql param from: %v", ToJson(attrs))
+	log.Debugf("--begin parse sql param from: %v", ToJson(attrs))
+	defer log.Debugf("--finish parse sql param from: %v", ToJson(attrs))
 	attr, ok := attrs["parameterType"]
 	if !ok {
 		return SqlParam{Need: false}
@@ -42,7 +42,7 @@ func parseSqlParamFromXmlAttrs(attrs map[string]xml.Attr) SqlParam {
 }
 
 func (in *SqlParam) validParam(args []interface{}) error {
-	log.Debug("sql param valid param %v", args)
+	log.Debugf("sql param valid param %v", args)
 	if !in.Need {
 		return nil
 	}

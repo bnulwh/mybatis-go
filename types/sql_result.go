@@ -2,7 +2,7 @@ package types
 
 import (
 	"encoding/xml"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 )
 
@@ -12,8 +12,8 @@ type SqlResult struct {
 }
 
 func parseSqlResultFromXmlAttrs(attrs map[string]xml.Attr, rms map[string]*ResultMap) SqlResult {
-	log.Debug("--begin parse sql result from: %v", ToJson(attrs))
-	defer log.Debug("--finish parse sql result from: %v", ToJson(attrs))
+	log.Debugf("--begin parse sql result from: %v", ToJson(attrs))
+	defer log.Debugf("--finish parse sql result from: %v", ToJson(attrs))
 	attr, ok := attrs["resultMap"]
 	if ok {
 		return parseSqlResult0(attr.Value, rms)
@@ -36,7 +36,7 @@ func parseSqlResult0(val string, rms map[string]*ResultMap) SqlResult {
 			ResultT: reflect.TypeOf(-1),
 		}
 	}
-	log.Warn("can not find result map: %v", val)
+	log.Warnf("can not find result map: %v", val)
 	return SqlResult{
 		ResultM: nil,
 		ResultT: reflect.TypeOf(map[string]interface{}{}),

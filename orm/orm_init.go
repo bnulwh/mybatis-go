@@ -2,7 +2,7 @@ package orm
 
 import (
 	"database/sql"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
@@ -21,7 +21,7 @@ func Initialize(filename string) {
 	if err != nil {
 		panic(err)
 	}
-	log.Info("successfully connected!")
+	log.Infof("successfully connected!")
 	gDbConn.SetConnMaxLifetime(time.Minute * 5)
 	gDbConn.SetMaxIdleConns(10)
 	gDbConn.SetMaxOpenConns(10)
@@ -37,7 +37,7 @@ func Close() {
 	if gDbConn != nil {
 		err := gDbConn.Close()
 		if err != nil {
-			log.Error("close db error: %v", err)
+			log.Errorf("close db error: %v", err)
 		}
 	}
 	//gDone <- "done"

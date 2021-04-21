@@ -3,7 +3,7 @@ package types
 import (
 	"bytes"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -24,19 +24,19 @@ func (in *SqlMapper) GenerateFiles(dir, pkg string) {
 	for _, mp := range in.Maps {
 		err := mp.GenerateFile(dir, pkg)
 		if err != nil {
-			log.Warn("result map %v generate file failed: %v", mp.TypeName, err)
+			log.Warnf("result map %v generate file failed: %v", mp.TypeName, err)
 		}
 	}
 	err := in.generateMapperFile(dir, pkg)
 	if err != nil {
-		log.Warn("mapper %v generate mapper file failed: %v", in.Namespace, err)
+		log.Warnf("mapper %v generate mapper file failed: %v", in.Namespace, err)
 	}
 }
 
 func (in *SqlMapper) generateMapperFile(dir, pkg string) error {
 	sname := GetShortName(in.Namespace)
 	filename := filepath.Join(dir, fmt.Sprintf("%s.go", sname))
-	log.Info("generate mapper file: %v", filename)
+	log.Infof("generate mapper file: %v", filename)
 	bts := in.generateContent(pkg)
 	return ioutil.WriteFile(filename, bts, 0640)
 }
@@ -72,12 +72,12 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 }
 
 func loadMapper(filename string) *SqlMapper {
-	log.Debug("--------------------------------------------------")
-	log.Debug("begin load mapper from %v", filename)
-	defer log.Debug("finish load mapper from %v", filename)
+	log.Debugf("--------------------------------------------------")
+	log.Debugf("begin load mapper from %v", filename)
+	defer log.Debugf("finish load mapper from %v", filename)
 	node := parseXmlFile(filename)
 	if node == nil {
-		log.Warn("parse xml file %v failed", filename)
+		log.Warnf("parse xml file %v failed", filename)
 		return nil
 	}
 	mps := filterResultMap(node.Elements)

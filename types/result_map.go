@@ -3,7 +3,7 @@ package types
 import (
 	"bytes"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -20,7 +20,7 @@ type ResultMap struct {
 func (in *ResultMap) GenerateFile(dir, pkg string) error {
 	sname := GetShortName(in.TypeName)
 	filename := filepath.Join(dir, fmt.Sprintf("%s.go", sname))
-	log.Debug("generate file %v", filename)
+	log.Debugf("generate file %v", filename)
 	bts := in.generateContent(pkg)
 	return ioutil.WriteFile(filename, bts, 0640)
 }
@@ -55,8 +55,8 @@ func (in *ResultMap) hasTimeItem() bool {
 }
 
 func parseResultMapFromXmlNode(node xmlNode) *ResultMap {
-	log.Debug("begin parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
-	defer log.Debug("finish parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
+	log.Debugf("begin parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
+	defer log.Debugf("finish parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
 	id := node.Id
 	tn := node.Attrs["type"].Value
 	var arr []*ResultItem

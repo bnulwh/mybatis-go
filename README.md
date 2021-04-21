@@ -158,10 +158,10 @@ func main() {
  	mp := orm.NewMapper("UserInfoModelMapper").(UserInfoModelMapper)
  	rs, err := mp.SelectAll()
  	if err != nil {
- 		log.Error("select failed: %v", err)
+ 		log.Errorf("select failed: %v", err)
  	} else {
  		for _, row := range rs {
- 			log.Info("row: %v", types.ToJson(row))
+ 			log.Infof("row: %v", types.ToJson(row))
  		}
  	}
  }

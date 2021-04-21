@@ -1,7 +1,7 @@
 package types
 
 import (
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 )
 
 type SqlElement struct {
@@ -10,8 +10,8 @@ type SqlElement struct {
 }
 
 func parseSqlElementFromXmlNode(node xmlNode) *SqlElement {
-	log.Debug("begin parse sql element from: %v", ToJson(node))
-	defer log.Debug("finish parse sql element from: %v", ToJson(node))
+	log.Debugf("begin parse sql element from: %v", ToJson(node))
+	defer log.Debugf("finish parse sql element from: %v", ToJson(node))
 	return &SqlElement{
 		Sql: node.Elements[0].Val.(string),
 		Id:  node.Id,

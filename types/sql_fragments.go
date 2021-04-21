@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 	"regexp"
 	"strings"
@@ -56,7 +56,7 @@ type sqlChoose struct {
 }
 
 func (in *sqlForLoop) prepareSql(mp map[string]interface{}, items []interface{}, depth int) (string, []interface{}) {
-	log.Debug("sql for loop prepare sql params: %v %v depth: %v", mp, items, depth)
+	log.Debugf("sql for loop prepare sql params: %v %v depth: %v", mp, items, depth)
 	if items == nil || len(items) == 0 {
 		return "", []interface{}{}
 	}
@@ -78,7 +78,7 @@ func (in *sqlForLoop) prepareSql(mp map[string]interface{}, items []interface{},
 	return buf.String(), results
 }
 func (in *sqlForLoop) generateSql(mp map[string]interface{}, items []interface{}, depth int) string {
-	log.Debug("sql for loop generate sql params: %v %v depth: %v", mp, items, depth)
+	log.Debugf("sql for loop generate sql params: %v %v depth: %v", mp, items, depth)
 	if items == nil || len(items) == 0 {
 		return ""
 	}
@@ -121,11 +121,11 @@ func (in *sqlForLoop) buildParams(index int, item interface{}, mp map[string]int
 		reflect.Float32, reflect.Float64:
 		nmp[buildKey(in.Item)] = getFormatValue(item)
 	}
-	log.Debug("build param result: %v", nmp)
+	log.Debugf("build param result: %v", nmp)
 	return nmp
 }
 func (in *sqlIfTest) prepareSqlWithSlice(m []interface{}, depth int) (string, []interface{}) {
-	log.Debug("sql if test prepare sql with slice : %v  depth: %v", m, depth)
+	log.Debugf("sql if test prepare sql with slice : %v  depth: %v", m, depth)
 	if len(m) < 1 {
 		return "", []interface{}{}
 	}
@@ -143,13 +143,13 @@ func (in *sqlIfTest) prepareSqlWithSlice(m []interface{}, depth int) (string, []
 			buf.WriteString(sqlstr)
 			results = append(results, items)
 		default:
-			log.Warn("unsupport if test type %v", item.Type)
+			log.Warnf("unsupport if test type %v", item.Type)
 		}
 	}
 	return buf.String(), results
 }
 func (in *sqlIfTest) generateSqlWithSlice(m []interface{}, depth int) string {
-	log.Debug("sql if test generate sql with slice : %v  depth: %v", m, depth)
+	log.Debugf("sql if test generate sql with slice : %v  depth: %v", m, depth)
 	if len(m) < 1 {
 		return ""
 	}
@@ -164,13 +164,13 @@ func (in *sqlIfTest) generateSqlWithSlice(m []interface{}, depth int) string {
 		case forLoopSqlFragment:
 			buf.WriteString(item.ForLoop.generateSql(map[string]interface{}{}, m, depth+1))
 		default:
-			log.Warn("unsupport if test type %v", item.Type)
+			log.Warnf("unsupport if test type %v", item.Type)
 		}
 	}
 	return buf.String()
 }
 func (in *sqlIfTest) prepareSqlWithMap(mp map[string]interface{}, depth int) (string, []interface{}) {
-	log.Debug("sql if test prepare sql with map : %v depth: %v", mp, depth)
+	log.Debugf("sql if test prepare sql with map : %v depth: %v", mp, depth)
 	bv := in.checkConditions(mp)
 	if !bv {
 		return "", []interface{}{}
@@ -186,7 +186,7 @@ func (in *sqlIfTest) prepareSqlWithMap(mp map[string]interface{}, depth int) (st
 	return buf.String(), results
 }
 func (in *sqlIfTest) generateSqlWithMap(mp map[string]interface{}, depth int) string {
-	log.Debug("sql if test generate sql with map : %v depth: %v", mp, depth)
+	log.Debugf("sql if test generate sql with map : %v depth: %v", mp, depth)
 	bv := in.checkConditions(mp)
 	if !bv {
 		return ""
@@ -199,7 +199,7 @@ func (in *sqlIfTest) generateSqlWithMap(mp map[string]interface{}, depth int) st
 	return buf.String()
 }
 func (in *sqlIfTest) prepareSqlWithParam(m interface{}) (string, []interface{}) {
-	log.Debug("sql if test prepare sql with param: %v", m)
+	log.Debugf("sql if test prepare sql with param: %v", m)
 	var buf bytes.Buffer
 	var results []interface{}
 	for _, item := range in.Sql {
@@ -212,7 +212,7 @@ func (in *sqlIfTest) prepareSqlWithParam(m interface{}) (string, []interface{}) 
 }
 
 func (in *sqlIfTest) generateSqlWithParam(m interface{}) string {
-	log.Debug("sql if test generate sql with param: %v", m)
+	log.Debugf("sql if test generate sql with param: %v", m)
 	var buf bytes.Buffer
 	for _, item := range in.Sql {
 		buf.WriteString(" ")
@@ -221,7 +221,7 @@ func (in *sqlIfTest) generateSqlWithParam(m interface{}) string {
 	return buf.String()
 }
 func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
-	log.Debug("sql if test check conditions with param: %v", m)
+	log.Debugf("sql if test check conditions with param: %v", m)
 	for _, cond := range in.Conditions {
 		bv := cond.checkValue(m)
 		if !bv {
@@ -231,7 +231,7 @@ func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 	return true
 }
 func (in *ifCondition) checkValue(m map[string]interface{}) bool {
-	log.Debug("if condition %v check value: %v", in.CheckName, m)
+	log.Debugf("if condition %v check value: %v", in.CheckName, m)
 	val, ok := m[buildKey(in.CheckName)]
 	if !ok {
 		return false
@@ -242,7 +242,7 @@ func (in *ifCondition) checkValue(m map[string]interface{}) bool {
 	return validValue(val)
 }
 func (in *sqlChoose) prepareSqlWithMap(mp map[string]interface{}, depth int) (string, []interface{}) {
-	log.Debug("sql choose prepare sql with map: %v", mp)
+	log.Debugf("sql choose prepare sql with map: %v", mp)
 	for _, item := range in.When {
 		if item.checkConditions(mp) {
 			return item.prepareSqlWithMap(mp, depth+1)
@@ -252,7 +252,7 @@ func (in *sqlChoose) prepareSqlWithMap(mp map[string]interface{}, depth int) (st
 }
 
 func (in *sqlChoose) generateSqlWithMap(mp map[string]interface{}, depth int) string {
-	log.Debug("sql choose generate sql with map: %v", mp)
+	log.Debugf("sql choose generate sql with map: %v", mp)
 	for _, item := range in.When {
 		if item.checkConditions(mp) {
 			return item.generateSqlWithMap(mp, depth+1)
@@ -261,14 +261,14 @@ func (in *sqlChoose) generateSqlWithMap(mp map[string]interface{}, depth int) st
 	return in.Otherwise.generateSqlWithMap(mp, depth+1)
 }
 func (in *simpleSql) prepareSqlWithMap(mp map[string]interface{}, depth int) (string, []interface{}) {
-	log.Debug("simple sql prepare sql with map: %v", mp)
+	log.Debugf("simple sql prepare sql with map: %v", mp)
 	sqlstr := in.Sql
 	var results []interface{}
 	for _, param := range in.Params {
 		key := buildKey(param.Name)
 		val, ok := mp[key]
 		if !ok {
-			log.Warn("not found %v in map", key)
+			log.Warnf("not found %v in map", key)
 			continue
 		}
 		sqlstr = strings.ReplaceAll(sqlstr, param.Origin, "?")
@@ -278,13 +278,13 @@ func (in *simpleSql) prepareSqlWithMap(mp map[string]interface{}, depth int) (st
 }
 
 func (in *simpleSql) generateSqlWithMap(mp map[string]interface{}, depth int) string {
-	log.Debug("simple sql generate sql with map: %v", mp)
+	log.Debugf("simple sql generate sql with map: %v", mp)
 	sqlstr := in.Sql
 	for _, param := range in.Params {
 		key := buildKey(param.Name)
 		val, ok := mp[key]
 		if !ok {
-			log.Warn("not found %v in map", key)
+			log.Warnf("not found %v in map", key)
 			continue
 		}
 		valstr := getFormatValue(val)
@@ -293,7 +293,7 @@ func (in *simpleSql) generateSqlWithMap(mp map[string]interface{}, depth int) st
 	return sqlstr
 }
 func (in *simpleSql) prepareSqlWithParam(m interface{}) (string, []interface{}) {
-	log.Debug("sql if test prepare sql with param: %v", m)
+	log.Debugf("sql if test prepare sql with param: %v", m)
 	sqlstr := in.Sql
 	var results []interface{}
 	for _, param := range in.Params {
@@ -303,7 +303,7 @@ func (in *simpleSql) prepareSqlWithParam(m interface{}) (string, []interface{}) 
 	return sqlstr, results
 }
 func (in *simpleSql) generateSqlWithParam(m interface{}) string {
-	log.Debug("sql if test generate sql with param: %v", m)
+	log.Debugf("sql if test generate sql with param: %v", m)
 	sqlstr := in.Sql
 	valstr := getFormatValue(m)
 	for _, param := range in.Params {

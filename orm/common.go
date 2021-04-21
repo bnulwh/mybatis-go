@@ -3,7 +3,7 @@ package orm
 import (
 	"database/sql"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"os"
@@ -39,7 +39,7 @@ func LoadSettings(filename string) map[string]string {
 func LoadProperties(filename string) map[string]string {
 	body, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Warn("load file %v failed: %v", filename, err)
+		log.Warnf("load file %v failed: %v", filename, err)
 		return map[string]string{}
 	}
 	envMap := map[string]string{}
@@ -101,7 +101,7 @@ func getSqlPtrType(typ reflect.Type) interface{} {
 	case "mysql.NullTime":
 		return new(mysql.NullTime)
 	}
-	log.Debug("not support  type %v", typ)
+	log.Debugf("not support  type %v", typ)
 	return new(sql.NullString)
 }
 
@@ -210,6 +210,6 @@ func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
 		}
 		return time.Time{}, nil
 	}
-	log.Warn("not support convert type: %v ,value: %v", typ, ptr)
+	log.Warnf("not support convert type: %v ,value: %v", typ, ptr)
 	return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, ptr)
 }

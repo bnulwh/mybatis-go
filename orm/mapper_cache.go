@@ -2,7 +2,7 @@ package orm
 
 import (
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
@@ -46,7 +46,7 @@ func (in *mapperInfo) bindSql(smp *types.SqlMapper) {
 		}
 		in.Functions[i].bindSql(sf)
 	}
-	log.Debug("%v bind sql mapper %v ok", in.Name, smp.Filename)
+	log.Debugf("%v bind sql mapper %v ok", in.Name, smp.Filename)
 }
 func getFunctions(typ reflect.Type) []*funcInfo {
 	var infos []*funcInfo
@@ -99,7 +99,7 @@ func (in *mapperCache) registerMapper(inPtr interface{}) {
 	if typ.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("<orm.RegisterMapper> only allow ptr mapper struct,it looks you use two reference to the struct `%s`", fn))
 	}
-	log.Debug("register  mapper struct `%s`", fn)
+	log.Debugf("register  mapper struct `%s`", fn)
 	_, ok := typ.FieldByName("BaseMapper")
 	if !ok {
 		panic(fmt.Sprintf("<orm.RegisterMapper> can only use mapper struct `%s` based on <orm.BaseMapper>", fn))

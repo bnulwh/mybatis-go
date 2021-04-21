@@ -1,7 +1,7 @@
 package types
 
 import (
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +17,7 @@ func NewSqlMappers(dir string) *SqlMappers {
 	var mps []SqlMapper
 	nmp := map[string]*SqlMapper{}
 	for _, filename := range filenames {
-		log.Debug("begin parse mapper file: %v", filename)
+		log.Debugf("begin parse mapper file: %v", filename)
 		mp := loadMapper(filename)
 		if mp != nil {
 			mps = append(mps, *mp)
@@ -49,7 +49,7 @@ func filterMapperFiles(dir string) []string {
 		return nil
 	})
 	if err != nil {
-		log.Warn("walk dir %v failed: %v", dir, err)
+		log.Warnf("walk dir %v failed: %v", dir, err)
 	}
 	return files
 }

@@ -1,7 +1,7 @@
 package main
 
 import (
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"github.com/bnulwh/mybatis-go/logger"
 	"github.com/bnulwh/mybatis-go/orm"
 	"github.com/bnulwh/mybatis-go/types"
@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 }
 
 func init() {
-	logger.Initialize("postgresdemo.log")
+	logger.ConfigLocalFileSystemLogger("/var/log","postgresdemo")
 	orm.Initialize("application-pg.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
@@ -43,10 +43,10 @@ func main() {
 	mp := orm.NewMapper("UserInfoModelMapper").(UserInfoModelMapper)
 	rs, err := mp.SelectAll()
 	if err != nil {
-		log.Error("select failed: %v", err)
+		log.Errorf("select failed: %v", err)
 	} else {
 		for _, row := range rs {
-			log.Info("row: %v", types.ToJson(row))
+			log.Infof("row: %v", types.ToJson(row))
 		}
 	}
 }

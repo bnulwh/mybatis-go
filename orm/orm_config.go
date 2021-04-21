@@ -3,7 +3,7 @@ package orm
 import (
 	"errors"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"regexp"
 	"strconv"
 	"strings"
@@ -58,17 +58,17 @@ func (in *DatabaseConfig) GenerateConn() (string, string) {
 func parseDatabaseConfig(m map[string]string) *DatabaseConfig {
 	tp, h, P, d, err := parseAddr(m)
 	if err != nil {
-		log.Error("parse postgres addr failed: %v", err)
+		log.Errorf("parse postgres addr failed: %v", err)
 		panic(err)
 	}
 	u, ok := m["spring.datasource.username"]
 	if !ok {
-		log.Error("get database username failed.")
+		log.Errorf("get database username failed.")
 		panic("get database username failed.")
 	}
 	p, ok := m["spring.datasource.password"]
 	if !ok {
-		log.Error("get database password failed.")
+		log.Errorf("get database password failed.")
 		panic("get database password failed.")
 	}
 	return &DatabaseConfig{

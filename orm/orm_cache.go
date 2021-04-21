@@ -2,7 +2,7 @@ package orm
 
 import (
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
@@ -63,7 +63,7 @@ func RegisterMapper(inPtr interface{}) {
 func NewMapper(name string) interface{} {
 	mp, err := gCache.createMapper(name)
 	if err != nil {
-		log.Warn("cannot find mapper struct `%s`", name)
+		log.Warnf("cannot find mapper struct `%s`", name)
 		panic(err)
 	}
 	bindMapper(name, mp)
@@ -73,7 +73,7 @@ func NewMapper(name string) interface{} {
 func NewMapperPtr(name string) interface{} {
 	mp, err := gCache.createMapper(name)
 	if err != nil {
-		log.Warn("cannot find mapper struct `%s`", name)
+		log.Warnf("cannot find mapper struct `%s`", name)
 		panic(err)
 	}
 	bindMapper(name, mp)

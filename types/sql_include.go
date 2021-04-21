@@ -3,7 +3,7 @@ package types
 import (
 	"encoding/xml"
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 )
 
 type sqlInclude struct {
@@ -12,7 +12,7 @@ type sqlInclude struct {
 }
 
 func parseSqlIncludeFromXmlNode(attrs map[string]xml.Attr, sns map[string]*SqlElement) *sqlFragment {
-	log.Debug("parse sql include from: %v", ToJson(attrs))
+	log.Debugf("parse sql include from: %v", ToJson(attrs))
 	attr, ok := attrs["refid"]
 	if ok {
 		sn, ok := sns[attr.Value]

@@ -2,7 +2,7 @@ package orm
 
 import (
 	"fmt"
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 	"strconv"
 	"strings"
@@ -418,7 +418,7 @@ func changeType(val interface{}, typ reflect.Type) (interface{}, error) {
 	case "time.Time":
 		return change2Time(val)
 	}
-	log.Warn("not support convert type: %v ,value: %v", typ, val)
+	log.Warnf("not support convert type: %v ,value: %v", typ, val)
 	return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, val)
 }
 func isNumberType(typ reflect.Type) bool {

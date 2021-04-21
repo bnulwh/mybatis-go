@@ -1,7 +1,7 @@
 package main
 
 import (
-	log "github.com/astaxie/beego/logs"
+	log "github.com/sirupsen/logrus"
 	"github.com/bnulwh/mybatis-go/logger"
 	"github.com/bnulwh/mybatis-go/mapper"
 	"github.com/bnulwh/mybatis-go/orm"
@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	logger.Initialize("mysqldemo.log")
+	logger.ConfigLocalFileSystemLogger("/var/log","mysqldemo")
 	orm.Initialize("application-mysql.properties")
 
 }
@@ -22,14 +22,14 @@ func main() {
 	//
 	rs, err := mp.SelectAll()
 	if err != nil {
-		log.Error("select failed: %v", err)
+		log.Errorf("select failed: %v", err)
 	} else {
 		for _, row := range rs {
-			log.Info("row: %v", types.ToJson(row))
+			log.Infof("row: %v", types.ToJson(row))
 		}
 	}
 	item, err := mp.SelectByPrimaryKey(1)
 	if err == nil {
-		log.Info("item: %v", types.ToJson(item))
+		log.Infof("item: %v", types.ToJson(item))
 	}
 }
