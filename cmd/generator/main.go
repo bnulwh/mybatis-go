@@ -7,7 +7,7 @@ import (
 )
 
 func init(){
-	logger.Initialize("generator.log")
+	logger.ConfigLocalFileSystemLogger("logs","generator")
 }
 
 func main(){

@@ -87,7 +87,7 @@ func buildKey(key string) string {
 
 func parseResultTypeFrom(tps string) reflect.Type {
 	switch strings.ToUpper(GetShortName(tps)) {
-	case "VARCHAR", "STRING":
+	case "VARCHAR", "STRING", "LONGVARCHAR":
 		return reflect.TypeOf("")
 	case "TIMESTAMP", "TIME":
 		return reflect.TypeOf(time.Now())
@@ -106,7 +106,7 @@ func parseResultTypeFrom(tps string) reflect.Type {
 }
 func parseJdbcTypeFrom(tps string) reflect.Type {
 	switch strings.ToUpper(GetShortName(tps)) {
-	case "VARCHAR", "STRING":
+	case "VARCHAR", "STRING", "LONGVARCHAR":
 		return reflect.TypeOf("")
 	case "TIMESTAMP", "TIME":
 		return reflect.TypeOf(time.Now())
