@@ -54,7 +54,7 @@ func (hook contextHook) Fire(entry *logrus.Entry) error {
 	fullFnName := fullFn.Name()
 	pos := strings.LastIndex(fullFnName,".")
 	// fnNames := strings.Split(fullFnName,".")
-	ret := fmt.Sprintf("%v:%v%v()",filepath.Base(file),line, fullFnName[pos+1:])
+	ret := fmt.Sprintf("%v : %v : %v()",filepath.Base(file),line, fullFnName[pos+1:])
 	// }
 	entry.Data[hook.Field] = ret
 	return nil
