@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"reflect"
 	"strings"
 	"time"

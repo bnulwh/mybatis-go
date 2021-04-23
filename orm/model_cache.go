@@ -2,7 +2,7 @@ package orm
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"

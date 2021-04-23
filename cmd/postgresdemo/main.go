@@ -1,7 +1,7 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/logger"
 	"github.com/bnulwh/mybatis-go/orm"
 	"github.com/bnulwh/mybatis-go/types"

@@ -2,7 +2,7 @@ package orm
 
 import (
 	"database/sql"
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"sync"
 	"time"
 )

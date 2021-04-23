@@ -3,7 +3,7 @@ package orm
 import (
 	"database/sql"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"os"

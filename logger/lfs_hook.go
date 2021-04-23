@@ -1,7 +1,7 @@
 package logger
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
+	"github.com/bnulwh/logrus"
 	"io"
 	"log"
 	"os"

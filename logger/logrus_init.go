@@ -1,9 +1,9 @@
 package logger
 
 import (
+	"github.com/bnulwh/logrus"
 	"github.com/lestrrat-go/file-rotatelogs"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"io"
 	"path"
 	"time"
@@ -40,8 +40,8 @@ func ConfigLocalFileSystemLogger(logPath, logFileName string) {
 		logrus.ErrorLevel: multiErrorWriter,
 		logrus.FatalLevel: multiErrorWriter,
 		logrus.PanicLevel: multiErrorWriter,
-	}, &SimpleFormatter{})
-	logrus.AddHook(NewContextHook())
+	}, &logrus.SimpleFormatter{})
+	//logrus.AddHook(NewContextHook())
 	logrus.AddHook(lfHook)
-	logrus.SetFormatter(&SimpleFormatter{Colored: true})
+	//logrus.SetFormatter(&logrus.SimpleFormatter{Colored: true})
 }

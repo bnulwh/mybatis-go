@@ -3,7 +3,7 @@ package types
 import (
 	"encoding/xml"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 )
 
 type sqlInclude struct {

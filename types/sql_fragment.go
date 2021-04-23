@@ -2,7 +2,7 @@ package types
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"reflect"
 	"strings"
 )
