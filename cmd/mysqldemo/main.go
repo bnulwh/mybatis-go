@@ -1,8 +1,7 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
-	"github.com/bnulwh/mybatis-go/logger"
+	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/mapper"
 	"github.com/bnulwh/mybatis-go/orm"
 	"github.com/bnulwh/mybatis-go/types"
@@ -10,7 +9,7 @@ import (
 )
 
 func init() {
-	logger.ConfigLocalFileSystemLogger("/var/log","mysqldemo")
+	log.ConfigLocalFileSystemLogger("/var/log","mysqldemo")
 	orm.Initialize("application-mysql.properties")
 
 }

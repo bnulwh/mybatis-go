@@ -3,7 +3,7 @@ package orm
 import (
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"regexp"
 	"strconv"
 	"strings"

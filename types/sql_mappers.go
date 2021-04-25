@@ -1,7 +1,7 @@
 package types
 
 import (
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"os"
 	"path/filepath"
 	"strings"

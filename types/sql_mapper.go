@@ -3,7 +3,7 @@ package types
 import (
 	"bytes"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	log "github.com/bnulwh/logrus"
 	"io/ioutil"
 	"path/filepath"
 	"strings"

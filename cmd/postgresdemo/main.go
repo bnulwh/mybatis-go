@@ -1,8 +1,7 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
-	"github.com/bnulwh/mybatis-go/logger"
+	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/orm"
 	"github.com/bnulwh/mybatis-go/types"
 	_ "github.com/lib/pq"
@@ -33,7 +32,7 @@ type UserInfoModelMapper struct {
 }
 
 func init() {
-	logger.ConfigLocalFileSystemLogger("/var/log","postgresdemo")
+	log.ConfigLocalFileSystemLogger("/var/log","postgresdemo")
 	orm.Initialize("application-pg.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
