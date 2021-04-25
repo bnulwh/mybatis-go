@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	log "github.com/bnulwh/bnulwh/logrus"
+	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/types"
 )
 
