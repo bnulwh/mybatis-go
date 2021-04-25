@@ -2,12 +2,12 @@ package main
 
 import (
 	"flag"
-	"github.com/bnulwh/mybatis-go/logger"
+	log "github.com/bnulwh/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/types"
 )
 
 func init(){
-	logger.Initialize("generator.log")
+	log.ConfigLocalFileSystemLogger("logs","generator")
 }
 
 func main(){
