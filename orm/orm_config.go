@@ -95,7 +95,7 @@ func parseAddr(m map[string]string) (string, string, int64, string, error) {
 	if !ok {
 		return "", "", 0, "", errors.New("not found key spring.datasource.url")
 	}
-	re := regexp.MustCompile(`jdbc:([\w]+)://([\w\\.]+):([\d]+)/([\w_-]+)`)
+	re := regexp.MustCompile(`jdbc:([\w]+)://([\w-\\.]+):([\d]+)/([\w_-]+)`)
 	matched := re.FindStringSubmatch(val)
 	if len(matched) < 5 {
 		return "", "", 0, "", errors.New("unsupport formate of spring.datasource.url")

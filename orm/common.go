@@ -25,7 +25,7 @@ func LoadSettings(filename string) map[string]string {
 	m := LoadProperties(filename)
 	em := GetAllEnv()
 	for k, v := range m {
-		if strings.Compare(v[0:2], "${") == 0 {
+		if strings.HasPrefix(v, "${") {
 			v = getRealValue(v, em)
 			m[k] = v
 		}
