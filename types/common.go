@@ -74,7 +74,7 @@ func getFormatValue(m interface{}) string {
 		"float32", "float64":
 		return fmt.Sprintf("%v", m)
 	case "time.Time":
-		return fmt.Sprintf("'%v'", m.(time.Time).Format("2006-01-02 15:04:05"))
+		return fmt.Sprintf("'%v'", m.(time.Time).Format("2006-01-02 15:04:05.000000000"))
 	default:
 		log.Warnf("not support convert type %v", typ)
 	}
