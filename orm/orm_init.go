@@ -14,7 +14,12 @@ var (
 )
 
 func Initialize(filename string) {
-	dc := NewConfig(filename)
+	cm := LoadSettings(filename)
+	InitializeFromSettings(cm)
+}
+
+func InitializeFromSettings(cm map[string]string) {
+	dc := NewConfigFromSettings(cm)
 	driverName, connStr := dc.DbConfig.GenerateConn()
 	var err error
 	gDbConn, err = sql.Open(driverName, connStr)
@@ -32,7 +37,6 @@ func Initialize(filename string) {
 	}
 	gCache.initSqls(dc.MapperLocations)
 }
-
 func Close() {
 	if gDbConn != nil {
 		err := gDbConn.Close()

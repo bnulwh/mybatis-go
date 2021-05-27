@@ -34,6 +34,9 @@ type MyBatisConfig struct {
 
 func NewConfig(filename string) *MyBatisConfig {
 	cm := LoadSettings(filename)
+	return NewConfigFromSettings(cm)
+}
+func NewConfigFromSettings(cm map[string]string) *MyBatisConfig {
 	dbc := parseDatabaseConfig(cm)
 	ml := cm["mybatis.mapper-locations"]
 	return &MyBatisConfig{
