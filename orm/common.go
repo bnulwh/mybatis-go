@@ -209,6 +209,12 @@ func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
 			return pval.Time, nil
 		}
 		return time.Time{}, nil
+	case "sql.NullTime":
+		pval,ok := ptr.(*sql.NullTime)
+		if ok && pval.Valid {
+			return pval.Time, nil
+		}
+		return time.Time{}, nil
 	}
 	log.Warnf("not support convert type: %v ,value: %v", typ, ptr)
 	return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, ptr)
