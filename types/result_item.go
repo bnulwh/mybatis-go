@@ -12,14 +12,16 @@ type ResultItem struct {
 	Property   string
 	PrimaryKey bool
 }
-
+//<id column="id" jdbcType="INTEGER" property="id" />
+//    <result column="created_by" jdbcType="VARCHAR" property="createdBy" />
+//
 func parseResultItemFromXmlNode(elem xmlElement) *ResultItem {
-	log.Debugf("--parse result item from: %v",ToJson(elem))
+	log.Debugf("--parse result item from: %v", ToJson(elem))
 	xn := elem.Val.(xmlNode)
 	bpk := strings.Compare(xn.Name, "id") == 0
-	col := xn.Attrs["column"].Value
-	tpn := xn.Attrs["jdbcType"].Value
-	pro := xn.Attrs["property"].Value
+	col := xn.Attrs["column"]
+	tpn := xn.Attrs["jdbcType"]
+	pro := xn.Attrs["property"]
 	typ := parseJdbcTypeFrom(tpn)
 	return &ResultItem{
 		Column:     col,

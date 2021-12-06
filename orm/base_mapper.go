@@ -12,7 +12,7 @@ import (
 
 type BaseMapper struct {
 	mapper *types.SqlMapper
-	lock sync.Mutex
+	lock   sync.Mutex
 }
 
 func Execute(sqlStr string, args ...interface{}) (int64, error) {
@@ -186,7 +186,7 @@ func createResult(mp map[string]interface{}, resInfo types.SqlResult) (interface
 	}
 	if resInfo.ResultT.Kind() != reflect.Map {
 		for _, v := range mp {
-			return changeType(v,resInfo.ResultT)
+			return changeType(v, resInfo.ResultT)
 		}
 	}
 	return mp, nil
@@ -208,7 +208,7 @@ func setColumnValues(value reflect.Value, rmp *types.ResultMap, mp map[string]in
 			ftyp, ok = outTyp.FieldByName(pname)
 			fval = outVal.FieldByName(pname)
 			if !ok {
-				log.Warnf("not found result map %v binding property %v %v", rmp.TypeName, ritem.Property)
+				log.Warnf("not found result map %v binding property %v", rmp.TypeName, ritem.Property)
 				continue
 			}
 		}

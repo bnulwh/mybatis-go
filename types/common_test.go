@@ -40,6 +40,12 @@ func TestToJson(t *testing.T) {
 	if reflect.TypeOf(ret2).Kind() != reflect.String {
 		t.Error("To Json failed ")
 	}
+	//ret3 := ToJson(time.Now())
+	//fmt.Println(ret3)
+	//ret4 := ToJson(struct {
+	//
+	//}{})
+	//fmt.Println(ret4)
 }
 
 func TestUpperFirst(t *testing.T) {
@@ -75,23 +81,23 @@ func TestParseSqlFunctionType(t *testing.T) {
 	}
 }
 
-func TestGetFormatString(t *testing.T)  {
-	if strings.Compare(PrivateGetFormatString(""),"''")!=0{
+func TestGetFormatString(t *testing.T) {
+	if strings.Compare(PrivateGetFormatString(""), "''") != 0 {
 		t.Error("GetFormatString('') not equals '''' ")
 	}
-	if strings.Compare(PrivateGetFormatString("'"),"'\"'")!=0{
+	if strings.Compare(PrivateGetFormatString("'"), "'\"'") != 0 {
 		t.Error("GetFormatString(''') not equals ''\"'' ")
 	}
-	if strings.Compare(PrivateGetFormatString("''"),"'\"\"'")!=0{
+	if strings.Compare(PrivateGetFormatString("''"), "'\"\"'") != 0 {
 		t.Error("GetFormatString('') not equals '''' ")
 	}
-	if strings.Compare(PrivateGetFormatString("'' AND TEST  ''"),"'\"\" AND TEST  \"\"'")!=0{
+	if strings.Compare(PrivateGetFormatString("'' AND TEST  ''"), "'\"\" AND TEST  \"\"'") != 0 {
 		t.Error("GetFormatString('') not equals '''' ")
 	}
-	if strings.Compare(PrivateGetFormatString("'A B' CD 'DEF GH'"),"'\"A B\" CD \"DEF GH\"'")!=0{
+	if strings.Compare(PrivateGetFormatString("'A B' CD 'DEF GH'"), "'\"A B\" CD \"DEF GH\"'") != 0 {
 		t.Error("GetFormatString('') not equals '''' ")
 	}
-	if strings.Compare(PrivateGetFormatString("A B' CD 'DEF GH"),"'A B\" CD \"DEF GH'")!=0{
+	if strings.Compare(PrivateGetFormatString("A B' CD 'DEF GH"), "'A B\" CD \"DEF GH'") != 0 {
 		t.Error("GetFormatString('') not equals '''' ")
 	}
 }

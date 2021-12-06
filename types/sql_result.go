@@ -1,7 +1,6 @@
 package types
 
 import (
-	"encoding/xml"
 	log "github.com/bnulwh/logrus"
 	"reflect"
 )
@@ -11,16 +10,16 @@ type SqlResult struct {
 	ResultT reflect.Type
 }
 
-func parseSqlResultFromXmlAttrs(attrs map[string]xml.Attr, rms map[string]*ResultMap) SqlResult {
+func parseSqlResultFromXmlAttrs(attrs map[string]string, rms map[string]*ResultMap) SqlResult {
 	log.Debugf("--begin parse sql result from: %v", ToJson(attrs))
 	defer log.Debugf("--finish parse sql result from: %v", ToJson(attrs))
 	attr, ok := attrs["resultMap"]
 	if ok {
-		return parseSqlResult0(attr.Value, rms)
+		return parseSqlResult0(attr, rms)
 	}
 	attr, ok = attrs["resultType"]
 	if ok {
-		return parseSqlResult1(attr.Value)
+		return parseSqlResult1(attr)
 	}
 	return SqlResult{
 		ResultM: nil,

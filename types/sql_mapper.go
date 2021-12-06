@@ -88,7 +88,7 @@ func loadMapper(filename string) *SqlMapper {
 	nis := makeNamedFuntion(items)
 	return &SqlMapper{
 		Filename:       filename,
-		Namespace:      node.Attrs["namespace"].Value,
+		Namespace:      node.Attrs["namespace"],
 		Maps:           mps,
 		SqlNodes:       sns,
 		Functions:      items,

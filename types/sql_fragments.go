@@ -2,7 +2,6 @@ package types
 
 import (
 	"bytes"
-	"encoding/xml"
 	"fmt"
 	log "github.com/bnulwh/logrus"
 	"reflect"
@@ -312,7 +311,7 @@ func (in *simpleSql) generateSqlWithParam(m interface{}) string {
 	return sqlstr
 }
 
-func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *sqlFragment {
+func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []xmlElement) *sqlFragment {
 	ts, ok := attrs["test"]
 	if !ok {
 		panic("not found test attr in input")
@@ -344,9 +343,9 @@ func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *s
 	}
 	return &sqlFragment{
 		IfTest: &sqlIfTest{
-			Test:       ts.Value,
+			Test:       ts,
 			Sql:        sts,
-			Conditions: parseIfConditionsFromText(ts.Value),
+			Conditions: parseIfConditionsFromText(ts),
 		},
 		Sql:     nil,
 		ForLoop: nil,
@@ -356,7 +355,7 @@ func parseSqlIfTestFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *s
 	}
 }
 
-func parseSqlForLoopFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *sqlFragment {
+func parseSqlForLoopFromXmlNode(attrs map[string]string, elems []xmlElement) *sqlFragment {
 	col, ok := attrs["collection"]
 	if !ok {
 		panic("not found  collection in input for parsing sql for loop")
@@ -366,12 +365,12 @@ func parseSqlForLoopFromXmlNode(attrs map[string]xml.Attr, elems []xmlElement) *
 	}
 	return &sqlFragment{
 		ForLoop: &sqlForLoop{
-			Collection: col.Value,
-			Open:       attrs["open"].Value,
-			Close:      attrs["close"].Value,
-			Index:      attrs["index"].Value,
-			Item:       attrs["item"].Value,
-			Separator:  attrs["separator"].Value,
+			Collection: col,
+			Open:       attrs["open"],
+			Close:      attrs["close"],
+			Index:      attrs["index"],
+			Item:       attrs["item"],
+			Separator:  attrs["separator"],
 			Sql:        parseSimpleSqlFromText(elems[0].Val.(string)),
 		},
 		Sql:     nil,

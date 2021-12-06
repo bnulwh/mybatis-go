@@ -1,7 +1,6 @@
 package types
 
 import (
-	"encoding/xml"
 	"fmt"
 	log "github.com/bnulwh/logrus"
 	"reflect"
@@ -24,14 +23,14 @@ type SqlParam struct {
 	Need     bool
 }
 
-func parseSqlParamFromXmlAttrs(attrs map[string]xml.Attr) SqlParam {
+func parseSqlParamFromXmlAttrs(attrs map[string]string) SqlParam {
 	log.Debugf("--begin parse sql param from: %v", ToJson(attrs))
 	defer log.Debugf("--finish parse sql param from: %v", ToJson(attrs))
 	attr, ok := attrs["parameterType"]
 	if !ok {
 		return SqlParam{Need: false}
 	}
-	val := attr.Value
+	val := attr
 	tn := GetShortName(val)
 	return SqlParam{
 		Name:     val,

@@ -24,6 +24,7 @@ func (in *ResultMap) GenerateFile(dir, pkg string) error {
 	bts := in.generateContent(pkg)
 	return ioutil.WriteFile(filename, bts, 0640)
 }
+
 func (in *ResultMap) generateContent(pkg string) []byte {
 	var buf bytes.Buffer
 	sname := GetShortName(in.TypeName)
@@ -58,7 +59,7 @@ func parseResultMapFromXmlNode(node xmlNode) *ResultMap {
 	log.Debugf("begin parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
 	defer log.Debugf("finish parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
 	id := node.Id
-	tn := node.Attrs["type"].Value
+	tn := node.Attrs["type"]
 	var arr []*ResultItem
 	for _, elem := range node.Elements {
 		arr = append(arr, parseResultItemFromXmlNode(elem))

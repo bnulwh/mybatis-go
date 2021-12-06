@@ -24,6 +24,9 @@ func (s *stack) Push(t interface{}) {
 func (s *stack) Pop() interface{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.list.Len() == 0 {
+		return nil
+	}
 	ele := s.list.Front()
 	if nil != ele {
 		s.list.Remove(ele)
@@ -36,6 +39,9 @@ func (s *stack) Pop() interface{} {
 func (s *stack) Peak() interface{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.list.Len() == 0 {
+		return nil
+	}
 	ele := s.list.Front()
 	return ele.Value
 }

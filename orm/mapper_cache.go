@@ -120,7 +120,7 @@ func (in *mapperCache) addMapper(typ reflect.Type) {
 func (in *mapperCache) createMapper(name string) (reflect.Value, error) {
 	mp, ok := in.Mappers[strings.ToLower(strings.TrimSpace(name))]
 	if !ok {
-		return reflect.ValueOf(-1), fmt.Errorf("mapper type %s not registered!!!", name)
+		return reflect.ValueOf(-1), fmt.Errorf("mapper type %s not registered", name)
 	}
 	return reflect.New(mp.Type), nil
 }

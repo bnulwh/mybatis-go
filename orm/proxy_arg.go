@@ -36,7 +36,7 @@ func parseTagArgs(tagstr string) []TagArg {
 	return tagArgs
 }
 
-func (it ProxyArg) New(tagArgs []TagArg, args []reflect.Value) ProxyArg {
+func NewProxyArg(tagArgs []TagArg, args []reflect.Value) ProxyArg {
 	return ProxyArg{
 		TagArgs:    tagArgs,
 		Args:       args,
@@ -52,7 +52,7 @@ func (in *ProxyArg) buildArgs() []interface{} {
 		}
 	} else {
 		mp := make(map[string]interface{})
-		var i = 0;
+		var i = 0
 		for ; i < in.TagArgsLen; i++ {
 			if i < in.ArgsLen {
 				mp[in.TagArgs[i].Name] = in.Args[i].Interface()
@@ -138,7 +138,7 @@ func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp re
 		panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + sructField.Name)
 	}
 	var fn = func(args []reflect.Value) (results []reflect.Value) {
-		proxyResults := proxyFunc(ProxyArg{}.New(tagArgs, args))
+		proxyResults := proxyFunc(NewProxyArg(tagArgs, args))
 		for _, returnV := range proxyResults {
 			results = append(results, returnV)
 		}

@@ -23,7 +23,7 @@ type xmlElement struct {
 type xmlNode struct {
 	Id       string
 	Name     string
-	Attrs    map[string]xml.Attr
+	Attrs    map[string]string
 	Elements []xmlElement
 }
 
@@ -48,23 +48,7 @@ func parseXmlNode(r io.Reader) *xmlNode {
 		}
 		switch t := token.(type) {
 		case xml.StartElement: //tag start
-			elmt := xml.StartElement(t)
-			name := elmt.Name.Local
-			attr := elmt.Attr
-			attrMap := make(map[string]xml.Attr)
-			for _, val := range attr {
-				attrMap[val.Name.Local] = val
-			}
-			node := xmlNode{
-				Name:     name,
-				Attrs:    attrMap,
-				Elements: make([]xmlElement, 0),
-			}
-			for _, val := range attr {
-				if val.Name.Local == "id" {
-					node.Id = val.Value
-				}
-			}
+			node := startElement2XmlNode(t)
 			st.Push(node)
 
 		case xml.EndElement: //tag end
@@ -88,20 +72,7 @@ func parseXmlNode(r io.Reader) *xmlNode {
 			}
 		case xml.CharData: //tag content
 			if st.Len() > 0 {
-				n := st.Pop().(xmlNode)
-
-				bts := xml.CharData(t)
-				content := strings.TrimSpace(string(bts))
-				if content != "" {
-					e := xmlElement{
-						ElementType: xmlTextElem,
-						Val:         content,
-					}
-					els := n.Elements
-					els = append(els, e)
-					n.Elements = els
-				}
-
+				n := charData2XmlNode(st, t)
 				st.Push(n)
 			}
 
@@ -117,4 +88,41 @@ func parseXmlNode(r io.Reader) *xmlNode {
 	}
 
 	return &root
+}
+
+func charData2XmlNode(st *stack, t xml.Token) xmlNode {
+	n := st.Pop().(xmlNode)
+	bts := t.(xml.CharData)
+	content := strings.TrimSpace(string(bts))
+	if content != "" {
+		e := xmlElement{
+			ElementType: xmlTextElem,
+			Val:         content,
+		}
+		els := n.Elements
+		els = append(els, e)
+		n.Elements = els
+	}
+	return n
+}
+
+func startElement2XmlNode(t xml.Token) xmlNode {
+	elmt := t.(xml.StartElement)
+	name := elmt.Name.Local
+	attr := elmt.Attr
+	attrMap := make(map[string]string)
+	for _, val := range attr {
+		attrMap[val.Name.Local] = val.Value
+	}
+	node := xmlNode{
+		Name:     name,
+		Attrs:    attrMap,
+		Elements: make([]xmlElement, 0),
+	}
+	for _, val := range attr {
+		if val.Name.Local == "id" {
+			node.Id = val.Value
+		}
+	}
+	return node
 }

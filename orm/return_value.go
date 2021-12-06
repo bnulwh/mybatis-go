@@ -10,9 +10,9 @@ func buildReturnValues(returnType *ReturnType, returnValue reflect.Value, e erro
 	var returnValues = make([]reflect.Value, returnType.NumOut)
 	for index, _ := range returnValues {
 		if index == returnType.ReturnIndex {
-			if e !=nil {
+			if e != nil {
 				returnValues[index] = reflect.Zero(*returnType.ReturnOutType)
-			}else{
+			} else {
 				returnValues[index] = returnValue
 				log.Debugf("results: %v", types.ToJson(reflect.Indirect(returnValue).Interface()))
 			}

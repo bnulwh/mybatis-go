@@ -41,7 +41,7 @@ func (in *modelCache) addModel(typ reflect.Type) {
 func (in *modelCache) createModel(name string) (reflect.Value, error) {
 	typ, ok := in.Models[strings.ToLower(strings.TrimSpace(name))]
 	if !ok {
-		return reflect.Value{}, fmt.Errorf("model type %s not registered!!!", name)
+		return reflect.Value{}, fmt.Errorf("model type %s not registered", name)
 	}
 	return reflect.New(typ), nil
 }

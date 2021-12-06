@@ -114,7 +114,7 @@ func bindMapper(name string, value reflect.Value) {
 				case reflect.Slice:
 					return buildReturnValues(returnType, rv, e)
 				}
-				switch (rv.Kind()){
+				switch rv.Kind() {
 				case reflect.Slice:
 					item := rv.Index(0)
 					return buildReturnValues(returnType, item, e)
