@@ -80,19 +80,19 @@ func NewMapperPtr(name string) interface{} {
 	return mp.Interface()
 }
 
-func bindMapper(name string, value reflect.Value) {
+func bindMapper(name string, mapper reflect.Value) {
 	sn := types.GetShortName(name)
 	mp, ok := gCache.sqls.NamedMappers[strings.ToLower(sn)]
 	if !ok {
 		panic(fmt.Sprintf("bind mapper struct `%s` failed,not found in xml files", name))
 	}
-	outVal := value.Elem()
+	outVal := mapper.Elem()
 	outTyp := outVal.Type()
 	bmf := outVal.FieldByName("BaseMapper")
 	bmf.Set(reflect.ValueOf(BaseMapper{mapper: mp}))
 	bm := bmf.Interface().(BaseMapper)
 	returnTypeMap := makeReturnTypeMap(outTyp)
-	proxyValue(value, func(funcField reflect.StructField, field reflect.Value) func(arg ProxyArg) []reflect.Value {
+	proxyValue(mapper, func(funcField reflect.StructField, field reflect.Value) func(arg ProxyArg) []reflect.Value {
 		//构建期
 		var funcName = funcField.Name
 		var returnType = returnTypeMap[funcName]

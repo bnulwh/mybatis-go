@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func getSqlPtrType(typ reflect.Type) interface{} {
+func newInstance(typ reflect.Type) interface{} {
 	switch typ.String() {
 	case "string":
 		return new(sql.NullString)
@@ -169,7 +169,7 @@ func convertMySqlTime2Time(ptr interface{}) (time.Time, error) {
 	return time.Time{}, nil
 }
 
-func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
+func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error) {
 	switch typ.String() {
 	case "string":
 		return convertSqlString2String(ptr)
