@@ -1,6 +1,9 @@
 package orm
 
-import "reflect"
+import (
+	log "github.com/bnulwh/logrus"
+	"reflect"
+)
 
 type proxyFunc func(arg ProxyArg) []reflect.Value
 
@@ -89,6 +92,6 @@ func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp re
 	} else {
 		fieldVal.Set(reflect.MakeFunc(fieldTyp, fn))
 	}
-	//println("[mybatis-go] write method success:" + source.Type().Name() + " > " + sf.Name + " " + f.Type().String())
+	log.Debug("[mybatis-go] write method success:" + source.Type().Name() + " > " + sructField.Name + " " + fieldVal.Type().String())
 	//tagParams = nil
 }
