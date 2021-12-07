@@ -1,6 +1,7 @@
-package orm
+package utils
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -106,6 +107,7 @@ func Test_change2Int(t *testing.T) {
 		t.Errorf("test change2Int failed. %v", err)
 	}
 }
+
 func Test_change2Int8(t *testing.T) {
 	r1, err := change2Int8(1)
 	if r1 != int8(1) || err != nil {
@@ -541,5 +543,188 @@ func Test_change2UInt32(t *testing.T) {
 	r13, err := change2UInt32(uint64(1))
 	if r13 != uint32(1) || err != nil {
 		t.Errorf("test change2UInt32 failed. %v", err)
+	}
+}
+
+func Test_change2UInt64(t *testing.T) {
+	r1, err := change2UInt64(1)
+	if r1 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r2, err := change2UInt64(int8(1))
+	if r2 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r3, err := change2UInt64(int16(1))
+	if r3 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r4, err := change2UInt64(int32(1))
+	if r4 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r5, err := change2UInt64(int64(1))
+	if r5 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r6, err := change2UInt64("1")
+	if r6 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r7, err := change2UInt64("0x1")
+	if r7 != uint64(0) || err == nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r8, err := change2UInt64("a")
+	if r8 != uint64(0) || err == nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r9, err := change2UInt64(uint(1))
+	if r9 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r10, err := change2UInt64(uint8(1))
+	if r10 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r11, err := change2UInt64(uint16(1))
+	if r11 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r12, err := change2UInt64(uint32(1))
+	if r12 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+	r13, err := change2UInt64(uint64(1))
+	if r13 != uint64(1) || err != nil {
+		t.Errorf("test change2UInt64 failed. %v", err)
+	}
+}
+
+func Test_change2Float32(t *testing.T) {
+	r1, err := change2Float32(1)
+	//fmt.Println(r1)
+	if r1 != 1 || err != nil || reflect.TypeOf(r1).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r2, err := change2Float32(int8(1))
+	if r2 != 1 || err != nil || reflect.TypeOf(r2).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r3, err := change2Float32(int16(1))
+	if r3 != 1 || err != nil || reflect.TypeOf(r3).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r4, err := change2Float32(int32(1))
+	if r4 != 1 || err != nil || reflect.TypeOf(r4).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r5, err := change2Float32(int64(1))
+	if r5 != 1 || err != nil || reflect.TypeOf(r5).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r6, err := change2Float32("1")
+	if r6 != 1 || err != nil || reflect.TypeOf(r6).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r7, err := change2Float32("0x1")
+	if r7 != 0 || err == nil || reflect.TypeOf(r7).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r8, err := change2Float32("a")
+	if r8 != 0 || err == nil || reflect.TypeOf(r8).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r9, err := change2Float32(uint(1))
+	if r9 != 1 || err != nil || reflect.TypeOf(r9).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r10, err := change2Float32(uint8(1))
+	if r10 != 1 || err != nil || reflect.TypeOf(r10).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r11, err := change2Float32(uint16(1))
+	if r11 != 1 || err != nil || reflect.TypeOf(r11).Kind() != reflect.Float32 {
+		t.Errorf("test change2Int failed. %v", err)
+	}
+	r12, err := change2Float32(uint32(1))
+	if r12 != 1 || err != nil || reflect.TypeOf(r12).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r13, err := change2Float32(uint64(1))
+	if r13 != 1 || err != nil || reflect.TypeOf(r13).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r14, err := change2Float32(1.0)
+	if r14 != 1 || err != nil || reflect.TypeOf(r14).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+	r15, err := change2Float32(float32(1.0))
+	if r15 != 1 || err != nil || reflect.TypeOf(r15).Kind() != reflect.Float32 {
+		t.Errorf("test change2Float32 failed. %v", err)
+	}
+}
+
+func Test_change2Float64(t *testing.T) {
+	r1, err := change2Float64(1)
+	//fmt.Println(r1)
+	if r1 != 1 || err != nil || reflect.TypeOf(r1).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r2, err := change2Float64(int8(1))
+	if r2 != 1 || err != nil || reflect.TypeOf(r2).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r3, err := change2Float64(int16(1))
+	if r3 != 1 || err != nil || reflect.TypeOf(r3).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r4, err := change2Float64(int32(1))
+	if r4 != 1 || err != nil || reflect.TypeOf(r4).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r5, err := change2Float64(int64(1))
+	if r5 != 1 || err != nil || reflect.TypeOf(r5).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r6, err := change2Float64("1")
+	if r6 != 1 || err != nil || reflect.TypeOf(r6).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r7, err := change2Float64("0x1")
+	if r7 != 0 || err == nil || reflect.TypeOf(r7).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r8, err := change2Float64("a")
+	if r8 != 0 || err == nil || reflect.TypeOf(r8).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r9, err := change2Float64(uint(1))
+	if r9 != 1 || err != nil || reflect.TypeOf(r9).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r10, err := change2Float64(uint8(1))
+	if r10 != 1 || err != nil || reflect.TypeOf(r10).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r11, err := change2Float64(uint16(1))
+	if r11 != 1 || err != nil || reflect.TypeOf(r11).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r12, err := change2Float64(uint32(1))
+	if r12 != 1 || err != nil || reflect.TypeOf(r12).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r13, err := change2Float64(uint64(1))
+	if r13 != 1 || err != nil || reflect.TypeOf(r13).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r14, err := change2Float64(1.0)
+	if r14 != 1 || err != nil || reflect.TypeOf(r14).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
+	}
+	r15, err := change2Float64(float32(1.0))
+	if r15 != 1 || err != nil || reflect.TypeOf(r15).Kind() != reflect.Float64 {
+		t.Errorf("test change2Float64 failed. %v", err)
 	}
 }

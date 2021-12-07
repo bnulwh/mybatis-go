@@ -5,6 +5,7 @@ import (
 	"fmt"
 	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/types"
+	"github.com/bnulwh/mybatis-go/utils"
 	"reflect"
 	"strings"
 	"sync"
@@ -186,7 +187,7 @@ func createResult(mp map[string]interface{}, resInfo types.SqlResult) (interface
 	}
 	if resInfo.ResultT.Kind() != reflect.Map {
 		for _, v := range mp {
-			return changeType(v, resInfo.ResultT)
+			return utils.ChangeType(v, resInfo.ResultT)
 		}
 	}
 	return mp, nil
@@ -212,7 +213,7 @@ func setColumnValues(value reflect.Value, rmp *types.ResultMap, mp map[string]in
 				continue
 			}
 		}
-		rval, err := changeType(val, ftyp.Type)
+		rval, err := utils.ChangeType(val, ftyp.Type)
 		if err != nil {
 			log.Warnf("change `%v`to type %v failed: %v", val, ftyp.Type, err)
 			continue

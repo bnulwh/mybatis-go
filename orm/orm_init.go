@@ -3,6 +3,7 @@ package orm
 import (
 	"database/sql"
 	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/utils"
 	"sync"
 	"time"
 )
@@ -14,7 +15,7 @@ var (
 )
 
 func Initialize(filename string) {
-	cm := LoadSettings(filename)
+	cm := utils.LoadSettings(filename)
 	InitializeFromSettings(cm)
 }
 

@@ -5,82 +5,10 @@ import (
 	"fmt"
 	log "github.com/bnulwh/logrus"
 	"github.com/go-sql-driver/mysql"
-	"io/ioutil"
-	"os"
 	"reflect"
-	"strings"
 	"time"
 )
 
-func GetAllEnv() map[string]string {
-	envMap := map[string]string{}
-	for _, envLine := range os.Environ() {
-		kv := strings.Split(envLine, "=")
-		envMap[kv[0]] = kv[1]
-	}
-	return envMap
-}
-
-func LoadSettings(filename string) map[string]string {
-	m := LoadProperties(filename)
-	em := GetAllEnv()
-	for k, v := range m {
-		if strings.HasPrefix(v, "${") {
-			v = getRealValue(v, em)
-			m[k] = v
-		}
-	}
-	for k, v := range em {
-		m[k] = v
-	}
-	return m
-}
-
-func LoadProperties(filename string) map[string]string {
-	body, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Warnf("load file %v failed: %v", filename, err)
-		return map[string]string{}
-	}
-	envMap := map[string]string{}
-	for _, line := range strings.Split(string(body), "\n") {
-		line = strings.TrimSpace(line)
-
-		if len(line) == 0 || strings.Contains("!#", line[0:1]) {
-			continue
-		}
-		pos := strings.Index(line, "=")
-		if pos <= 0 {
-			pos = strings.Index(line, ":")
-		}
-		if pos <= 0 {
-			continue
-		}
-		key := line[0:pos]
-		val := strings.Trim(line[pos+1:], "'\" ")
-		envMap[key] = val
-	}
-	return envMap
-}
-
-func getRealValue(val string, em map[string]string) string {
-	pos := strings.Index(val, ":")
-	if pos < 0 {
-		key := val[2 : len(val)-1]
-		rv, ok := em[key]
-		if ok {
-			return rv
-		}
-		return ""
-	}
-	key := val[2:pos]
-	rval := val[pos+1 : len(val)-1]
-	rv, ok := em[key]
-	if ok {
-		return rv
-	}
-	return rval
-}
 func getSqlPtrType(typ reflect.Type) interface{} {
 	switch typ.String() {
 	case "string":
@@ -105,7 +33,7 @@ func getSqlPtrType(typ reflect.Type) interface{} {
 	return new(sql.NullString)
 }
 
-func convertSqlString2String(ptr interface{}) (string,error) {
+func convertSqlString2String(ptr interface{}) (string, error) {
 	pval, ok := ptr.(*sql.NullString)
 	if ok && pval.Valid {
 		return pval.String, nil
@@ -113,7 +41,7 @@ func convertSqlString2String(ptr interface{}) (string,error) {
 	return "", nil
 }
 
-func convertRawBytes2String(ptr interface{}) (string,error) {
+func convertRawBytes2String(ptr interface{}) (string, error) {
 	pval, ok := ptr.(*sql.RawBytes)
 	if ok {
 		return string(*pval), nil
@@ -121,7 +49,7 @@ func convertRawBytes2String(ptr interface{}) (string,error) {
 	return "", nil
 }
 
-func convertSqlBool2Bool(ptr interface{})  (bool,error){
+func convertSqlBool2Bool(ptr interface{}) (bool, error) {
 	pval, ok := ptr.(*sql.NullBool)
 	if ok && pval.Valid {
 		return pval.Bool, nil
@@ -129,7 +57,7 @@ func convertSqlBool2Bool(ptr interface{})  (bool,error){
 	return false, nil
 }
 
-func convertSqlInt32ToInt(ptr interface{}) (int,error) {
+func convertSqlInt32ToInt(ptr interface{}) (int, error) {
 	pval, ok := ptr.(*sql.NullInt32)
 	if ok && pval.Valid {
 		return int(pval.Int32), nil
@@ -137,7 +65,7 @@ func convertSqlInt32ToInt(ptr interface{}) (int,error) {
 	return 0, nil
 }
 
-func convertSqlInt32ToInt8(ptr interface{})  (int8,error){
+func convertSqlInt32ToInt8(ptr interface{}) (int8, error) {
 	pval, ok := ptr.(*sql.NullInt32)
 	if ok && pval.Valid {
 		return int8(pval.Int32), nil
@@ -145,7 +73,7 @@ func convertSqlInt32ToInt8(ptr interface{})  (int8,error){
 	return int8(0), nil
 }
 
-func convertSqlInt32ToInt16(ptr interface{}) (int16,error)  {
+func convertSqlInt32ToInt16(ptr interface{}) (int16, error) {
 	pval, ok := ptr.(*sql.NullInt32)
 	if ok && pval.Valid {
 		return int16(pval.Int32), nil
@@ -153,7 +81,7 @@ func convertSqlInt32ToInt16(ptr interface{}) (int16,error)  {
 	return int16(0), nil
 }
 
-func convertSqlInt32ToInt32(ptr interface{}) (int32,error)  {
+func convertSqlInt32ToInt32(ptr interface{}) (int32, error) {
 	pval, ok := ptr.(*sql.NullInt32)
 	if ok && pval.Valid {
 		return pval.Int32, nil
@@ -161,7 +89,7 @@ func convertSqlInt32ToInt32(ptr interface{}) (int32,error)  {
 	return int32(0), nil
 }
 
-func convertSqlInt32ToUInt(ptr interface{}) (uint,error)  {
+func convertSqlInt32ToUInt(ptr interface{}) (uint, error) {
 	pval, ok := ptr.(*sql.NullInt32)
 	if ok && pval.Valid {
 		return uint(pval.Int32), nil
@@ -169,7 +97,7 @@ func convertSqlInt32ToUInt(ptr interface{}) (uint,error)  {
 	return uint(0), nil
 }
 
-func convertSqlInt32ToUInt8(ptr interface{}) (uint8,error)  {
+func convertSqlInt32ToUInt8(ptr interface{}) (uint8, error) {
 	pval, ok := ptr.(*sql.NullInt32)
 	if ok && pval.Valid {
 		return uint8(pval.Int32), nil
@@ -177,7 +105,7 @@ func convertSqlInt32ToUInt8(ptr interface{}) (uint8,error)  {
 	return uint8(0), nil
 }
 
-func convertSqlInt32ToUInt16(ptr interface{}) (uint16,error)  {
+func convertSqlInt32ToUInt16(ptr interface{}) (uint16, error) {
 	pval, ok := ptr.(*sql.NullInt32)
 	if ok && pval.Valid {
 		return uint16(pval.Int32), nil
@@ -185,8 +113,7 @@ func convertSqlInt32ToUInt16(ptr interface{}) (uint16,error)  {
 	return uint16(0), nil
 }
 
-
-func convertSqlInt32ToUInt32(ptr interface{}) (uint32,error)  {
+func convertSqlInt32ToUInt32(ptr interface{}) (uint32, error) {
 	pval, ok := ptr.(*sql.NullInt32)
 	if ok && pval.Valid {
 		return uint32(pval.Int32), nil
@@ -194,7 +121,7 @@ func convertSqlInt32ToUInt32(ptr interface{}) (uint32,error)  {
 	return uint32(0), nil
 }
 
-func convertSqlInt64ToInt64(ptr interface{}) (int64,error)  {
+func convertSqlInt64ToInt64(ptr interface{}) (int64, error) {
 	pval, ok := ptr.(*sql.NullInt64)
 	if ok && pval.Valid {
 		return pval.Int64, nil
@@ -202,7 +129,7 @@ func convertSqlInt64ToInt64(ptr interface{}) (int64,error)  {
 	return int64(0), nil
 }
 
-func convertSqlInt64ToUInt64(ptr interface{}) (uint64,error)  {
+func convertSqlInt64ToUInt64(ptr interface{}) (uint64, error) {
 	pval, ok := ptr.(*sql.NullInt64)
 	if ok && pval.Valid {
 		return uint64(pval.Int64), nil
@@ -210,7 +137,7 @@ func convertSqlInt64ToUInt64(ptr interface{}) (uint64,error)  {
 	return uint64(0), nil
 }
 
-func convertSqlFloat64ToFloat32(ptr interface{}) (float32,error)  {
+func convertSqlFloat64ToFloat32(ptr interface{}) (float32, error) {
 	pval, ok := ptr.(*sql.NullFloat64)
 	if ok && pval.Valid {
 		return float32(pval.Float64), nil
@@ -218,7 +145,7 @@ func convertSqlFloat64ToFloat32(ptr interface{}) (float32,error)  {
 	return float32(0.0), nil
 }
 
-func convertSqlFloat64ToFloat64(ptr interface{}) (float64,error)  {
+func convertSqlFloat64ToFloat64(ptr interface{}) (float64, error) {
 	pval, ok := ptr.(*sql.NullFloat64)
 	if ok && pval.Valid {
 		return pval.Float64, nil
@@ -226,7 +153,7 @@ func convertSqlFloat64ToFloat64(ptr interface{}) (float64,error)  {
 	return float64(0.0), nil
 }
 
-func convertSqlTime2Time(ptr interface{}) (time.Time,error)  {
+func convertSqlTime2Time(ptr interface{}) (time.Time, error) {
 	pval, ok := ptr.(*sql.NullTime)
 	if ok && pval.Valid {
 		return pval.Time, nil
@@ -234,7 +161,7 @@ func convertSqlTime2Time(ptr interface{}) (time.Time,error)  {
 	return time.Time{}, nil
 }
 
-func convertMySqlTime2Time(ptr interface{}) (time.Time,error)  {
+func convertMySqlTime2Time(ptr interface{}) (time.Time, error) {
 	pval, ok := ptr.(*mysql.NullTime)
 	if ok && pval.Valid {
 		return pval.Time, nil
@@ -274,7 +201,7 @@ func convertValue(ptr interface{}, typ reflect.Type) (interface{}, error) {
 		return convertSqlFloat64ToFloat32(ptr)
 	case "float64":
 		return convertSqlFloat64ToFloat64(ptr)
-	case "time.Time","sql.NullTime":
+	case "time.Time", "sql.NullTime":
 		return convertSqlTime2Time(ptr)
 	case "mysql.NullTime":
 		return convertMySqlTime2Time(ptr)

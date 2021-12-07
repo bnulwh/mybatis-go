@@ -3,6 +3,7 @@ package orm
 import (
 	"fmt"
 	"github.com/bnulwh/mybatis-go/types"
+	"github.com/bnulwh/mybatis-go/utils"
 	"reflect"
 	"strings"
 )
@@ -27,7 +28,7 @@ func (in *ReturnType) checkSql(f *types.SqlFunction, name string) {
 				name, f.Id, f.Result.ResultM.TypeName, typ.String()))
 		}
 	} else {
-		if !sameTypeCheck(f.Result.ResultT, typ) {
+		if !utils.SameTypeCheck(f.Result.ResultT, typ) {
 			panic(fmt.Sprintf("%v check sql function %v failed, return type valid failed `%v` != `%v`",
 				name, f.Id, f.Result.ResultT.String(), typ.String()))
 		}

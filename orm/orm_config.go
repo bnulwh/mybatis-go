@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/utils"
 	"regexp"
 	"strconv"
 	"strings"
@@ -33,7 +34,7 @@ type MyBatisConfig struct {
 }
 
 func NewConfig(filename string) *MyBatisConfig {
-	cm := LoadSettings(filename)
+	cm := utils.LoadSettings(filename)
 	return NewConfigFromSettings(cm)
 }
 func NewConfigFromSettings(cm map[string]string) *MyBatisConfig {

@@ -1,4 +1,4 @@
-package orm
+package utils
 
 import (
 	"fmt"
@@ -385,7 +385,7 @@ func change2Time(val interface{}) (time.Time, error) {
 		return time.Parse("2006-01-02 15:04:05", fmt.Sprintf("%v", val))
 	}
 }
-func changeType(val interface{}, typ reflect.Type) (interface{}, error) {
+func ChangeType(val interface{}, typ reflect.Type) (interface{}, error) {
 	switch typ.String() {
 	case "string":
 		return change2String(val)
@@ -453,7 +453,7 @@ func isStringType(typ reflect.Type) bool {
 	return strings.Compare(strings.ToLower(typ.String()), "string") == 0
 }
 
-func sameTypeCheck(typA, typB reflect.Type) bool {
+func SameTypeCheck(typA, typB reflect.Type) bool {
 	if strings.Compare(strings.ToLower(typA.String()), strings.ToLower(typB.String())) == 0 {
 		return true
 	}
