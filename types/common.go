@@ -174,7 +174,11 @@ func validValue(m interface{}) bool {
 	case reflect.Slice:
 		val := reflect.ValueOf(m)
 		return val.Len() > 0
+	case reflect.Map:
+		val := reflect.ValueOf(m)
+		return val.Len() > 0
+
 	}
-	log.Warnf("not support valid value: %v ,type: %v", m, typ)
+	log.Warnf("not support valid value: %v ,type: %v, kind: %v", m, typ, typ.Kind())
 	return true
 }
