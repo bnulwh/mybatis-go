@@ -104,19 +104,30 @@ func parseResultTypeFrom(tps string) reflect.Type {
 	}
 	return reflect.TypeOf(map[string]interface{}{})
 }
-func parseJdbcTypeFrom(tps string) reflect.Type {
+func GetJdbcTypePart(tps string) string {
+	arr := strings.Split(tps, " ")
+	ret := arr[0]
+	idx := strings.Index(ret, "(")
+	if idx > 0 {
+		ret = tps[0:idx]
+	}
+	return strings.TrimSpace(ret)
+}
+func ParseJdbcTypeFrom(tps string) reflect.Type {
+	tps = GetJdbcTypePart(tps)
 	switch strings.ToUpper(GetShortName(tps)) {
-	case "VARCHAR", "STRING", "LONGVARCHAR":
+	case "VARCHAR", "STRING", "LONGVARCHAR", "TEXT", "TINYTEXT", "CHAR", "MEDIUMTEXT",
+		"BLOB", "LONGBLOB":
 		return reflect.TypeOf("")
-	case "TIMESTAMP", "TIME":
+	case "TIMESTAMP", "TIME", "DATETIME":
 		return reflect.TypeOf(time.Now())
-	case "INTEGER", "INT":
+	case "INTEGER", "INT", "TINYINT", "SMALLINT":
 		return reflect.TypeOf(0)
 	case "LONG", "BIGINT":
 		return reflect.TypeOf(int64(0))
-	case "BOOLEAN", "BIT", "BOOL":
+	case "BOOLEAN", "BIT", "BOOL", "ENUM":
 		return reflect.TypeOf(true)
-	case "DOUBLE":
+	case "DOUBLE", "FLOAT":
 		return reflect.TypeOf(0.0)
 	default:
 		log.Warnf("unsupport jdbc type to parse: %v", tps)
@@ -181,4 +192,46 @@ func validValue(m interface{}) bool {
 	}
 	log.Warnf("not support valid value: %v ,type: %v, kind: %v", m, typ, typ.Kind())
 	return true
+}
+
+func toGolangType(tn string) string {
+	sname := GetShortName(tn)
+	switch strings.ToUpper(sname) {
+	case "STRING", "VARCHAR":
+		return "string"
+	case "BOOLEAN", "BOOL":
+		return "bool"
+	case "INT", "INTEGER", "INT8", "INT16", "INT32":
+		return "int32"
+	case "INT64":
+		return "int64"
+	case "UINT", "UINT8", "UINT16", "UINT32":
+		return "uint32"
+	case "UINT64":
+		return "uint64"
+	case "FLOAT", "FLOAT32":
+		return "float32"
+	case "FLOAT64", "DOUBLE":
+		return "float64"
+	case "TIME", "TIMESTAMP":
+		return "time.Time"
+	case "LIST", "ARRAY", "ARRAYLIST", "SLICE":
+		return "[]interface{}"
+	case "MAP", "HASHMAP", "TREEMAP":
+		return "map[string]interface{}"
+	}
+	return sname
+}
+
+func ToJavaType(typ reflect.Type) string {
+	switch typ.String() {
+	case "string":
+		return "java.lang.String"
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64":
+		return "java.lang.Integer"
+
+	}
+	log.Warnf("unsupport type %v", typ)
+	return "java.lang.String"
 }

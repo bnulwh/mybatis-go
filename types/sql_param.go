@@ -104,32 +104,3 @@ func parseSqlParamTypeFrom(tn string) SqlParamType {
 	}
 	return StructSqlParam
 }
-
-func toGolangType(tn string) string {
-	sname := GetShortName(tn)
-	switch strings.ToUpper(sname) {
-	case "STRING", "VARCHAR":
-		return "string"
-	case "BOOLEAN", "BOOL":
-		return "bool"
-	case "INT", "INTEGER", "INT8", "INT16", "INT32":
-		return "int32"
-	case "INT64":
-		return "int64"
-	case "UINT", "UINT8", "UINT16", "UINT32":
-		return "uint32"
-	case "UINT64":
-		return "uint64"
-	case "FLOAT", "FLOAT32":
-		return "float32"
-	case "FLOAT64", "DOUBLE":
-		return "float64"
-	case "TIME", "TIMESTAMP":
-		return "time.Time"
-	case "LIST", "ARRAY", "ARRAYLIST", "SLICE":
-		return "[]interface{}"
-	case "MAP", "HASHMAP", "TREEMAP":
-		return "map[string]interface{}"
-	}
-	return sname
-}

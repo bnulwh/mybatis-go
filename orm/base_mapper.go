@@ -14,22 +14,6 @@ type BaseMapper struct {
 	lock   sync.Mutex
 }
 
-func execute(sqlStr string, args ...interface{}) (int64, error) {
-	log.Debugf("sql: %v", sqlStr)
-	stmt, err := gDbConn.Prepare(sqlStr)
-	if err != nil {
-		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
-		return 0, err
-	}
-	defer closeStmt(stmt)
-	result, err := stmt.Exec(args...)
-	if err != nil {
-		log.Errorf("execute sql %v failed: %v", sqlStr, err)
-		return 0, err
-	}
-	rf, _ := result.RowsAffected()
-	return rf, nil
-}
 func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) {
 	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
 	if !ok {

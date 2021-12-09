@@ -7,15 +7,31 @@ import (
 )
 
 func Execute(sqlStr string, args ...interface{}) (int64, error) {
-	gLock.Lock()
-	defer gLock.Unlock()
+	gDbConn.lock.Lock()
+	defer gDbConn.lock.Unlock()
 	return execute(sqlStr, args...)
 }
 func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
-	gLock.Lock()
-	defer gLock.Unlock()
+	gDbConn.lock.Lock()
+	defer gDbConn.lock.Unlock()
 	log.Debugf("sql: %v", sqlStr)
 	return queryRows(sqlStr, args...)
+}
+func execute(sqlStr string, args ...interface{}) (int64, error) {
+	log.Debugf("sql: %v", sqlStr)
+	stmt, err := gDbConn.database.Prepare(sqlStr)
+	if err != nil {
+		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
+		return 0, err
+	}
+	defer closeStmt(stmt)
+	result, err := stmt.Exec(args...)
+	if err != nil {
+		log.Errorf("execute sql %v failed: %v", sqlStr, err)
+		return 0, err
+	}
+	rf, _ := result.RowsAffected()
+	return rf, nil
 }
 
 func closeStmt(stmt *sql.Stmt) {
@@ -26,7 +42,7 @@ func closeStmt(stmt *sql.Stmt) {
 }
 
 func queryRows(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
-	stmt, err := gDbConn.Prepare(sqlStr)
+	stmt, err := gDbConn.database.Prepare(sqlStr)
 	if err != nil {
 		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
 		return nil, err

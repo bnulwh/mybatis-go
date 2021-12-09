@@ -465,7 +465,7 @@ func parseSqlFragmentParamFromText(text string) []sqlFragmentParam {
 					Origin:   match[0],
 					Name:     match[1],
 					TypeName: match[4],
-					Type:     parseJdbcTypeFrom(match[4]),
+					Type:     ParseJdbcTypeFrom(match[4]),
 				})
 			} else {
 				stps = append(stps, sqlFragmentParam{

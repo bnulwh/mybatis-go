@@ -27,6 +27,9 @@ func (in *modelCache) registerModel(inPtr interface{}) {
 }
 
 func (in *modelCache) addModel(typ reflect.Type) {
+	if typ.Kind() == reflect.Ptr {
+		return
+	}
 	name := typ.Name()
 	log.Debugf("name: %v", name)
 	sn := types.GetShortName(name)

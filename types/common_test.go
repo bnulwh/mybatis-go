@@ -137,7 +137,7 @@ func Test_parseJdbcTypeFrom(t *testing.T) {
 		"test":   reflect.TypeOf(""),
 	}
 	for k, v := range mp {
-		r := parseJdbcTypeFrom(k)
+		r := ParseJdbcTypeFrom(k)
 		if r != v {
 			t.Error("test parseJdbcTypeFrom failed.")
 		}

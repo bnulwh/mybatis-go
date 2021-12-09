@@ -5,8 +5,6 @@ import (
 	"reflect"
 )
 
-type proxyFunc func(arg ProxyArg) []reflect.Value
-
 // AopProxy 可写入每个函数代理方法.proxyPtr:代理对象指针，buildFunc:构建代理函数
 func proxy(proxyPtr interface{}, buildFunc func(funcField reflect.StructField, field reflect.Value) func(arg ProxyArg) []reflect.Value) {
 	v := reflect.ValueOf(proxyPtr)

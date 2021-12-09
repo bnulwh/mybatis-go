@@ -2,6 +2,7 @@ package types
 
 import (
 	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,10 @@ func NewSqlMappers(dir string) *SqlMappers {
 }
 
 func (in *SqlMappers) GenerateFiles(dir, pkg string) {
+	err := utils.MakeDirAll(dir)
+	if err != nil {
+		return
+	}
 	for _, mapper := range in.Mappers {
 		mapper.GenerateFiles(dir, pkg)
 	}

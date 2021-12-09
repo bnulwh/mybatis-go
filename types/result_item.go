@@ -12,6 +12,7 @@ type ResultItem struct {
 	Property   string
 	PrimaryKey bool
 }
+
 //<id column="id" jdbcType="INTEGER" property="id" />
 //    <result column="created_by" jdbcType="VARCHAR" property="createdBy" />
 //
@@ -22,7 +23,7 @@ func parseResultItemFromXmlNode(elem xmlElement) *ResultItem {
 	col := xn.Attrs["column"]
 	tpn := xn.Attrs["jdbcType"]
 	pro := xn.Attrs["property"]
-	typ := parseJdbcTypeFrom(tpn)
+	typ := ParseJdbcTypeFrom(tpn)
 	return &ResultItem{
 		Column:     col,
 		Type:       typ,
