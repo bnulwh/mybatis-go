@@ -15,17 +15,7 @@ type ColumnStucture struct {
 	Primary bool
 }
 
-func newColumnStructureFromMysl(row map[string]interface{}) *ColumnStucture {
-	log.Debugf("row %v", row)
-	return &ColumnStucture{
-		Name:    row["COLUMN_NAME"].(string),
-		Type:    types.ParseJdbcTypeFrom(row["COLUMN_TYPE"].(string)),
-		DbType:  row["COLUMN_TYPE"].(string),
-		Comment: row["COLUMN_COMMENT"].(string),
-		Primary: row["COLUMN_KEY"].(string) == "PRI",
-	}
-}
-func newColumnStructureFromPostgres(row map[string]interface{}) *ColumnStucture {
+func newColumnStructure(row map[string]interface{}) *ColumnStucture {
 	log.Debugf("row %v", row)
 	return &ColumnStucture{
 		Name:    row["column_name"].(string),

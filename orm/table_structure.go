@@ -22,40 +22,12 @@ type TableStructure struct {
 	PrimaryColumn *ColumnStucture
 }
 
-func newTableStructFromMysql(dbName, table string) (*TableStructure, error) {
-	sql := fmt.Sprintf("select TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,COLUMN_COMMENT,COLUMN_KEY from information_schema.`COLUMNS` WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'", dbName, table)
-	log.Debugf("sql: %v", sql)
-	res, err := Query(sql)
-	if err != nil {
-		log.Errorf("get table %s structure failed.%v", table, err)
-		return nil, err
-	}
-	ret := &TableStructure{
-		Columns:       []*ColumnStucture{},
-		ColumnMap:     map[string]*ColumnStucture{},
-		Table:         table,
-		PrimaryColumn: nil,
-	}
-	for _, row := range res {
-		pcs := newColumnStructureFromMysl(row)
-		ret.Columns = append(ret.Columns, pcs)
-		ret.ColumnMap[pcs.Name] = pcs
-		if pcs.Primary {
-			ret.PrimaryColumn = pcs
-		}
-	}
-	if len(ret.Columns) == 0 {
-		log.Errorf("get table %s structure failed", table)
-		return nil, fmt.Errorf("get table %s structure failed", table)
-	}
-	if ret.PrimaryColumn == nil {
-		log.Warnf("not found primary key in table %s", table)
-	}
-	return ret, nil
-}
-func newTableStructFromPostgres(dbName, table string) (*TableStructure, error) {
-	sql := fmt.Sprintf(`SELECT
-    A.ordinal_position,A.column_name,CASE A.is_nullable WHEN 'NO' THEN 0 ELSE 1 END AS is_nullable,
+func newTableStruct(dbName, table string) (*TableStructure, error) {
+	var sql string
+	switch gDbConn.dbType {
+	case PostgresDb:
+		sql = fmt.Sprintf(`SELECT
+    A.ordinal_position,A.table_name,A.column_name,CASE A.is_nullable WHEN 'NO' THEN 0 ELSE 1 END AS is_nullable,
     col_description(B.attrelid,B.attnum) as column_comment,
     A.data_type as column_type,coalesce(A.character_maximum_length, A.numeric_precision, -1) as length,
     A.numeric_scale,CASE WHEN length(B.attname) > 0 THEN 'PRI' ELSE '' END AS column_key
@@ -63,6 +35,16 @@ func newTableStructFromPostgres(dbName, table string) (*TableStructure, error) {
     WHERE A.column_name = B.attname AND B.attrelid = '%s' :: regclass   
           AND  A.table_schema = 'public'  AND A.table_name = '%s'
     ORDER BY A.ordinal_position ASC`, table, table)
+	case MySqlDb:
+		sql = fmt.Sprintf(`select TABLE_NAME as table_name,COLUMN_NAME as column_name,
+    COLUMN_TYPE as column_type,COLUMN_COMMENT as column_comment,COLUMN_KEY as column_key 
+    from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'
+    ORDER BY ORDINAL_POSITION ASC`, dbName, table)
+	default:
+		log.Errorf("unsupport database type %v to get table structure", gDbConn.dbType)
+		return nil, fmt.Errorf("unsupport database type %v to get table structure", gDbConn.dbType)
+	}
+
 	log.Debugf("sql: %v", sql)
 	res, err := Query(sql)
 	if err != nil {
@@ -77,7 +59,7 @@ func newTableStructFromPostgres(dbName, table string) (*TableStructure, error) {
 	}
 	find := false
 	for _, row := range res {
-		pcs := newColumnStructureFromPostgres(row)
+		pcs := newColumnStructure(row)
 		ret.Columns = append(ret.Columns, pcs)
 		ret.ColumnMap[pcs.Name] = pcs
 		if pcs.Primary && !find {

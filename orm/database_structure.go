@@ -13,8 +13,8 @@ type DatabaseStructure struct {
 	TableMap  map[string]*TableStructure
 }
 
-func newDatabaseStructureFromMysql(dbName string) (*DatabaseStructure, error) {
-	tables, err := fetchTablesFromMysql(dbName)
+func newDatabaseStructure(dbName string) (*DatabaseStructure, error) {
+	tables, err := fetchTables(dbName)
 	if err != nil {
 		return nil, err
 	}
@@ -24,27 +24,7 @@ func newDatabaseStructureFromMysql(dbName string) (*DatabaseStructure, error) {
 		Tables:    []*TableStructure{},
 	}
 	for _, table := range tables {
-		pts, err := newTableStructFromMysql(dbName, table)
-		if err != nil {
-			continue
-		}
-		pds.Tables = append(pds.Tables, pts)
-		pds.TableMap[table] = pts
-	}
-	return pds, nil
-}
-func newDatabaseStructureFromPostgres(dbName string) (*DatabaseStructure, error) {
-	tables, err := fetchTablesFromPostgres(dbName)
-	if err != nil {
-		return nil, err
-	}
-	pds := &DatabaseStructure{
-		TableList: tables,
-		TableMap:  map[string]*TableStructure{},
-		Tables:    []*TableStructure{},
-	}
-	for _, table := range tables {
-		pts, err := newTableStructFromPostgres(dbName, table)
+		pts, err := newTableStruct(dbName, table)
 		if err != nil {
 			continue
 		}
@@ -70,26 +50,23 @@ func (ds *DatabaseStructure) SaveToDir(dir string) error {
 	return nil
 }
 
-func fetchTablesFromMysql(dbName string) ([]string, error) {
-	res, err := Query(fmt.Sprintf("select DISTINCT TABLE_NAME from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s'", dbName))
+func fetchTables(dbName string) ([]string, error) {
+	var sql string
+	switch gDbConn.dbType {
+	case MySqlDb:
+		sql = fmt.Sprintf("select DISTINCT TABLE_NAME as table_name from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s'", dbName)
+	case PostgresDb:
+		sql = "select relname as TABLE_NAME from pg_class where  relkind = 'r' and relname not like 'pg_%' and relname not like 'sql_%'"
+	default:
+		log.Errorf("unsupport database type %v to get table list", gDbConn.dbType)
+		return nil, fmt.Errorf("unsupport database type %v to get table list", gDbConn.dbType)
+	}
+	res, err := Query(sql)
 	if err != nil {
 		log.Errorf("get tables from %s structure failed.%v", dbName, err)
 		return nil, err
 	}
 	//fmt.Println(res)
-	tables := []string{}
-	for _, row := range res {
-		tables = append(tables, row["TABLE_NAME"].(string))
-	}
-	return tables, nil
-}
-func fetchTablesFromPostgres(dbName string) ([]string, error) {
-	res, err := Query("select relname as TABLE_NAME from pg_class where  relkind = 'r' and relname not like 'pg_%' and relname not like 'sql_%'")
-	if err != nil {
-		log.Errorf("get tables from %s structure failed.%v", dbName, err)
-		return nil, err
-	}
-	fmt.Println(res)
 	tables := []string{}
 	for _, row := range res {
 		tables = append(tables, row["table_name"].(string))

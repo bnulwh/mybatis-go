@@ -7,21 +7,10 @@ import (
 )
 
 func SchemaToCode(dir string) {
-	var ds *DatabaseStructure
-	var err error
-	switch gDbConn.dbType {
-	case MySqlDb:
-		ds, err = newDatabaseStructureFromMysql(gDbConn.dbName)
-		if err != nil {
-			log.Errorf("get database structure failed. %v", err)
-			return
-		}
-	case PostgresDb:
-		ds, err = newDatabaseStructureFromPostgres(gDbConn.dbName)
-		if err != nil {
-			log.Errorf("get database structure failed. %v", err)
-			return
-		}
+	ds, err := newDatabaseStructure(gDbConn.dbName)
+	if err != nil {
+		log.Errorf("get database structure failed. %v", err)
+		return
 	}
 	if ds == nil {
 		return
