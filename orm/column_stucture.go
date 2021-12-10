@@ -25,6 +25,16 @@ func newColumnStructureFromMysl(row map[string]interface{}) *ColumnStucture {
 		Primary: row["COLUMN_KEY"].(string) == "PRI",
 	}
 }
+func newColumnStructureFromPostgres(row map[string]interface{}) *ColumnStucture {
+	log.Debugf("row %v", row)
+	return &ColumnStucture{
+		Name:    row["column_name"].(string),
+		Type:    types.ParseJdbcTypeFrom(row["column_type"].(string)),
+		DbType:  row["column_type"].(string),
+		Comment: row["column_comment"].(string),
+		Primary: row["column_key"].(string) == "PRI",
+	}
+}
 
 func (cs ColumnStucture) getJdbcType() string {
 	return strings.ToUpper(types.GetJdbcTypePart(cs.DbType))

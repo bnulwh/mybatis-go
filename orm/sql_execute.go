@@ -19,7 +19,7 @@ func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error)
 }
 func execute(sqlStr string, args ...interface{}) (int64, error) {
 	log.Debugf("sql: %v", sqlStr)
-	stmt, err := gDbConn.database.Prepare(sqlStr)
+	stmt, err := gDbConn.prepare(sqlStr)
 	if err != nil {
 		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
 		return 0, err
@@ -39,10 +39,20 @@ func closeStmt(stmt *sql.Stmt) {
 	if err != nil {
 		log.Warnf("close warning: %v", err)
 	}
+	if gDbConn.conn != nil {
+		err = gDbConn.conn.Close()
+		if err != nil {
+			log.Warnf("close warning: %v", err)
+		}
+	}
+	//err = gDbConn.database.Close()
+	//if err != nil {
+	//	log.Warnf("close warning: %v", err)
+	//}
 }
 
 func queryRows(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
-	stmt, err := gDbConn.database.Prepare(sqlStr)
+	stmt, err := gDbConn.prepare(sqlStr)
 	if err != nil {
 		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
 		return nil, err

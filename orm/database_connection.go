@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"database/sql"
 	log "github.com/bnulwh/logrus"
 	"sync"
@@ -13,6 +14,7 @@ var (
 
 type databaseConnection struct {
 	database *sql.DB
+	conn     *sql.Conn
 	connStr  string
 	driver   string
 	dbName   string
@@ -40,8 +42,8 @@ func (dc *databaseConnection) connect2Database() {
 	}
 	log.Infof("successfully connected!")
 	dc.database.SetConnMaxLifetime(time.Minute * 5)
-	dc.database.SetMaxIdleConns(10)
-	dc.database.SetMaxOpenConns(10)
+	dc.database.SetMaxIdleConns(100)
+	dc.database.SetMaxOpenConns(100)
 	err = dc.database.Ping()
 	if err != nil {
 		panic(err)
@@ -55,4 +57,20 @@ func (dc *databaseConnection) close() {
 			log.Errorf("close db error: %v", err)
 		}
 	}
+}
+
+func (dc *databaseConnection) prepare(sqlStr string) (*sql.Stmt, error) {
+	var err error
+	dc.conn, err = dc.database.Conn(context.Background())
+	if err != nil {
+		log.Warnf("create conn failed.", err)
+		return nil, err
+	}
+	return dc.conn.PrepareContext(context.Background(), sqlStr)
+
+	//err := dc.database.Ping()
+	//if err != nil {
+	//	log.Warnf("ping failed. %v", err)
+	//}
+	//return dc.database.Prepare(sqlStr)
 }

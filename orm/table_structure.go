@@ -44,6 +44,51 @@ func newTableStructFromMysql(dbName, table string) (*TableStructure, error) {
 			ret.PrimaryColumn = pcs
 		}
 	}
+	if len(ret.Columns) == 0 {
+		log.Errorf("get table %s structure failed", table)
+		return nil, fmt.Errorf("get table %s structure failed", table)
+	}
+	if ret.PrimaryColumn == nil {
+		log.Warnf("not found primary key in table %s", table)
+	}
+	return ret, nil
+}
+func newTableStructFromPostgres(dbName, table string) (*TableStructure, error) {
+	sql := fmt.Sprintf(`SELECT
+    A.ordinal_position,A.column_name,CASE A.is_nullable WHEN 'NO' THEN 0 ELSE 1 END AS is_nullable,
+    col_description(B.attrelid,B.attnum) as column_comment,
+    A.data_type as column_type,coalesce(A.character_maximum_length, A.numeric_precision, -1) as length,
+    A.numeric_scale,CASE WHEN length(B.attname) > 0 THEN 'PRI' ELSE '' END AS column_key
+    FROM information_schema.columns A,pg_attribute B
+    WHERE A.column_name = B.attname AND B.attrelid = '%s' :: regclass   
+          AND  A.table_schema = 'public'  AND A.table_name = '%s'
+    ORDER BY A.ordinal_position ASC`, table, table)
+	log.Debugf("sql: %v", sql)
+	res, err := Query(sql)
+	if err != nil {
+		log.Errorf("get table %s structure failed.%v", table, err)
+		return nil, err
+	}
+	ret := &TableStructure{
+		Columns:       []*ColumnStucture{},
+		ColumnMap:     map[string]*ColumnStucture{},
+		Table:         table,
+		PrimaryColumn: nil,
+	}
+	find := false
+	for _, row := range res {
+		pcs := newColumnStructureFromPostgres(row)
+		ret.Columns = append(ret.Columns, pcs)
+		ret.ColumnMap[pcs.Name] = pcs
+		if pcs.Primary && !find {
+			ret.PrimaryColumn = pcs
+			find = true
+		}
+	}
+	if len(ret.Columns) == 0 {
+		log.Errorf("get table %s structure failed", table)
+		return nil, fmt.Errorf("get table %s structure failed", table)
+	}
 	if ret.PrimaryColumn == nil {
 		log.Warnf("not found primary key in table %s", table)
 	}

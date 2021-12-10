@@ -117,7 +117,7 @@ func ParseJdbcTypeFrom(tps string) reflect.Type {
 	tps = GetJdbcTypePart(tps)
 	switch strings.ToUpper(GetShortName(tps)) {
 	case "VARCHAR", "STRING", "LONGVARCHAR", "TEXT", "TINYTEXT", "CHAR", "MEDIUMTEXT",
-		"BLOB", "LONGBLOB":
+		"BLOB", "LONGBLOB", "CHARACTER":
 		return reflect.TypeOf("")
 	case "TIMESTAMP", "TIME", "DATETIME":
 		return reflect.TypeOf(time.Now())

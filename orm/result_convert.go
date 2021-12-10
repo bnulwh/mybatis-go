@@ -29,7 +29,14 @@ func convert2Results(rows []map[string]interface{}, resInfo types.SqlResult) ref
 func prepareColumns(colTypes []*sql.ColumnType) []interface{} {
 	var ptrs []interface{}
 	for _, coltyp := range colTypes {
-		log.Debugf("name: %v,dbtype: %v,scan type: %v", coltyp.Name(), coltyp.DatabaseTypeName(), coltyp.ScanType())
+		log.Debugf("name: %v,dbtype: %v,scan type: %v %v %v %v",
+			coltyp.Name(),
+			coltyp.DatabaseTypeName(),
+			coltyp.ScanType(),
+			coltyp.ScanType().Kind(),
+			coltyp.ScanType().Name(),
+			coltyp.ScanType().String(),
+		)
 		ptrs = append(ptrs, newInstance(coltyp.ScanType()))
 	}
 	return ptrs
@@ -39,7 +46,7 @@ func createMap(ptrs []interface{}, colTypes []*sql.ColumnType) map[string]interf
 	for i, coltyp := range colTypes {
 		v, err := convertInstanceType(ptrs[i], coltyp.ScanType())
 		if err != nil {
-			log.Warnf("convert %v to %v failed: %v", ptrs[i], coltyp.ScanType(), err)
+			log.Warnf("convert %v to %v %v failed: %v", ptrs[i], coltyp.Name(), coltyp.ScanType(), err)
 			continue
 		}
 		mp[coltyp.Name()] = v

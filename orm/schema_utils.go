@@ -16,7 +16,12 @@ func SchemaToCode(dir string) {
 			log.Errorf("get database structure failed. %v", err)
 			return
 		}
-
+	case PostgresDb:
+		ds, err = newDatabaseStructureFromPostgres(gDbConn.dbName)
+		if err != nil {
+			log.Errorf("get database structure failed. %v", err)
+			return
+		}
 	}
 	if ds == nil {
 		return

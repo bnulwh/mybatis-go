@@ -28,6 +28,8 @@ func newInstance(typ reflect.Type) interface{} {
 		return new(sql.RawBytes)
 	case "mysql.NullTime":
 		return new(mysql.NullTime)
+	case "interface {}":
+		return new(sql.NullString)
 	}
 	log.Debugf("not support  type %v", typ)
 	return new(sql.NullString)
@@ -205,6 +207,8 @@ func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error)
 		return convertSqlTime2Time(ptr)
 	case "mysql.NullTime":
 		return convertMySqlTime2Time(ptr)
+	case "interface {}":
+		return convertSqlString2String(ptr)
 	}
 	log.Warnf("not support convert type: %v ,value: %v", typ, ptr)
 	return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, ptr)
