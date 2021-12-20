@@ -60,6 +60,9 @@ func newTableStruct(dbName, table string) (*TableStructure, error) {
 	find := false
 	for _, row := range res {
 		pcs := newColumnStructure(row)
+		if find {
+			pcs.Primary = false
+		}
 		ret.Columns = append(ret.Columns, pcs)
 		ret.ColumnMap[pcs.Name] = pcs
 		if pcs.Primary && !find {
@@ -191,6 +194,9 @@ func (ts *TableStructure) generateUpdateSQL() string {
 			continue
 		}
 		cvalues = append(cvalues, fmt.Sprintf("%s=#{%s,jdbcType=%s}", column.Name, column.getPropertyName(), column.getJdbcType()))
+	}
+	if len(ts.Columns) != len(cvalues)+1 {
+		log.Warnf("check primary key for table %s", ts.Table)
 	}
 	cvs := strings.Join(cvalues, ",")
 	sql := fmt.Sprintf("update %s set %s where %s=#{%s,jdbcType=%s}",

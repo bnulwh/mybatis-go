@@ -123,7 +123,7 @@ func ParseJdbcTypeFrom(tps string) reflect.Type {
 		return reflect.TypeOf(time.Now())
 	case "INTEGER", "INT", "TINYINT", "SMALLINT":
 		return reflect.TypeOf(0)
-	case "LONG", "BIGINT":
+	case "LONG", "BIGINT", "NUMERIC":
 		return reflect.TypeOf(int64(0))
 	case "BOOLEAN", "BIT", "BOOL", "ENUM":
 		return reflect.TypeOf(true)
