@@ -91,6 +91,7 @@ func (ts *TableStructure) saveToFile(filename string) error {
 	ts.writeUpdateFunction(mapper)
 	ts.writeSelectFunction(mapper)
 	ts.writeSelectAllFunction(mapper)
+	ts.writeCountFunction(mapper)
 	doc.IndentTabs()
 	bts, err := doc.WriteToBytes()
 	if err != nil {
@@ -148,7 +149,7 @@ func (ts *TableStructure) writeBaseColumnList(mapper *etree.Element) {
 	for _, column := range ts.Columns {
 		cnames = append(cnames, column.Name)
 	}
-	sql.CreateText(strings.Join(cnames, ","))
+	sql.CreateText(fmt.Sprintf("\n\t\t%s\n\t", strings.Join(cnames, ",\n\t\t")))
 }
 func (ts *TableStructure) getPrimaryJdbcType() string {
 	if ts.PrimaryColumn != nil {
@@ -157,7 +158,7 @@ func (ts *TableStructure) getPrimaryJdbcType() string {
 	return types.ToJavaType(reflect.TypeOf(""))
 }
 func (ts *TableStructure) generateDeleteSQL() string {
-	return fmt.Sprintf("delete from %s where %s=#{%s,jdbcType=%s}",
+	return fmt.Sprintf("\n\t\tdelete from %s where %s=#{%s,jdbcType=%s}\n\t",
 		ts.Table,
 		ts.PrimaryColumn.Name,
 		ts.PrimaryColumn.Name,
@@ -176,9 +177,9 @@ func (ts *TableStructure) generateInsertSQL() string {
 		cnames = append(cnames, column.Name)
 		cvalues = append(cvalues, fmt.Sprintf("#{%s,jdbcType=%s}", column.getPropertyName(), column.getJdbcType()))
 	}
-	cns := strings.Join(cnames, ",")
-	cvs := strings.Join(cvalues, ",")
-	sql := fmt.Sprintf("insert into %s (%s) values (%s)", ts.Table, cns, cvs)
+	cns := strings.Join(cnames, ",\n\t\t")
+	cvs := strings.Join(cvalues, ",\n\t\t")
+	sql := fmt.Sprintf("\n\t\tinsert into %s \n\t\t(%s) \n\t\tvalues \n\t\t(%s)\n\t", ts.Table, cns, cvs)
 	return sql
 }
 func (ts *TableStructure) writeInsertFunction(mapper *etree.Element) {
@@ -198,8 +199,8 @@ func (ts *TableStructure) generateUpdateSQL() string {
 	if len(ts.Columns) != len(cvalues)+1 {
 		log.Warnf("check primary key for table %s", ts.Table)
 	}
-	cvs := strings.Join(cvalues, ",")
-	sql := fmt.Sprintf("update %s set %s where %s=#{%s,jdbcType=%s}",
+	cvs := strings.Join(cvalues, ",\n\t\t\t ")
+	sql := fmt.Sprintf("\n\t\tupdate %s \n\t\tset %s \n\t\t where %s=#{%s,jdbcType=%s}\n\t",
 		ts.Table,
 		cvs,
 		ts.PrimaryColumn.Name,
@@ -219,10 +220,10 @@ func (ts *TableStructure) writeSelectFunction(mapper *etree.Element) {
 	sf.CreateAttr("id", "selectByPrimaryKey")
 	sf.CreateAttr("parameterType", ts.getPrimaryJdbcType())
 	sf.CreateAttr("resultMap", DefaultResultMapName)
-	sf.CreateText(" select ")
+	sf.CreateText("\n\t\tselect ")
 	si := sf.CreateElement("include")
 	si.CreateAttr("refid", DefaultBCLName)
-	sf.CreateText(fmt.Sprintf(" from %s where %s=#{%s,jdbcType=%s}",
+	sf.CreateText(fmt.Sprintf("\n\t\tfrom %s where %s=#{%s,jdbcType=%s}\n\t",
 		ts.Table,
 		ts.PrimaryColumn.Name,
 		ts.PrimaryColumn.getPropertyName(),
@@ -233,8 +234,16 @@ func (ts *TableStructure) writeSelectAllFunction(mapper *etree.Element) {
 	sf := mapper.CreateElement("select")
 	sf.CreateAttr("id", "selectAll")
 	sf.CreateAttr("resultMap", DefaultResultMapName)
-	sf.CreateText(" select ")
+	sf.CreateText("\n\t\t select ")
 	si := sf.CreateElement("include")
 	si.CreateAttr("refid", DefaultBCLName)
-	sf.CreateText(fmt.Sprintf(" from %s ", ts.Table))
+	sf.CreateText(fmt.Sprintf("\n\t\t from %s \n\t", ts.Table))
+}
+
+func (ts *TableStructure) writeCountFunction(mapper *etree.Element) {
+	sf := mapper.CreateElement("select")
+	sf.CreateAttr("id", "countByPrimaryKey")
+	sf.CreateAttr("parameterType", ts.getPrimaryJdbcType())
+	sf.CreateAttr("resultType", "int")
+	sf.CreateText(fmt.Sprintf("\n\t\tselect count(%s) \n\t\tfrom %s\n\t", ts.PrimaryColumn.Name, ts.Table))
 }
