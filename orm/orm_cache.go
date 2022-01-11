@@ -41,6 +41,7 @@ func (in *ormCache) initSqls(dir string) {
 
 func (in *ormCache) bindSqls() {
 	for name := range in.mappers.Mappers {
+		log.Debugf("bind mapper %s", name)
 		sn := types.GetShortName(name)
 		smp, ok := gCache.sqls.NamedMappers[strings.ToLower(sn)]
 		if !ok {

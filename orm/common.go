@@ -22,12 +22,10 @@ func newInstance(typ reflect.Type) interface{} {
 		return new(sql.NullInt64)
 	case "float32", "float64":
 		return new(sql.NullFloat64)
-	case "time.Time":
-		return new(sql.NullTime)
+	case "time.Time", "sql.NullTime", "mysql.NullTime":
+		return new(mysql.NullTime)
 	case "sql.RawBytes":
 		return new(sql.RawBytes)
-	case "mysql.NullTime":
-		return new(mysql.NullTime)
 	case "interface {}":
 		return new(sql.NullString)
 	}

@@ -1,6 +1,7 @@
 package orm
 
 import (
+	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/utils"
 	"io/ioutil"
 	"strings"
@@ -13,11 +14,11 @@ func Initialize(filename string) {
 
 func InitializeFromSettings(cm map[string]string) {
 	dc := NewConfigFromSettings(cm)
+	gCache.initSqls(dc.MapperLocations)
 	gDbConn = newDatabaseConnection(dc.DbConfig)
 	if gDbConn != nil {
 		gDbConn.connect2Database()
 	}
-	gCache.initSqls(dc.MapperLocations)
 }
 
 func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string) {
