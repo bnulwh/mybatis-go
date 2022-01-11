@@ -39,12 +39,12 @@ func closeStmt(stmt *sql.Stmt) {
 	if err != nil {
 		log.Warnf("close warning: %v", err)
 	}
-	if gDbConn.conn != nil {
-		err = gDbConn.conn.Close()
-		if err != nil {
-			log.Warnf("close warning: %v", err)
-		}
-	}
+	//if gDbConn.conn != nil {
+	//	err = gDbConn.conn.Close()
+	//	if err != nil {
+	//		log.Warnf("close warning: %v", err)
+	//	}
+	//}
 	//err = gDbConn.database.Close()
 	//if err != nil {
 	//	log.Warnf("close warning: %v", err)
