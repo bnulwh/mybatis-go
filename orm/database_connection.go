@@ -1,10 +1,8 @@
 package orm
 
 import (
-	"context"
 	"database/sql"
 	log "github.com/bnulwh/logrus"
-	"sync"
 	"time"
 )
 
@@ -20,7 +18,7 @@ type databaseConnection struct {
 	dbName   string
 	dbType   DatabaseType
 	config   *DatabaseConfig
-	lock     sync.Mutex
+	//lock     sync.Mutex
 }
 
 func newDatabaseConnection(dc *DatabaseConfig) *databaseConnection {
@@ -60,17 +58,17 @@ func (dc *databaseConnection) close() {
 }
 
 func (dc *databaseConnection) prepare(sqlStr string) (*sql.Stmt, error) {
-	var err error
-	dc.conn, err = dc.database.Conn(context.Background())
-	if err != nil {
-		log.Warnf("create conn failed. %v", err)
-		return nil, err
-	}
-	return dc.conn.PrepareContext(context.Background(), sqlStr)
+	//var err error
+	//dc.conn, err = dc.database.Conn(context.Background())
+	//if err != nil {
+	//	log.Warnf("create conn failed. %v", err)
+	//	return nil, err
+	//}
+	//return dc.conn.PrepareContext(context.Background(), sqlStr)
 
 	//err := dc.database.Ping()
 	//if err != nil {
 	//	log.Warnf("ping failed. %v", err)
 	//}
-	//return dc.database.Prepare(sqlStr)
+	return dc.database.Prepare(sqlStr)
 }

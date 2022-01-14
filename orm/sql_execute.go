@@ -7,13 +7,13 @@ import (
 )
 
 func Execute(sqlStr string, args ...interface{}) (int64, error) {
-	gDbConn.lock.Lock()
-	defer gDbConn.lock.Unlock()
+	//gDbConn.lock.Lock()
+	//defer gDbConn.lock.Unlock()
 	return execute(sqlStr, args...)
 }
 func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
-	gDbConn.lock.Lock()
-	defer gDbConn.lock.Unlock()
+	//gDbConn.lock.Lock()
+	//defer gDbConn.lock.Unlock()
 	log.Debugf("sql: %v", sqlStr)
 	return queryRows(sqlStr, args...)
 }

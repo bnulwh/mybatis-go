@@ -6,12 +6,11 @@ import (
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
-	"sync"
 )
 
 type BaseMapper struct {
 	mapper *types.SqlMapper
-	lock   sync.Mutex
+	//lock   sync.Mutex
 }
 
 func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) {
@@ -23,8 +22,8 @@ func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) 
 }
 
 func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (reflect.Value, error) {
-	in.lock.Lock()
-	defer in.lock.Unlock()
+	//in.lock.Lock()
+	//defer in.lock.Unlock()
 	args := arg.buildArgs()
 	sqlStr, items, err := sqlFunc.GenerateSQL(args...)
 	if err != nil {
