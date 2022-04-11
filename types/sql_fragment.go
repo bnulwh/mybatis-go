@@ -25,19 +25,20 @@ type sqlFragment struct {
 	Choose  *sqlChoose
 	Type    sqlFragmentType
 }
-func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string,[]interface{}) {
+
+func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string, []interface{}) {
 	log.Debugf("sql fragment [%v] generate sql with slice : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
 			if len(in.Sql.Params) == 0 {
-				return in.Sql.Sql,[]interface{}{}
+				return in.Sql.Sql, []interface{}{}
 			}
 			panic("simple sql has param not replaced!!!!")
 		}
 	case includeSqlFragment:
 		if in.Include != nil {
-			return in.Include.Sql,[]interface{}{}
+			return in.Include.Sql, []interface{}{}
 		}
 	case ifTestSqlFragment:
 		if in.IfTest != nil {
@@ -48,7 +49,7 @@ func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string,[
 			return in.ForLoop.prepareSql(map[string]interface{}{}, m, depth+1)
 		}
 	}
-	return "",[]interface{}{}
+	return "", []interface{}{}
 }
 
 func (in *sqlFragment) generateSqlWithSlice(m []interface{}, depth int) string {
@@ -76,7 +77,7 @@ func (in *sqlFragment) generateSqlWithSlice(m []interface{}, depth int) string {
 	}
 	return ""
 }
-func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (string,[]interface{}) {
+func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (string, []interface{}) {
 	log.Debugf("sql fragment [%v] generate sql with map : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case simpleSqlFragment:
@@ -85,7 +86,7 @@ func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (s
 		}
 	case includeSqlFragment:
 		if in.Include != nil {
-			return in.Include.Sql,[]interface{}{}
+			return in.Include.Sql, []interface{}{}
 		}
 	case ifTestSqlFragment:
 		if in.IfTest != nil {
@@ -95,7 +96,7 @@ func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (s
 		if in.ForLoop != nil {
 			val, ok := m[buildKey(in.ForLoop.Collection)]
 			if !ok {
-				return "",[]interface{}{}
+				return "", []interface{}{}
 			}
 			if reflect.TypeOf(val).Kind() == reflect.Slice {
 				sval := convert2Slice(reflect.ValueOf(val))
@@ -107,7 +108,7 @@ func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (s
 			return in.Choose.prepareSqlWithMap(m, depth+1)
 		}
 	}
-	return "",[]interface{}{}
+	return "", []interface{}{}
 }
 
 func (in *sqlFragment) generateSqlWithMap(m map[string]interface{}, depth int) string {
@@ -213,7 +214,7 @@ func (in *sqlFragment) generateSqlWithoutParam() string {
 	return ""
 }
 
-func parsesqlFragmentFromXmlElement(elem xmlElement, sns map[string]*SqlElement) *sqlFragment {
+func parsesqlFragmentFromXmlElement(elem xmlElement, sns map[string]*SqlElement) (*sqlFragment, error) {
 	log.Debugf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 	log.Debugf("++begin parse sql fragment from element: %v", ToJson(elem))
 	defer log.Debugf("++finish parse sql fragment from element: %v", ToJson(elem))
@@ -226,15 +227,15 @@ func parsesqlFragmentFromXmlElement(elem xmlElement, sns map[string]*SqlElement)
 			Include: nil,
 			Choose:  nil,
 			Type:    simpleSqlFragment,
-		}
+		}, nil
 	case xmlNodeElem:
 		xn := elem.Val.(xmlNode)
 		return parsesqlFragmentFromXmlNode(xn, sns)
 	}
-	panic(fmt.Sprintf("wrong type of element type %v", elem.ElementType))
+	return nil, fmt.Errorf("wrong type of element type %v", elem.ElementType)
 }
 
-func parsesqlFragmentFromXmlNode(node xmlNode, sns map[string]*SqlElement) *sqlFragment {
+func parsesqlFragmentFromXmlNode(node xmlNode, sns map[string]*SqlElement) (*sqlFragment, error) {
 	switch strings.ToLower(node.Name) {
 	case "if":
 		return parseSqlIfTestFromXmlNode(node.Attrs, node.Elements)
@@ -245,5 +246,5 @@ func parsesqlFragmentFromXmlNode(node xmlNode, sns map[string]*SqlElement) *sqlF
 	case "choose":
 		return parseSqlChooseFromXmlNode(node.Elements)
 	}
-	panic(fmt.Sprintf("not support sql text type %v", node.Name))
+	return nil, fmt.Errorf("not support sql text type %v", node.Name)
 }

@@ -13,13 +13,14 @@ type ParamType struct {
 	ArgsLen    int
 }
 
-func (in *ParamType) checkSql(f *types.SqlFunction, name string) {
+func (in *ParamType) checkSql(f *types.SqlFunction, name string) error {
 	if in.ArgsLen == 0 && f.Param.Need {
-		panic(fmt.Sprintf("%v check sql function %v failed, need func args", name, f.Id))
+		return fmt.Errorf("%v check sql function %v failed, need func args", name, f.Id)
 	}
 	if in.ArgsLen > 0 && !f.Param.Need {
-		panic(fmt.Sprintf("%v check sql function %v failed, not need func args", name, f.Id))
+		return fmt.Errorf("%v check sql function %v failed, not need func args", name, f.Id)
 	}
+	return nil
 }
 
 func makeParamType(funcName string, funcType reflect.Type, funcTag reflect.StructTag) *ParamType {

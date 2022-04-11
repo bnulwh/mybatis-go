@@ -176,7 +176,12 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 func parsesqlFragmentsFromXmlElements(elems []xmlElement, sns map[string]*SqlElement) []*sqlFragment {
 	var sts []*sqlFragment
 	for _, elem := range elems {
-		sts = append(sts, parsesqlFragmentFromXmlElement(elem, sns))
+		st, err := parsesqlFragmentFromXmlElement(elem, sns)
+		if err != nil {
+			log.Errorf("parse error:%v", err)
+			continue
+		}
+		sts = append(sts, st)
 	}
 	return sts
 }

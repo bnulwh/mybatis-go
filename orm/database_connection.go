@@ -11,32 +11,39 @@ var (
 )
 
 type databaseConnection struct {
-	database *sql.DB
-	conn     *sql.Conn
-	connStr  string
-	driver   string
-	dbName   string
-	dbType   DatabaseType
-	config   *DatabaseConfig
+	database  *sql.DB
+	conn      *sql.Conn
+	connStr   string
+	driver    string
+	dbName    string
+	dbType    DatabaseType
+	config    *DatabaseConfig
+	connected bool
 	//lock     sync.Mutex
 }
 
 func newDatabaseConnection(dc *DatabaseConfig) *databaseConnection {
 
 	return &databaseConnection{
-		connStr: dc.generateConn(),
-		driver:  dc.getDriver(),
-		dbType:  dc.DbType,
-		config:  dc,
-		dbName:  dc.DbName,
+		connStr:   dc.generateConn(),
+		driver:    dc.getDriver(),
+		dbType:    dc.DbType,
+		config:    dc,
+		dbName:    dc.DbName,
+		database:  nil,
+		conn:      nil,
+		connected: false,
 	}
 }
 
-func (dc *databaseConnection) connect2Database() {
+func (dc *databaseConnection) connect2Database() error {
+	if dc.connected {
+		return nil
+	}
 	var err error
 	dc.database, err = sql.Open(dc.driver, dc.connStr)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	log.Infof("successfully connected!")
 	dc.database.SetConnMaxLifetime(time.Minute * 5)
@@ -44,8 +51,10 @@ func (dc *databaseConnection) connect2Database() {
 	dc.database.SetMaxOpenConns(100)
 	err = dc.database.Ping()
 	if err != nil {
-		panic(err)
+		return err
 	}
+	dc.connected = true
+	return nil
 }
 
 func (dc *databaseConnection) close() {

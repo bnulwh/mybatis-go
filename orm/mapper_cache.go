@@ -29,24 +29,40 @@ type mapperCache struct {
 	Mappers map[string]*mapperInfo
 }
 
-func (in *funcInfo) bindSql(f *types.SqlFunction) {
+func (in *funcInfo) bindSql(f *types.SqlFunction) error {
 	if in.Type.Kind() == reflect.Func {
-		in.ParamType.checkSql(f, in.Name)
-		in.ReturnType.checkSql(f, in.Name)
+		err := in.ParamType.checkSql(f, in.Name)
+		if err != nil {
+			return err
+		}
+		err2 := in.ReturnType.checkSql(f, in.Name)
+		if err2 != nil {
+			return err2
+		}
 		in.SqlFunc = f
+		return nil
 	}
+	return fmt.Errorf("function %s's kind is %v, cannot bind sql", in.Name, in.Type.Kind())
 }
 
-func (in *mapperInfo) bindSql(smp *types.SqlMapper) {
+func (in *mapperInfo) bindSql(smp *types.SqlMapper) error {
+	var errs []error
 	for i, fi := range in.Functions {
 		sname := strings.ToLower(fi.Name)
 		sf, ok := smp.NamedFunctions[sname]
 		if !ok {
-			panic(fmt.Sprintf("%v.%v has no sql function to map in %v", in.Name, fi.Name, smp.Filename))
+			log.Errorf("%v.%v has no sql function to map in %v", in.Name, fi.Name, smp.Filename)
+			errs = append(errs, fmt.Errorf("%v.%v has no sql function to map in %v", in.Name, fi.Name, smp.Filename))
+			continue
+			//panic(fmt.Sprintf("%v.%v has no sql function to map in %v", in.Name, fi.Name, smp.Filename))
 		}
-		in.Functions[i].bindSql(sf)
+		err := in.Functions[i].bindSql(sf)
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
-	log.Debugf("%v bind sql mapper %v ok", in.Name, smp.Filename)
+	log.Debugf("%v bind sql mapper %v finished", in.Name, smp.Filename)
+	return combineErrors(errs...)
 }
 func getFunctions(typ reflect.Type) []*funcInfo {
 	var infos []*funcInfo

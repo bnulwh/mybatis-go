@@ -6,6 +6,7 @@ import (
 	log "github.com/bnulwh/logrus"
 	"github.com/go-sql-driver/mysql"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -210,4 +211,12 @@ func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error)
 	}
 	log.Warnf("not support convert type: %v ,value: %v", typ, ptr)
 	return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, ptr)
+}
+
+func combineErrors(errs ...error) error {
+	var es []string
+	for _, err := range errs {
+		es = append(es, fmt.Sprintf("%v", err))
+	}
+	return fmt.Errorf("%v", strings.Join(es, "\n"))
 }

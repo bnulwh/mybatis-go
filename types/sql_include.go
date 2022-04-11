@@ -10,7 +10,7 @@ type sqlInclude struct {
 	Refid string
 }
 
-func parseSqlIncludeFromXmlNode(attrs map[string]string, sns map[string]*SqlElement) *sqlFragment {
+func parseSqlIncludeFromXmlNode(attrs map[string]string, sns map[string]*SqlElement) (*sqlFragment, error) {
 	log.Debugf("parse sql include from: %v", ToJson(attrs))
 	attr, ok := attrs["refid"]
 	if ok {
@@ -26,9 +26,9 @@ func parseSqlIncludeFromXmlNode(attrs map[string]string, sns map[string]*SqlElem
 				ForLoop: nil,
 				Choose:  nil,
 				Type:    includeSqlFragment,
-			}
+			}, nil
 		}
-		panic(fmt.Sprintf("not found sql id=%v", attr))
+		return nil, fmt.Errorf("not found sql id=%v", attr)
 	}
-	panic("not found refid")
+	return nil, fmt.Errorf("not found refid")
 }

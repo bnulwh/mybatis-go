@@ -311,13 +311,13 @@ func (in *simpleSql) generateSqlWithParam(m interface{}) string {
 	return sqlstr
 }
 
-func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []xmlElement) *sqlFragment {
+func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []xmlElement) (*sqlFragment, error) {
 	ts, ok := attrs["test"]
 	if !ok {
-		panic("not found test attr in input")
+		return nil, fmt.Errorf("not found test attr in input")
 	}
 	if len(elems) < 1 {
-		panic("wrong input for if test sql")
+		return nil, fmt.Errorf("wrong input for if test sql")
 	}
 	var sts []*sqlFragment
 	for _, elem := range elems {
@@ -335,9 +335,18 @@ func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []xmlElement) *sql
 			xn := elem.Val.(xmlNode)
 			switch strings.ToLower(xn.Name) {
 			case "if":
-				sts = append(sts, parseSqlIfTestFromXmlNode(xn.Attrs, xn.Elements))
+				stemp, err := parseSqlIfTestFromXmlNode(xn.Attrs, xn.Elements)
+				if err != nil {
+					return nil, err
+				}
+				sts = append(sts, stemp)
+
 			case "foreach":
-				sts = append(sts, parseSqlForLoopFromXmlNode(xn.Attrs, xn.Elements))
+				stemp, err := parseSqlForLoopFromXmlNode(xn.Attrs, xn.Elements)
+				if err != nil {
+					return nil, err
+				}
+				sts = append(sts, stemp)
 			}
 		}
 	}
@@ -352,16 +361,16 @@ func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []xmlElement) *sql
 		Include: nil,
 		Choose:  nil,
 		Type:    ifTestSqlFragment,
-	}
+	}, nil
 }
 
-func parseSqlForLoopFromXmlNode(attrs map[string]string, elems []xmlElement) *sqlFragment {
+func parseSqlForLoopFromXmlNode(attrs map[string]string, elems []xmlElement) (*sqlFragment, error) {
 	col, ok := attrs["collection"]
 	if !ok {
-		panic("not found  collection in input for parsing sql for loop")
+		return nil, fmt.Errorf("not found  collection in input for parsing sql for loop")
 	}
 	if len(elems) < 1 {
-		panic("wrong input for parsing sql for loop")
+		return nil, fmt.Errorf("wrong input for parsing sql for loop")
 	}
 	return &sqlFragment{
 		ForLoop: &sqlForLoop{
@@ -378,17 +387,20 @@ func parseSqlForLoopFromXmlNode(attrs map[string]string, elems []xmlElement) *sq
 		Include: nil,
 		Choose:  nil,
 		Type:    forLoopSqlFragment,
-	}
+	}, nil
 }
 
-func parseSqlChooseFromXmlNode(elems []xmlElement) *sqlFragment {
+func parseSqlChooseFromXmlNode(elems []xmlElement) (*sqlFragment, error) {
 	var conds []*sqlIfTest
 	var defCond []*simpleSql
 	for _, elem := range elems {
 		xn := elem.Val.(xmlNode)
 		switch strings.ToLower(xn.Name) {
 		case "when":
-			st := parseSqlIfTestFromXmlNode(xn.Attrs, xn.Elements)
+			st, err := parseSqlIfTestFromXmlNode(xn.Attrs, xn.Elements)
+			if err != nil {
+				return nil, err
+			}
 			conds = append(conds, st.IfTest)
 		case "otherwise":
 			dc := parseSimpleSqlFromText(xn.Elements[0].Val.(string))
@@ -396,7 +408,7 @@ func parseSqlChooseFromXmlNode(elems []xmlElement) *sqlFragment {
 		}
 	}
 	if len(defCond) < 1 {
-		panic("choose sql not contains otherwise")
+		return nil, fmt.Errorf("choose sql not contains otherwise")
 	}
 	return &sqlFragment{
 		Choose: &sqlChoose{
@@ -408,7 +420,7 @@ func parseSqlChooseFromXmlNode(elems []xmlElement) *sqlFragment {
 		IfTest:  nil,
 		Sql:     nil,
 		Type:    chooseSqlFragment,
-	}
+	}, nil
 }
 
 func parseIfConditionsFromText(text string) []ifCondition {

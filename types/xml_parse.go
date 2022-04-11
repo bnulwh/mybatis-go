@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -27,16 +28,16 @@ type xmlNode struct {
 	Elements []xmlElement
 }
 
-func parseXmlFile(filename string) *xmlNode {
+func parseXmlFile(filename string) (*xmlNode, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	r := bytes.NewReader(content)
 	return parseXmlNode(r)
 }
 
-func parseXmlNode(r io.Reader) *xmlNode {
+func parseXmlNode(r io.Reader) (*xmlNode, error) {
 	parser := xml.NewDecoder(r)
 	var root xmlNode
 
@@ -84,10 +85,10 @@ func parseXmlNode(r io.Reader) *xmlNode {
 	}
 
 	if st.Len() != 0 {
-		panic("Parse xml error, there is tag no close, please check your xml config!")
+		return nil, fmt.Errorf("parse xml error, there is tag no close, please check your xml config")
 	}
 
-	return &root
+	return &root, nil
 }
 
 func charData2XmlNode(st *stack, t xml.Token) xmlNode {

@@ -15,7 +15,7 @@ type ReturnType struct {
 	NumOut        int //返回总数
 }
 
-func (in *ReturnType) checkSql(f *types.SqlFunction, name string) {
+func (in *ReturnType) checkSql(f *types.SqlFunction, name string) error {
 	typ := *in.ReturnOutType
 	if typ.Kind() == reflect.Slice {
 		typ = typ.Elem()
@@ -24,15 +24,16 @@ func (in *ReturnType) checkSql(f *types.SqlFunction, name string) {
 		rname := types.GetShortName(f.Result.ResultM.TypeName)
 		sname := types.GetShortName(typ.Name())
 		if strings.Compare(strings.ToLower(rname), strings.ToLower(sname)) != 0 {
-			panic(fmt.Sprintf("%v check sql function %v failed, return type valid failed `%v` != `%v` ",
-				name, f.Id, f.Result.ResultM.TypeName, typ.String()))
+			return fmt.Errorf("%v check sql function %v failed, return type valid failed `%v` != `%v` ",
+				name, f.Id, f.Result.ResultM.TypeName, typ.String())
 		}
 	} else {
 		if !utils.SameTypeCheck(f.Result.ResultT, typ) {
-			panic(fmt.Sprintf("%v check sql function %v failed, return type valid failed `%v` != `%v`",
-				name, f.Id, f.Result.ResultT.String(), typ.String()))
+			return fmt.Errorf("%v check sql function %v failed, return type valid failed `%v` != `%v`",
+				name, f.Id, f.Result.ResultT.String(), typ.String())
 		}
 	}
+	return nil
 }
 
 func makeReturnType(funcName string, funcType reflect.Type) *ReturnType {

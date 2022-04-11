@@ -1,32 +1,43 @@
 package orm
 
 import (
+	"fmt"
 	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/utils"
 	"io/ioutil"
 	"strings"
 )
 
-func Initialize(filename string) {
+func Initialize(filename string) error {
 	cm := LoadSettings(filename)
-	InitializeFromSettings(cm)
+	return InitializeFromSettings(cm)
 }
 
-func InitializeFromSettings(cm map[string]string) {
+func InitializeFromSettings(cm map[string]string) error {
 	dc := NewConfigFromSettings(cm)
-	gCache.initSqls(dc.MapperLocations)
+	err1 := gCache.initSqls(dc.MapperLocations)
 	gDbConn = newDatabaseConnection(dc.DbConfig)
+	var err2 error
 	if gDbConn != nil {
-		gDbConn.connect2Database()
+		err2 = gDbConn.connect2Database()
 	}
+	return combineErrors(err1, err2)
 }
 
-func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string) {
+func ReConnect() error {
+	if gDbConn != nil {
+		return gDbConn.connect2Database()
+	}
+	return fmt.Errorf("connection not init.")
+}
+
+func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string) error {
 	dc := newDatabaseConfig(dbType, host, port, user, pwd, dbName)
 	gDbConn = newDatabaseConnection(dc)
 	if gDbConn != nil {
-		gDbConn.connect2Database()
+		return gDbConn.connect2Database()
 	}
+	return nil
 }
 func LoadSettings(filename string) map[string]string {
 	m := LoadProperties(filename)
