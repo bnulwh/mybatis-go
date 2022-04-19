@@ -27,7 +27,14 @@ func newColumnStructure(row map[string]interface{}) *ColumnStucture {
 }
 
 func (cs ColumnStucture) getJdbcType() string {
-	return strings.ToUpper(types.GetJdbcTypePart(cs.DbType))
+	jt := strings.ToUpper(types.GetJdbcTypePart(cs.DbType))
+	if jt == "TEXT" {
+		return "VARCHAR"
+	}
+	if jt == "CHARACTER" {
+		return "VARCHAR"
+	}
+	return jt
 }
 
 func (cs ColumnStucture) getPropertyName() string {
