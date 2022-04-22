@@ -14,7 +14,7 @@ func init() {
 }
 
 func main() {
-	var dbType, host, user, pwd, dbName, dir string
+	var dbType, host, user, pwd, dbName, dir, prefix, tables string
 	var port int
 	flag.StringVar(&dbType, "type", "mysql", "database type: mysql/postgres")
 	flag.StringVar(&host, "host", "localhost", "database address,default: localhost")
@@ -23,6 +23,8 @@ func main() {
 	flag.StringVar(&pwd, "password", "123456", "database password")
 	flag.StringVar(&dbName, "db", "kubecloud", "database")
 	flag.StringVar(&dir, "output", "temp", "saving folder")
+	flag.StringVar(&prefix, "prefix", "", "prefix of table")
+	flag.StringVar(&tables, "tables", "", "tables to export,split with ','")
 	flag.Parse()
 	if user == "" || pwd == "" || dbName == "" {
 		flag.Usage()
@@ -30,5 +32,5 @@ func main() {
 	}
 	orm.InitializeDatabase(dbType, host, port, user, pwd, dbName)
 	defer orm.Close()
-	orm.SchemaToCode(dir)
+	orm.SchemaToCode(dir, prefix, tables)
 }

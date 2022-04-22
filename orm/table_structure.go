@@ -80,15 +80,15 @@ func newTableStruct(dbName, table string) (*TableStructure, error) {
 	return ret, nil
 }
 
-func (ts *TableStructure) saveToFile(filename string) error {
+func (ts *TableStructure) saveToFile(filename, prefix string) error {
 	doc := etree.NewDocument()
 	ts.writeHeader(doc)
-	mapper := ts.createMapper(doc)
-	ts.writeResultMap(mapper)
+	mapper := ts.createMapper(doc, prefix)
+	ts.writeResultMap(mapper, prefix)
 	ts.writeBaseColumnList(mapper)
 	ts.writeDeleteFunction(mapper)
-	ts.writeInsertFunction(mapper)
-	ts.writeUpdateFunction(mapper)
+	ts.writeInsertFunction(mapper, prefix)
+	ts.writeUpdateFunction(mapper, prefix)
 	ts.writeSelectFunction(mapper)
 	ts.writeSelectAllFunction(mapper)
 	ts.writeCountFunction(mapper)
@@ -106,8 +106,12 @@ func (ts *TableStructure) writeHeader(doc *etree.Document) {
 	doc.CreateDirective(`DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd"`)
 }
 
-func (ts *TableStructure) getMapperName() string {
-	arr := strings.Split(ts.Table, "_")
+func (ts *TableStructure) getMapperName(prefix string) string {
+	tname := ts.Table
+	if len(prefix) > 0 && strings.HasPrefix(ts.Table, prefix) {
+		tname = tname[len(prefix):]
+	}
+	arr := strings.Split(tname, "_")
 	var res []string
 	for _, item := range arr {
 		res = append(res, types.UpperFirst(strings.TrimSpace(item)))
@@ -115,8 +119,12 @@ func (ts *TableStructure) getMapperName() string {
 	res = append(res, "Mapper")
 	return strings.Join(res, "")
 }
-func (ts *TableStructure) getModelName() string {
-	arr := strings.Split(ts.Table, "_")
+func (ts *TableStructure) getModelName(prefix string) string {
+	tname := ts.Table
+	if len(prefix) > 0 && strings.HasPrefix(ts.Table, prefix) {
+		tname = tname[len(prefix):]
+	}
+	arr := strings.Split(tname, "_")
 	var res []string
 	for _, item := range arr {
 		res = append(res, types.UpperFirst(strings.TrimSpace(item)))
@@ -125,16 +133,16 @@ func (ts *TableStructure) getModelName() string {
 	return strings.Join(res, "")
 }
 
-func (ts *TableStructure) createMapper(doc *etree.Document) *etree.Element {
+func (ts *TableStructure) createMapper(doc *etree.Document, prefix string) *etree.Element {
 	mapper := doc.CreateElement("mapper")
-	mapper.CreateAttr("namespace", ts.getMapperName())
+	mapper.CreateAttr("namespace", ts.getMapperName(prefix))
 	return mapper
 }
 
-func (ts *TableStructure) writeResultMap(mapper *etree.Element) {
+func (ts *TableStructure) writeResultMap(mapper *etree.Element, prefix string) {
 	resultMap := mapper.CreateElement("resultMap")
 	resultMap.CreateAttr("id", DefaultResultMapName)
-	resultMap.CreateAttr("type", ts.getModelName())
+	resultMap.CreateAttr("type", ts.getModelName(prefix))
 	for _, column := range ts.Columns {
 		result := resultMap.CreateElement("result")
 		result.CreateAttr("column", column.Name)
@@ -182,10 +190,10 @@ func (ts *TableStructure) generateInsertSQL() string {
 	sql := fmt.Sprintf("\n\t\tinsert into %s \n\t\t(%s) \n\t\tvalues \n\t\t(%s)\n\t", ts.Table, cns, cvs)
 	return sql
 }
-func (ts *TableStructure) writeInsertFunction(mapper *etree.Element) {
+func (ts *TableStructure) writeInsertFunction(mapper *etree.Element, prefix string) {
 	in := mapper.CreateElement("insert")
 	in.CreateAttr("id", "insert")
-	in.CreateAttr("parameterType", ts.getModelName())
+	in.CreateAttr("parameterType", ts.getModelName(prefix))
 	in.CreateText(ts.generateInsertSQL())
 }
 func (ts *TableStructure) generateUpdateSQL() string {
@@ -209,10 +217,10 @@ func (ts *TableStructure) generateUpdateSQL() string {
 	)
 	return sql
 }
-func (ts *TableStructure) writeUpdateFunction(mapper *etree.Element) {
+func (ts *TableStructure) writeUpdateFunction(mapper *etree.Element, prefix string) {
 	up := mapper.CreateElement("update")
 	up.CreateAttr("id", "updateByPrimaryKey")
-	up.CreateAttr("parameterType", ts.getModelName())
+	up.CreateAttr("parameterType", ts.getModelName(prefix))
 	up.CreateText(ts.generateUpdateSQL())
 }
 func (ts *TableStructure) writeSelectFunction(mapper *etree.Element) {

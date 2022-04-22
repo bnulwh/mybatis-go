@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-func SchemaToCode(dir string) {
+func SchemaToCode(dir, prefix, tables string) {
 	ds, err := newDatabaseStructure(gDbConn.dbName)
 	if err != nil {
 		log.Errorf("get database structure failed. %v", err)
@@ -16,7 +16,7 @@ func SchemaToCode(dir string) {
 		return
 	}
 	mapperDir := filepath.Join(dir, "resources", "mapper")
-	err = ds.SaveToDir(mapperDir)
+	err = ds.SaveToDir(mapperDir, prefix, tables)
 	if err != nil {
 		log.Errorf("save to dir failed.%v", err)
 		return

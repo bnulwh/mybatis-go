@@ -5,6 +5,7 @@ import (
 	log "github.com/bnulwh/logrus"
 	"github.com/bnulwh/mybatis-go/utils"
 	"path/filepath"
+	"strings"
 )
 
 type DatabaseStructure struct {
@@ -34,15 +35,26 @@ func newDatabaseStructure(dbName string) (*DatabaseStructure, error) {
 	return pds, nil
 }
 
-func (ds *DatabaseStructure) SaveToDir(dir string) error {
+func (ds *DatabaseStructure) SaveToDir(dir, prefix, tables string) error {
 	err := utils.MakeDirAll(dir)
 	if err != nil {
 		log.Errorf("check dir %s failed.%v", dir, err)
 		return err
 	}
+	exts := make([]string, 0)
+	if len(tables) == 0 {
+		exts = ds.TableList
+	} else {
+		exts = strings.Split(tables, ",")
+	}
+	tbmp := list2map(exts)
 	for name, ts := range ds.TableMap {
-		filename := filepath.Join(dir, fmt.Sprintf("%s.xml", ts.getMapperName()))
-		err = ts.saveToFile(filename)
+		_, ok := tbmp[name]
+		if !ok {
+			continue
+		}
+		filename := filepath.Join(dir, fmt.Sprintf("%s.xml", ts.getMapperName(prefix)))
+		err = ts.saveToFile(filename, prefix)
 		if err != nil {
 			log.Warnf("save table %s failed. %v", name, err)
 		}
@@ -72,4 +84,12 @@ func fetchTables(dbName string) ([]string, error) {
 		tables = append(tables, row["table_name"].(string))
 	}
 	return tables, nil
+}
+
+func list2map(list []string) map[string]string {
+	mp := make(map[string]string)
+	for _, item := range list {
+		mp[item] = item
+	}
+	return mp
 }

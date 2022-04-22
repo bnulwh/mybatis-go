@@ -28,7 +28,7 @@ func newColumnStructure(row map[string]interface{}) *ColumnStucture {
 
 func (cs ColumnStucture) getJdbcType() string {
 	jt := strings.ToUpper(types.GetJdbcTypePart(cs.DbType))
-	if jt == "TEXT" {
+	if jt == "TEXT" || jt == "LONGTEXT" || jt == "TINYTEXT" {
 		return "VARCHAR"
 	}
 	if jt == "CHARACTER" {
