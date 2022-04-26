@@ -423,7 +423,7 @@ func ChangeType(val interface{}, typ reflect.Type) (interface{}, error) {
 }
 func isNumberType(typ reflect.Type) bool {
 	switch strings.ToLower(typ.String()) {
-	case "int8":
+	case "int", "int8":
 		return true
 	case "int16":
 		return true

@@ -14,17 +14,28 @@ type DatabaseStructure struct {
 	TableMap  map[string]*TableStructure
 }
 
-func newDatabaseStructure(dbName string) (*DatabaseStructure, error) {
-	tables, err := fetchTables(dbName)
+func newDatabaseStructure(dbName, tables string) (*DatabaseStructure, error) {
+	tns, err := fetchTables(dbName)
 	if err != nil {
 		return nil, err
 	}
 	pds := &DatabaseStructure{
-		TableList: tables,
+		TableList: tns,
 		TableMap:  map[string]*TableStructure{},
 		Tables:    []*TableStructure{},
 	}
-	for _, table := range tables {
+	exts := make([]string, 0)
+	if len(tables) == 0 {
+		exts = tns
+	} else {
+		exts = strings.Split(tables, ",")
+	}
+	tbmp := list2map(exts)
+	for _, table := range tns {
+		_, ok := tbmp[table]
+		if !ok {
+			continue
+		}
 		pts, err := newTableStruct(dbName, table)
 		if err != nil {
 			continue
