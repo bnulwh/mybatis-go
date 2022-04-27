@@ -216,7 +216,12 @@ func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error)
 func combineErrors(errs ...error) error {
 	var es []string
 	for _, err := range errs {
-		es = append(es, fmt.Sprintf("%v", err))
+		if err != nil {
+			es = append(es, fmt.Sprintf("%v", err))
+		}
+	}
+	if len(es) == 0 {
+		return nil
 	}
 	return fmt.Errorf("%v", strings.Join(es, "\n"))
 }
