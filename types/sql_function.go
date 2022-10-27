@@ -37,7 +37,7 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, 
 	nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
 	return in.generateSqlWithMap(nmp), []interface{}{}, nil
 }
-func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []interface{}, error) {
+func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []string, error) {
 	log.Debugf("========================================")
 	log.Debugf("sql function %v begin prepare sql args: %v", in.Id, args)
 	defer log.Debugf("sql function %v finish  prepare sql", in.Id)
@@ -47,7 +47,7 @@ func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []interface{}, e
 		return "", nil, err
 	}
 	if !in.Param.Need {
-		return in.generateSqlWithoutParam(), []interface{}{}, nil
+		return in.generateSqlWithoutParam(), []string{}, nil
 	}
 	switch in.Param.Type {
 	case BaseSqlParam:
@@ -87,10 +87,10 @@ func (in *SqlFunction) generateDefine() string {
 	buf.WriteString(")\n")
 	return buf.String()
 }
-func (in *SqlFunction) prepareSqlWithMap(m map[string]interface{}) (string, []interface{}) {
+func (in *SqlFunction) prepareSqlWithMap(m map[string]interface{}) (string, []string) {
 	log.Debugf("sql function %v generate sql with map: %v", in.Id, m)
 	var buf bytes.Buffer
-	var results []interface{}
+	var results []string
 	for _, item := range in.Items {
 		buf.WriteString(" ")
 		sqlstr, items := item.prepareSqlWithMap(m, 0)
@@ -108,10 +108,10 @@ func (in *SqlFunction) generateSqlWithMap(m map[string]interface{}) string {
 	}
 	return buf.String()
 }
-func (in *SqlFunction) prepareSqlWithSlice(m []interface{}) (string, []interface{}) {
+func (in *SqlFunction) prepareSqlWithSlice(m []interface{}) (string, []string) {
 	log.Debugf("sql function %v prepare sql with slice: %v", in.Id, m)
 	var buf bytes.Buffer
-	var results []interface{}
+	var results []string
 	for _, item := range in.Items {
 		buf.WriteString(" ")
 		sqlstr, items := item.prepareSqlWithSlice(m, 0)
@@ -129,10 +129,10 @@ func (in *SqlFunction) generateSqlWithSlice(m []interface{}) string {
 	}
 	return buf.String()
 }
-func (in *SqlFunction) prepareSqlWithParam(m interface{}) (string, []interface{}) {
+func (in *SqlFunction) prepareSqlWithParam(m interface{}) (string, []string) {
 	log.Debugf("sql function %v generate sql with param: %v", in.Id, m)
 	var buf bytes.Buffer
-	var results []interface{}
+	var results []string
 	for _, item := range in.Items {
 		buf.WriteString(" ")
 		sqlstr, items := item.prepareSqlWithParam(m)

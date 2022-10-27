@@ -26,19 +26,19 @@ type sqlFragment struct {
 	Type    sqlFragmentType
 }
 
-func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string, []interface{}) {
+func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string, []string) {
 	log.Debugf("sql fragment [%v] generate sql with slice : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case simpleSqlFragment:
 		if in.Sql != nil {
 			if len(in.Sql.Params) == 0 {
-				return in.Sql.Sql, []interface{}{}
+				return in.Sql.Sql, []string{}
 			}
 			panic("simple sql has param not replaced!!!!")
 		}
 	case includeSqlFragment:
 		if in.Include != nil {
-			return in.Include.Sql, []interface{}{}
+			return in.Include.Sql, []string{}
 		}
 	case ifTestSqlFragment:
 		if in.IfTest != nil {
@@ -49,7 +49,7 @@ func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string, 
 			return in.ForLoop.prepareSql(map[string]interface{}{}, m, depth+1)
 		}
 	}
-	return "", []interface{}{}
+	return "", []string{}
 }
 
 func (in *sqlFragment) generateSqlWithSlice(m []interface{}, depth int) string {
@@ -77,7 +77,7 @@ func (in *sqlFragment) generateSqlWithSlice(m []interface{}, depth int) string {
 	}
 	return ""
 }
-func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (string, []interface{}) {
+func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (string, []string) {
 	log.Debugf("sql fragment [%v] generate sql with map : %v  depth: %v", in.Type, m, depth)
 	switch in.Type {
 	case simpleSqlFragment:
@@ -86,7 +86,7 @@ func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (s
 		}
 	case includeSqlFragment:
 		if in.Include != nil {
-			return in.Include.Sql, []interface{}{}
+			return in.Include.Sql, []string{}
 		}
 	case ifTestSqlFragment:
 		if in.IfTest != nil {
@@ -96,7 +96,7 @@ func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (s
 		if in.ForLoop != nil {
 			val, ok := m[buildKey(in.ForLoop.Collection)]
 			if !ok {
-				return "", []interface{}{}
+				return "", []string{}
 			}
 			if reflect.TypeOf(val).Kind() == reflect.Slice {
 				sval := convert2Slice(reflect.ValueOf(val))
@@ -108,7 +108,7 @@ func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (s
 			return in.Choose.prepareSqlWithMap(m, depth+1)
 		}
 	}
-	return "", []interface{}{}
+	return "", []string{}
 }
 
 func (in *sqlFragment) generateSqlWithMap(m map[string]interface{}, depth int) string {
@@ -144,7 +144,7 @@ func (in *sqlFragment) generateSqlWithMap(m map[string]interface{}, depth int) s
 	}
 	return ""
 }
-func (in *sqlFragment) prepareSqlWithParam(m interface{}) (string, []interface{}) {
+func (in *sqlFragment) prepareSqlWithParam(m interface{}) (string, []string) {
 	log.Debugf("sql fragment [%v] prepare sql with param : %v  ", in.Type, m)
 	switch in.Type {
 	case simpleSqlFragment:
@@ -153,20 +153,20 @@ func (in *sqlFragment) prepareSqlWithParam(m interface{}) (string, []interface{}
 		}
 	case includeSqlFragment:
 		if in.Include != nil {
-			return in.Include.Sql, []interface{}{}
+			return in.Include.Sql, []string{}
 		}
 	case ifTestSqlFragment:
 		if in.IfTest != nil {
 			return in.IfTest.prepareSqlWithParam(m)
 		}
 	case forLoopSqlFragment:
-		return "", []interface{}{}
+		return "", []string{}
 	case chooseSqlFragment:
 		if in.Choose != nil {
 			return in.Choose.Otherwise.prepareSqlWithParam(m)
 		}
 	}
-	return "", []interface{}{}
+	return "", []string{}
 }
 func (in *sqlFragment) generateSqlWithParam(m interface{}) string {
 	log.Debugf("sql fragment [%v] generate sql with param : %v  ", in.Type, m)
