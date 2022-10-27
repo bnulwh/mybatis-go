@@ -25,7 +25,8 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 	//in.lock.Lock()
 	//defer in.lock.Unlock()
 	args := arg.buildArgs()
-	sqlStr, items, err := sqlFunc.GenerateSQL(args...)
+	sqlStr, items, err := sqlFunc.PrepareSQL(args...)
+	sqlargs := convert2Interfaces(items)
 	if err != nil {
 		log.Warnf("generate sql failed: %v", err)
 		return reflect.Value{}, err
@@ -33,13 +34,13 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 	log.Debugf("sql: %v", sqlStr)
 	switch sqlFunc.Type {
 	case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
-		rf, err := execute(sqlStr, items...)
+		rf, err := execute(sqlStr, sqlargs...)
 		if err != nil {
 			return reflect.Value{}, err
 		}
 		return reflect.ValueOf(rf), nil
 	case types.SelectFunction:
-		rows, err := queryRows(sqlStr, items...)
+		rows, err := queryRows(sqlStr, sqlargs...)
 		if err != nil {
 			return reflect.Value{}, err
 		}
@@ -49,4 +50,12 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 		return results, nil
 	}
 	return reflect.Value{}, nil
+}
+
+func convert2Interfaces(arr []string) []interface{} {
+	var results []interface{}
+	for _, s := range arr {
+		results = append(results, s)
+	}
+	return results
 }
