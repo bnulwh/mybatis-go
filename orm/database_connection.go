@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"database/sql"
 	log "github.com/bnulwh/logrus"
 	"time"
@@ -66,18 +67,19 @@ func (dc *databaseConnection) close() {
 	}
 }
 
-func (dc *databaseConnection) prepare(sqlStr string) (*sql.Stmt, error) {
+func (dc *databaseConnection) prepare(ctx context.Context, sqlStr string) (*sql.Conn, *sql.Stmt, error) {
 	//var err error
-	//dc.conn, err = dc.database.Conn(context.Background())
-	//if err != nil {
-	//	log.Warnf("create conn failed. %v", err)
-	//	return nil, err
-	//}
-	//return dc.conn.PrepareContext(context.Background(), sqlStr)
+	conn, err := dc.database.Conn(ctx)
+	if err != nil {
+		log.Warnf("create conn failed. %v", err)
+		return nil, nil, err
+	}
+	stmt, err := conn.PrepareContext(ctx, sqlStr)
+	return conn, stmt, err
 
 	//err := dc.database.Ping()
 	//if err != nil {
 	//	log.Warnf("ping failed. %v", err)
 	//}
-	return dc.database.Prepare(sqlStr)
+	//return dc.database.Prepare(sqlStr)
 }
