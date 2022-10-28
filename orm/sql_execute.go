@@ -21,12 +21,12 @@ func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error)
 func execute(sqlStr string, args ...interface{}) (int64, error) {
 	log.Debugf("sql: %v", sqlStr)
 	ctx := context.Background()
-	conn, stmt, err := gDbConn.prepare(ctx, sqlStr)
+	stmt, err := gDbConn.prepare(ctx, sqlStr)
 	if err != nil {
 		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
 		return 0, err
 	}
-	defer closeStmt(conn, stmt)
+	//defer closeStmt(conn, stmt)
 	result, err := stmt.ExecContext(ctx, args...)
 	if err != nil {
 		log.Errorf("execute sql %v failed: %v", sqlStr, err)
@@ -36,16 +36,16 @@ func execute(sqlStr string, args ...interface{}) (int64, error) {
 	return rf, nil
 }
 
-func closeStmt(conn *sql.Conn, stmt *sql.Stmt) {
+func closeStmt(stmt *sql.Stmt) {
 	err := stmt.Close()
 	if err != nil {
 		log.Warnf("close stmt warning: %v", err)
 	}
 	//if gDbConn.conn != nil {
-	err = conn.Close()
-	if err != nil {
-		log.Warnf("close conn warning: %v", err)
-	}
+	//err = conn.Close()
+	//if err != nil {
+	//	log.Warnf("close conn warning: %v", err)
+	//}
 	//}
 	//err = gDbConn.database.Close()
 	//if err != nil {
@@ -55,12 +55,12 @@ func closeStmt(conn *sql.Conn, stmt *sql.Stmt) {
 
 func queryRows(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
 	ctx := context.Background()
-	conn, stmt, err := gDbConn.prepare(ctx, sqlStr)
+	stmt, err := gDbConn.prepare(ctx, sqlStr)
 	if err != nil {
 		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
 		return nil, err
 	}
-	defer closeStmt(conn, stmt)
+	//defer closeStmt(conn, stmt)
 	rows, err := stmt.QueryContext(ctx, args...)
 	if err != nil {
 		log.Errorf("query sql %v failed: %v", sqlStr, err)
