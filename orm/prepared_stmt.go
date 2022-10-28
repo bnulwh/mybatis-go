@@ -140,3 +140,11 @@ func (db *PreparedStmtDB) QueryRowContext(ctx context.Context, query string, arg
 	}
 	return &sql.Row{}
 }
+
+func (db *PreparedStmtDB) Stats() sql.DBStats {
+	sqldb, err := db.GetDBConn()
+	if err != nil {
+		return sql.DBStats{}
+	}
+	return sqldb.Stats()
+}

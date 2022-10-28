@@ -95,6 +95,7 @@ func (dc *databaseConnection) prepare(ctx context.Context, query string) (Stmt, 
 	//}
 	v, _ := dc.cacheStore.Load(preparedStmtDBKey)
 	preparedStmt := v.(*PreparedStmtDB)
+	log.Debugf("conn stats: %#v", preparedStmt.Stats())
 	return preparedStmt.prepare(ctx, dc.ConnPool, query)
 	//var err error
 	//conn, err := dc.database.Conn(ctx)
