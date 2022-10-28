@@ -47,11 +47,13 @@ func (dc *databaseConnection) connect2Database() error {
 		return err
 	}
 	log.Infof("successfully connected!")
-	dc.database.SetConnMaxLifetime(time.Minute * 5)
-	dc.database.SetMaxIdleConns(100)
-	dc.database.SetMaxOpenConns(100)
+	timeout := int(time.Second) * dc.config.MaxTimeout
+	dc.database.SetConnMaxLifetime(time.Duration(timeout))
+	dc.database.SetMaxIdleConns(dc.config.MaxIdle)
+	dc.database.SetMaxOpenConns(dc.config.MaxOpen)
 	err = dc.database.Ping()
 	if err != nil {
+		log.Errorf("ping error : %v", err)
 		return err
 	}
 	dc.connected = true

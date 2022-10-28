@@ -12,17 +12,23 @@ import (
 type DatabaseType string
 
 const (
-	MySqlDb    DatabaseType = "mysql"
-	PostgresDb DatabaseType = "postgres"
+	MySqlDb           DatabaseType = "mysql"
+	PostgresDb        DatabaseType = "postgres"
+	DefaultMaxIdle                 = 100
+	DefaultMaxOpen                 = 100
+	DefaultMaxTimeout              = 300
 )
 
 type DatabaseConfig struct {
-	Host     string
-	Port     int64
-	Username string
-	Password string
-	DbName   string
-	DbType   DatabaseType
+	Host       string
+	Port       int64
+	Username   string
+	Password   string
+	DbName     string
+	DbType     DatabaseType
+	MaxIdle    int
+	MaxOpen    int
+	MaxTimeout int
 }
 
 type MyBatisConfig struct {
@@ -51,12 +57,15 @@ func newDatabaseConfig(dbType, host string, port int, user, pwd, dbName string) 
 		panic("parse datbase type failed.")
 	}
 	return &DatabaseConfig{
-		Host:     host,
-		Port:     int64(port),
-		Username: user,
-		Password: pwd,
-		DbName:   dbName,
-		DbType:   dt,
+		Host:       host,
+		Port:       int64(port),
+		Username:   user,
+		Password:   pwd,
+		DbName:     dbName,
+		DbType:     dt,
+		MaxOpen:    DefaultMaxOpen,
+		MaxIdle:    DefaultMaxIdle,
+		MaxTimeout: DefaultMaxTimeout,
 	}
 }
 
@@ -98,18 +107,25 @@ func parseDatabaseConfig(m map[string]string) *DatabaseConfig {
 		log.Errorf("get database password failed.")
 		panic("get database password failed.")
 	}
+	ic := parseInt(m, "spring.datasource.max-idle", DefaultMaxIdle)
+	oc := parseInt(m, "spring.datasource.max-open", DefaultMaxOpen)
+	mt := parseInt(m, "spring.datasource.max-timeout", DefaultMaxTimeout)
+
 	dt, err := parseDatabaseType(tp)
 	if err != nil {
 		log.Errorf("parse datbase type failed.")
 		panic("parse datbase type failed.")
 	}
 	return &DatabaseConfig{
-		Host:     h,
-		Port:     P,
-		Username: u,
-		Password: p,
-		DbName:   d,
-		DbType:   dt,
+		Host:       h,
+		Port:       P,
+		Username:   u,
+		Password:   p,
+		DbName:     d,
+		DbType:     dt,
+		MaxIdle:    int(ic),
+		MaxOpen:    oc,
+		MaxTimeout: mt,
 	}
 }
 func parseDatabaseType(tps string) (DatabaseType, error) {
@@ -134,4 +150,16 @@ func parseAddr(m map[string]string) (string, string, int64, string, error) {
 	}
 	i, _ := strconv.Atoi(matched[3])
 	return matched[1], matched[2], int64(i), matched[4], nil
+}
+
+func parseInt(m map[string]string, key string, def int64) int {
+	val, ok := m[key]
+	if !ok {
+		val = fmt.Sprint(def)
+	}
+	nval, err := strconv.ParseInt(val, 10, 0)
+	if err != nil {
+		nval = int64(def)
+	}
+	return int(nval)
 }

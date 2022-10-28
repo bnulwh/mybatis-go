@@ -9,9 +9,11 @@ import (
 )
 
 func init() {
-	log.ConfigLocalFileSystemLogger("/var/log","mysqldemo")
-	orm.Initialize("application-mysql.properties")
-
+	log.ConfigLocalFileSystemLogger("./logs", "mysqldemo")
+	err := orm.Initialize("application-mysql.properties")
+	if err != nil {
+		panic(err)
+	}
 }
 func main() {
 	defer orm.Close()

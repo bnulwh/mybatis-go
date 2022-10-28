@@ -74,7 +74,7 @@ func change2Int8(val interface{}) (int8, error) {
 	case uint64:
 		return int8(val.(uint64)), nil
 	default:
-		nv, err := strconv.ParseInt(fmt.Sprintf("%v", val), 10, 0)
+		nv, err := strconv.ParseInt(fmt.Sprint(val), 10, 0)
 		if err != nil {
 			return int8(0), err
 		}
@@ -104,7 +104,7 @@ func change2Int16(val interface{}) (int16, error) {
 	case uint64:
 		return int16(val.(uint64)), nil
 	default:
-		nv, err := strconv.ParseInt(fmt.Sprintf("%v", val), 10, 0)
+		nv, err := strconv.ParseInt(fmt.Sprint(val), 10, 0)
 		if err != nil {
 			return int16(0), err
 		}
@@ -134,7 +134,7 @@ func change2Int32(val interface{}) (int32, error) {
 	case uint64:
 		return int32(val.(uint64)), nil
 	default:
-		nv, err := strconv.ParseInt(fmt.Sprintf("%v", val), 10, 0)
+		nv, err := strconv.ParseInt(fmt.Sprint(val), 10, 0)
 		if err != nil {
 			return int32(0), err
 		}
@@ -164,7 +164,7 @@ func change2Int64(val interface{}) (int64, error) {
 	case uint64:
 		return int64(val.(uint64)), nil
 	default:
-		return strconv.ParseInt(fmt.Sprintf("%v", val), 10, 0)
+		return strconv.ParseInt(fmt.Sprint(val), 10, 0)
 	}
 }
 func change2UInt(val interface{}) (uint, error) {
