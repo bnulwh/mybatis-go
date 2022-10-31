@@ -13,6 +13,12 @@ type ConnPool interface {
 	Stats() sql.DBStats
 }
 
+type Dialector interface {
+	Name() string
+	Initialize(*DB) error
+	FormatPrepareSQL(src string) string
+}
+
 type GetDBConnector interface {
 	GetDBConn() (*sql.DB, error)
 }

@@ -24,7 +24,7 @@ type TableStructure struct {
 
 func newTableStruct(dbName, table string) (*TableStructure, error) {
 	var sql string
-	switch gDbConn.dbType {
+	switch gDbConn.Setting.Type {
 	case PostgresDb:
 		sql = fmt.Sprintf(`SELECT
     A.ordinal_position,A.table_name,A.column_name,CASE A.is_nullable WHEN 'NO' THEN 0 ELSE 1 END AS is_nullable,
@@ -41,8 +41,8 @@ func newTableStruct(dbName, table string) (*TableStructure, error) {
     from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'
     ORDER BY ORDINAL_POSITION ASC`, dbName, table)
 	default:
-		log.Errorf("unsupport database type %v to get table structure", gDbConn.dbType)
-		return nil, fmt.Errorf("unsupport database type %v to get table structure", gDbConn.dbType)
+		log.Errorf("unsupport database type %v to get table structure", gDbConn.Setting.Type)
+		return nil, fmt.Errorf("unsupport database type %v to get table structure", gDbConn.Setting.Type)
 	}
 
 	log.Debugf("sql: %v", sql)

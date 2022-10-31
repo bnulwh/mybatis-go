@@ -14,28 +14,27 @@ func Initialize(filename string) error {
 }
 
 func InitializeFromSettings(cm map[string]string) error {
-	dc := NewConfigFromSettings(cm)
-	err1 := gCache.initSqls(dc.MapperLocations)
-	gDbConn = newDatabaseConnection(dc.DbConfig)
-	var err2 error
-	if gDbConn != nil {
-		err2 = gDbConn.connect2Database()
+	cfg := NewConfigFromSettings(cm)
+	err1 := gCache.initSqls(cfg.Setting.MapperLocations)
+	db, err2 := Open(cfg)
+	if err2 == nil {
+		gDbConn = db
 	}
 	return combineErrors(err1, err2)
 }
 
 func ReConnect() error {
 	if gDbConn != nil {
-		return gDbConn.connect2Database()
+		return gDbConn.Dialector.Initialize(gDbConn)
 	}
 	return fmt.Errorf("connection not init.")
 }
 
 func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string) error {
-	dc := newDatabaseConfig(dbType, host, port, user, pwd, dbName)
-	gDbConn = newDatabaseConnection(dc)
-	if gDbConn != nil {
-		return gDbConn.connect2Database()
+	cfg := newDatabaseConfig(dbType, host, port, user, pwd, dbName)
+	db, err2 := Open(cfg)
+	if err2 == nil {
+		gDbConn = db
 	}
 	return nil
 }

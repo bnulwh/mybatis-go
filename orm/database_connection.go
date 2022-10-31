@@ -5,98 +5,86 @@ import (
 	"database/sql"
 	log "github.com/bnulwh/logrus"
 	"sync"
-	"time"
 )
 
 var (
-	gDbConn *databaseConnection
+	gDbConn *DB
 )
 
 const (
 	preparedStmtDBKey = "preparedStmt"
 )
 
-type databaseConnection struct {
-	ConnPool   ConnPool
-	connStr    string
-	driver     string
-	dbName     string
-	dbType     DatabaseType
-	config     *DatabaseConfig
-	connected  bool
-	cacheStore *sync.Map
-	//lock     sync.Mutex
+type DB struct {
+	*Config
+	Error     error
+	Statement *Statement
 }
 
-func newDatabaseConnection(dc *DatabaseConfig) *databaseConnection {
+func Open(cfg *Config) (db *DB, err error) {
+	var dialector Dialector
+	switch cfg.DriverName() {
+	case "postgres":
+		dialector = NewPostgresDialector(cfg)
+	case "mysql":
+		dialector = NewMySqlDialector(cfg)
+	default:
+		return nil, ErrInvalidDB
+	}
+	db = &DB{
+		Config:    cfg,
+		Error:     nil,
+		Statement: &Statement{},
+	}
+	if dialector != nil {
+		db.Dialector = dialector
+	}
+	if db.Dialector != nil {
+		err = db.Dialector.Initialize(db)
+	}
 
-	return &databaseConnection{
-		connStr:    dc.generateConn(),
-		driver:     dc.getDriver(),
-		dbType:     dc.DbType,
-		config:     dc,
-		dbName:     dc.DbName,
-		connected:  false,
-		cacheStore: &sync.Map{},
-	}
-}
-
-func (dc *databaseConnection) connect2Database() error {
-	if dc.connected {
-		return nil
-	}
-	var err error
-	sqldb, err := sql.Open(dc.driver, dc.connStr)
-	if err != nil {
-		return err
-	}
-	log.Infof("successfully connected! config: %#v", *dc.config)
-	timeout := int(time.Second) * dc.config.MaxTimeout
-
-	sqldb.SetConnMaxLifetime(time.Duration(timeout))
-	sqldb.SetMaxIdleConns(dc.config.MaxIdle)
-	sqldb.SetMaxOpenConns(dc.config.MaxOpen)
-	err = sqldb.Ping()
-	if err != nil {
-		log.Errorf("ping error : %v", err)
-		return err
-	}
-	dc.ConnPool = sqldb
 	preparedStmt := &PreparedStmtDB{
-		ConnPool:    dc.ConnPool,
+		ConnPool:    db.ConnPool,
 		Stmts:       map[string]*Stmt{},
 		Mux:         &sync.RWMutex{},
 		PreparedSQL: make([]string, 0, 100),
 	}
-	dc.cacheStore.Store(preparedStmtDBKey, preparedStmt)
-	dc.connected = true
-	return nil
+	db.cacheStore.Store(preparedStmtDBKey, preparedStmt)
+
+	if db.PreparedStmt {
+		db.ConnPool = preparedStmt
+	}
+	if err == nil {
+		if pinger, ok := db.ConnPool.(interface{ Ping() error }); ok {
+			err = pinger.Ping()
+		}
+	}
+	return
 }
 
-func (dc *databaseConnection) close() {
-	if dc.connected {
-		if v, ok := dc.cacheStore.Load(preparedStmtDBKey); ok {
-			preparedStmt := v.(*PreparedStmtDB)
-			preparedStmt.Close()
-		}
+func (db *DB) close() {
 
-		if sqldb, ok := dc.ConnPool.(*sql.DB); ok {
-			err := sqldb.Close()
-			if err != nil {
-				log.Errorf("close db error: %v", err)
-			}
+	if v, ok := db.cacheStore.Load(preparedStmtDBKey); ok {
+		preparedStmt := v.(*PreparedStmtDB)
+		preparedStmt.Close()
+	}
+
+	if sqldb, ok := db.ConnPool.(*sql.DB); ok {
+		err := sqldb.Close()
+		if err != nil {
+			log.Errorf("close db error: %v", err)
 		}
 	}
 }
 
-func (dc *databaseConnection) prepare(ctx context.Context, query string) (Stmt, error) {
+func (db *DB) prepare(ctx context.Context, query string) (Stmt, error) {
 	//if !dc.connected {
 	//	dc.connect2Database()
 	//}
-	v, _ := dc.cacheStore.Load(preparedStmtDBKey)
+	v, _ := db.cacheStore.Load(preparedStmtDBKey)
 	preparedStmt := v.(*PreparedStmtDB)
 	log.Debugf("conn stats: %#v", preparedStmt.Stats())
-	return preparedStmt.prepare(ctx, dc.ConnPool, query)
+	return preparedStmt.prepare(ctx, db.ConnPool, query)
 	//var err error
 	//conn, err := dc.database.Conn(ctx)
 	//if err != nil {

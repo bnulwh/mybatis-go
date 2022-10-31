@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type DatabaseType string
@@ -19,70 +20,85 @@ const (
 	DefaultMaxTimeout              = 300
 )
 
-type DatabaseConfig struct {
-	Host       string
-	Port       int64
-	Username   string
-	Password   string
-	DbName     string
-	DbType     DatabaseType
-	MaxIdle    int
-	MaxOpen    int
-	MaxTimeout int
+type DatabaseSetting struct {
+	Host     string
+	Port     int64
+	Username string
+	Password string
+	Name     string
+	Type     DatabaseType
 }
 
-type MyBatisConfig struct {
-	DbConfig         *DatabaseConfig
+type MyBatisSetting struct {
+	DatabaseSetting
 	MapperLocations  string
 	TypeAliasPackage string
 	MaxRows          int64
 }
 
-func NewConfig(filename string) *MyBatisConfig {
+type Config struct {
+	Setting      MyBatisSetting
+	MaxIdle      int
+	MaxOpen      int
+	MaxTimeout   int
+	PreparedStmt bool
+	SpringConfig bool
+	Dialector
+	ConnPool   ConnPool
+	cacheStore *sync.Map
+}
+
+func NewConfig(filename string) *Config {
 	cm := LoadSettings(filename)
 	return NewConfigFromSettings(cm)
 }
-func NewConfigFromSettings(cm map[string]string) *MyBatisConfig {
-	dbc := parseDatabaseConfig(cm)
+func NewConfigFromSettings(cm map[string]string) *Config {
+	cfg := parseDatabaseConfig(cm)
 	ml := cm["mybatis.mapper-locations"]
-	return &MyBatisConfig{
-		DbConfig:        dbc,
-		MapperLocations: ml,
-	}
+	cfg.Setting.MapperLocations = ml
+	return cfg
 }
-func newDatabaseConfig(dbType, host string, port int, user, pwd, dbName string) *DatabaseConfig {
+func newDatabaseConfig(dbType, host string, port int, user, pwd, dbName string) *Config {
 	dt, err := parseDatabaseType(dbType)
 	if err != nil {
 		log.Errorf("parse datbase type failed.")
 		panic("parse datbase type failed.")
 	}
-	return &DatabaseConfig{
-		Host:       host,
-		Port:       int64(port),
-		Username:   user,
-		Password:   pwd,
-		DbName:     dbName,
-		DbType:     dt,
-		MaxOpen:    DefaultMaxOpen,
-		MaxIdle:    DefaultMaxIdle,
-		MaxTimeout: DefaultMaxTimeout,
+	return &Config{
+		Setting: MyBatisSetting{
+			DatabaseSetting: DatabaseSetting{
+				Host:     host,
+				Port:     int64(port),
+				Username: user,
+				Password: pwd,
+				Name:     dbName,
+				Type:     dt,
+			},
+		},
+		MaxOpen:      DefaultMaxOpen,
+		MaxIdle:      DefaultMaxIdle,
+		MaxTimeout:   DefaultMaxTimeout,
+		SpringConfig: false,
+		Dialector:    nil,
+		ConnPool:     nil,
+		cacheStore:   &sync.Map{},
 	}
 }
 
-func (in *DatabaseConfig) generateConn() string {
-	switch in.DbType {
+func (ds *DatabaseSetting) generateConn() string {
+	switch ds.Type {
 	case PostgresDb:
 		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			in.Host, in.Port, in.Username, in.Password, in.DbName)
+			ds.Host, ds.Port, ds.Username, ds.Password, ds.Name)
 	case MySqlDb:
 		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-			in.Username, in.Password, in.Host, in.Port, in.DbName)
+			ds.Username, ds.Password, ds.Host, ds.Port, ds.Name)
 	}
 	return ""
 }
 
-func (in *DatabaseConfig) getDriver() string {
-	switch in.DbType {
+func (ds *DatabaseSetting) getDriver() string {
+	switch ds.Type {
 	case MySqlDb:
 		return "mysql"
 	case PostgresDb:
@@ -91,7 +107,15 @@ func (in *DatabaseConfig) getDriver() string {
 	return ""
 }
 
-func parseDatabaseConfig(m map[string]string) *DatabaseConfig {
+func (in *Config) GenerateDSN() string {
+	return in.Setting.generateConn()
+}
+
+func (in *Config) DriverName() string {
+	return in.Setting.getDriver()
+}
+
+func parseDatabaseConfig(m map[string]string) *Config {
 	tp, h, P, d, err := parseAddr(m)
 	if err != nil {
 		log.Errorf("parse postgres addr failed: %v", err)
@@ -116,16 +140,24 @@ func parseDatabaseConfig(m map[string]string) *DatabaseConfig {
 		log.Errorf("parse datbase type failed.")
 		panic("parse datbase type failed.")
 	}
-	return &DatabaseConfig{
-		Host:       h,
-		Port:       P,
-		Username:   u,
-		Password:   p,
-		DbName:     d,
-		DbType:     dt,
-		MaxIdle:    int(ic),
-		MaxOpen:    oc,
-		MaxTimeout: mt,
+	return &Config{
+		Setting: MyBatisSetting{
+			DatabaseSetting: DatabaseSetting{
+				Host:     h,
+				Port:     P,
+				Username: u,
+				Password: p,
+				Name:     d,
+				Type:     dt,
+			},
+		},
+		MaxIdle:      int(ic),
+		MaxOpen:      oc,
+		MaxTimeout:   mt,
+		SpringConfig: true,
+		Dialector:    nil,
+		ConnPool:     nil,
+		cacheStore:   &sync.Map{},
 	}
 }
 func parseDatabaseType(tps string) (DatabaseType, error) {

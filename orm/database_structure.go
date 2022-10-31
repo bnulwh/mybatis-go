@@ -75,14 +75,14 @@ func (ds *DatabaseStructure) SaveToDir(dir, prefix, tables string) error {
 
 func fetchTables(dbName string) ([]string, error) {
 	var sql string
-	switch gDbConn.dbType {
+	switch gDbConn.Setting.Type {
 	case MySqlDb:
 		sql = fmt.Sprintf("select DISTINCT TABLE_NAME as table_name from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s'", dbName)
 	case PostgresDb:
 		sql = "select relname as TABLE_NAME from pg_class where  relkind = 'r' and relname not like 'pg_%' and relname not like 'sql_%'"
 	default:
-		log.Errorf("unsupport database type %v to get table list", gDbConn.dbType)
-		return nil, fmt.Errorf("unsupport database type %v to get table list", gDbConn.dbType)
+		log.Errorf("unsupport database type %v to get table list", gDbConn.Setting.Type)
+		return nil, fmt.Errorf("unsupport database type %v to get table list", gDbConn.Setting.Type)
 	}
 	res, err := Query(sql)
 	if err != nil {

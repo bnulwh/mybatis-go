@@ -7,7 +7,7 @@ import (
 )
 
 func SchemaToCode(dir, prefix, tables string) {
-	ds, err := newDatabaseStructure(gDbConn.dbName, tables)
+	ds, err := newDatabaseStructure(gDbConn.Setting.Name, tables)
 	if err != nil {
 		log.Errorf("get database structure failed. %v", err)
 		return

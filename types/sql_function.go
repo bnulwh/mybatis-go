@@ -2,10 +2,8 @@ package types
 
 import (
 	"bytes"
-	"fmt"
 	log "github.com/bnulwh/logrus"
 	"reflect"
-	"strings"
 )
 
 type SqlFunction struct {
@@ -49,20 +47,20 @@ func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []string, error)
 		return "", nil, err
 	}
 	if !in.Param.Need {
-		return replcaceEscapeChars(in.generateSqlWithoutParam()), []string{}, nil
+		return in.generateSqlWithoutParam(), []string{}, nil
 	}
 	switch in.Param.Type {
 	case BaseSqlParam:
 		sqlstr, results := in.prepareSqlWithParam(args[0])
-		return replcaceEscapeChars(sqlstr), results, nil
+		return sqlstr, results, nil
 	case SliceSqlParam:
 		smp := convert2Slice(reflect.Indirect(reflect.ValueOf(args)))
 		sqlstr, results := in.prepareSqlWithSlice(smp)
-		return replcaceEscapeChars(sqlstr), results, nil
+		return sqlstr, results, nil
 	}
 	nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
 	sqlstr, results := in.prepareSqlWithMap(nmp)
-	return replcaceEscapeChars(sqlstr), results, nil
+	return sqlstr, results, nil
 
 }
 func (in *SqlFunction) generateDefine() string {
@@ -186,19 +184,4 @@ func parsesqlFragmentsFromXmlElements(elems []xmlElement, sns map[string]*SqlEle
 		sts = append(sts, st)
 	}
 	return sts
-}
-
-func replcaceEscapeChars(src string) string {
-	src = strings.ReplaceAll(src, "\r", " ")
-	src = strings.ReplaceAll(src, "\n", " ")
-	src = strings.ReplaceAll(src, "\t", " ")
-	arr := strings.Split(src, "?")
-	var res []string
-	for i, s := range arr {
-		res = append(res, s)
-		if i < len(arr)-1 {
-			res = append(res, fmt.Sprintf("$%d", i+1))
-		}
-	}
-	return strings.Join(res, "")
 }
