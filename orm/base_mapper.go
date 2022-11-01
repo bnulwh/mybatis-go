@@ -9,14 +9,14 @@ import (
 )
 
 type BaseMapper struct {
-	mapper *types.SqlMapper
+	*types.SqlMapper
 	//lock   sync.Mutex
 }
 
 func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) {
-	item, ok := in.mapper.NamedFunctions[strings.ToLower(name)]
+	item, ok := in.NamedFunctions[strings.ToLower(name)]
 	if !ok {
-		return nil, fmt.Errorf("%s not contains function %s", in.mapper.Namespace, name)
+		return nil, fmt.Errorf("%s not contains function %s", in.Namespace, name)
 	}
 	return item, nil
 }

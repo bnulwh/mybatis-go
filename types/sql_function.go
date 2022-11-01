@@ -4,14 +4,36 @@ import (
 	"bytes"
 	log "github.com/bnulwh/logrus"
 	"reflect"
+	"sync/atomic"
+	"time"
 )
 
 type SqlFunction struct {
-	Id     string
-	Type   SqlFunctionType
-	Param  SqlParam
-	Result SqlResult
-	Items  []*sqlFragment
+	Id            string
+	Type          SqlFunctionType
+	Param         SqlParam
+	Result        SqlResult
+	Items         []*sqlFragment
+	TotalUsage    int64
+	FailedUsage   int64
+	TotalDuration int64
+	MaxDuration   int64
+	MinDuration   int64
+}
+
+func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
+	atomic.AddInt64(&in.TotalUsage, 1)
+	if !success {
+		atomic.AddInt64(&in.FailedUsage, 1)
+	}
+	d := time.Since(start).Milliseconds()
+	atomic.AddInt64(&in.TotalDuration, d)
+	if d > in.MaxDuration {
+		atomic.SwapInt64(&in.MaxDuration, d)
+	}
+	if d < in.MinDuration {
+		atomic.SwapInt64(&in.MinDuration, d)
+	}
 }
 
 //GenerateSQL
@@ -166,11 +188,16 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 	defer log.Debugf("finish parse sql function from %v %v", node.Id, node.Name)
 	tp := parseSqlFunctionType(node.Name)
 	return &SqlFunction{
-		Type:   tp,
-		Id:     node.Id,
-		Param:  parseSqlParamFromXmlAttrs(node.Attrs),
-		Result: parseSqlResultFromXmlAttrs(node.Attrs, rms),
-		Items:  parsesqlFragmentsFromXmlElements(node.Elements, sns),
+		Type:          tp,
+		Id:            node.Id,
+		Param:         parseSqlParamFromXmlAttrs(node.Attrs),
+		Result:        parseSqlResultFromXmlAttrs(node.Attrs, rms),
+		Items:         parsesqlFragmentsFromXmlElements(node.Elements, sns),
+		TotalDuration: 0,
+		TotalUsage:    0,
+		MinDuration:   60000,
+		MaxDuration:   0,
+		FailedUsage:   0,
 	}
 }
 func parsesqlFragmentsFromXmlElements(elems []xmlElement, sns map[string]*SqlElement) []*sqlFragment {

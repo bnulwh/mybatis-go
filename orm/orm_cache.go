@@ -96,7 +96,7 @@ func bindMapper(name string, mapper reflect.Value) {
 	outVal := mapper.Elem()
 	outTyp := outVal.Type()
 	bmf := outVal.FieldByName("BaseMapper")
-	bmf.Set(reflect.ValueOf(BaseMapper{mapper: mp}))
+	bmf.Set(reflect.ValueOf(BaseMapper{SqlMapper: mp}))
 	bm := bmf.Interface().(BaseMapper)
 	returnTypeMap := makeReturnTypeMap(outTyp)
 	proxyValue(mapper, func(funcField reflect.StructField, field reflect.Value) func(arg ProxyArg) []reflect.Value {
