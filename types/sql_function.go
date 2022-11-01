@@ -9,16 +9,18 @@ import (
 )
 
 type SqlFunction struct {
-	Id            string
-	Type          SqlFunctionType
-	Param         SqlParam
-	Result        SqlResult
-	Items         []*sqlFragment
-	TotalUsage    int64
-	FailedUsage   int64
-	TotalDuration int64
-	MaxDuration   int64
-	MinDuration   int64
+	Id               string
+	Type             SqlFunctionType
+	Param            SqlParam
+	Result           SqlResult
+	Items            []*sqlFragment
+	TotalUsage       int64
+	FailedUsage      int64
+	TotalDuration    int64
+	MaxDuration      int64
+	MinDuration      int64
+	GenerateCount    int64
+	GenerateDuration int64
 }
 
 func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
@@ -36,11 +38,18 @@ func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
 	}
 }
 
+func (in *SqlFunction) updateGenerate(start time.Time) {
+	atomic.AddInt64(&in.GenerateCount, 1)
+	atomic.AddInt64(&in.GenerateDuration, time.Since(start).Milliseconds())
+}
+
 //GenerateSQL
 func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, error) {
 	log.Debugf("========================================")
 	log.Debugf("sql function %v begin generate sql args: %v", in.Id, args)
+	start := time.Now()
 	defer log.Debugf("sql function %v finish  generate sql", in.Id)
+	defer in.updateGenerate(start)
 	err := in.Param.validParam(args)
 	if err != nil {
 		log.Warnf("valid param failed: %v", err)
@@ -188,16 +197,18 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 	defer log.Debugf("finish parse sql function from %v %v", node.Id, node.Name)
 	tp := parseSqlFunctionType(node.Name)
 	return &SqlFunction{
-		Type:          tp,
-		Id:            node.Id,
-		Param:         parseSqlParamFromXmlAttrs(node.Attrs),
-		Result:        parseSqlResultFromXmlAttrs(node.Attrs, rms),
-		Items:         parsesqlFragmentsFromXmlElements(node.Elements, sns),
-		TotalDuration: 0,
-		TotalUsage:    0,
-		MinDuration:   60000,
-		MaxDuration:   0,
-		FailedUsage:   0,
+		Type:             tp,
+		Id:               node.Id,
+		Param:            parseSqlParamFromXmlAttrs(node.Attrs),
+		Result:           parseSqlResultFromXmlAttrs(node.Attrs, rms),
+		Items:            parsesqlFragmentsFromXmlElements(node.Elements, sns),
+		TotalDuration:    0,
+		TotalUsage:       0,
+		MinDuration:      60000,
+		MaxDuration:      0,
+		FailedUsage:      0,
+		GenerateDuration: 0,
+		GenerateCount:    0,
 	}
 }
 func parsesqlFragmentsFromXmlElements(elems []xmlElement, sns map[string]*SqlElement) []*sqlFragment {

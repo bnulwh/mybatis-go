@@ -6,6 +6,7 @@ import (
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
+	"time"
 )
 
 type BaseMapper struct {
@@ -21,9 +22,11 @@ func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) 
 	return item, nil
 }
 
-func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (reflect.Value, error) {
+func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (val reflect.Value, err error) {
 	//in.lock.Lock()
 	//defer in.lock.Unlock()
+	start := time.Now()
+	defer sqlFunc.UpdateUsage(start, err == nil)
 	args := arg.buildArgs()
 	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
 	//sqlStr = gDbConn.FormatPrepareSQL(sqlStr)

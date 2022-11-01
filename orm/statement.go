@@ -16,11 +16,19 @@ type Statement struct {
 	QueryMinDuration   int64
 	ExecuteMaxDuration int64
 	ExecuteMinDuration int64
+	DBExecDuration     int64
+	DBQueryDuration    int64
+	DBExecMaxDuration  int64
+	DBExecMinDuration  int64
+	DBQueryMaxDuration int64
+	DBQueryMinDuration int64
 }
 
 func (state *Statement) init() {
 	atomic.SwapInt64(&state.QueryMinDuration, 60000)
 	atomic.SwapInt64(&state.ExecuteMinDuration, 60000)
+	atomic.SwapInt64(&state.DBExecMinDuration, 60000)
+	atomic.SwapInt64(&state.DBQueryMinDuration, 60000)
 }
 
 func (state *Statement) updateExecStatement(start time.Time, success bool) {
@@ -52,5 +60,27 @@ func (state *Statement) updateQueryStatement(start time.Time, success bool) {
 	}
 	if d < state.QueryMinDuration {
 		atomic.SwapInt64(&state.QueryMinDuration, d)
+	}
+}
+func (state *Statement) updateDBExecStatement(start time.Time) {
+
+	d := time.Since(start).Milliseconds()
+	atomic.AddInt64(&state.DBExecDuration, d)
+	if d > state.DBExecMaxDuration {
+		atomic.SwapInt64(&state.DBExecMaxDuration, d)
+	}
+	if d < state.DBExecMinDuration {
+		atomic.SwapInt64(&state.DBExecMinDuration, d)
+	}
+}
+
+func (state *Statement) updateDBQueryStatement(start time.Time) {
+	d := time.Since(start).Milliseconds()
+	atomic.AddInt64(&state.DBQueryDuration, d)
+	if d > state.DBQueryMaxDuration {
+		atomic.SwapInt64(&state.DBQueryMaxDuration, d)
+	}
+	if d < state.DBQueryMinDuration {
+		atomic.SwapInt64(&state.DBQueryMinDuration, d)
 	}
 }

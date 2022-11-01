@@ -122,6 +122,8 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 		return nil, err
 	}
 	defer db.updateExecStatement(start, true)
+	cur := time.Now()
+	defer db.Statement.updateDBExecStatement(cur)
 	return tx.ExecContext(ctx, query, args...)
 }
 func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
@@ -132,6 +134,8 @@ func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{
 		return nil, err
 	}
 	defer db.updateQueryStatement(start, true)
+	cur := time.Now()
+	defer db.Statement.updateDBQueryStatement(cur)
 	return tx.QueryContext(ctx, query, args...)
 }
 func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
@@ -143,6 +147,8 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interfa
 		return nil
 	}
 	defer db.updateQueryStatement(start, true)
+	cur := time.Now()
+	defer db.Statement.updateDBQueryStatement(cur)
 	return tx.QueryRowContext(ctx, query, args...)
 }
 func (db *DB) Stats() sql.DBStats {
