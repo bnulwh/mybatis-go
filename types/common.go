@@ -11,12 +11,14 @@ import (
 )
 
 type SqlFunctionType string
+type QueryType string
 
 const (
 	SelectFunction SqlFunctionType = "select"
 	UpdateFunction SqlFunctionType = "update"
 	DeleteFunction SqlFunctionType = "delete"
 	InsertFunction SqlFunctionType = "insert"
+	//Query
 )
 
 func GetShortName(name string) string {
@@ -123,11 +125,11 @@ func ParseJdbcTypeFrom(tps string) reflect.Type {
 		return reflect.TypeOf(time.Now())
 	case "INTEGER", "INT", "TINYINT", "SMALLINT":
 		return reflect.TypeOf(0)
-	case "LONG", "BIGINT", "NUMERIC":
+	case "LONG", "BIGINT":
 		return reflect.TypeOf(int64(0))
 	case "BOOLEAN", "BIT", "BOOL", "ENUM":
 		return reflect.TypeOf(true)
-	case "DOUBLE", "FLOAT":
+	case "DOUBLE", "FLOAT", "NUMERIC":
 		return reflect.TypeOf(0.0)
 	default:
 		log.Warnf("unsupport jdbc type to parse: %v", tps)

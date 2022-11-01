@@ -25,9 +25,9 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (r
 	//in.lock.Lock()
 	//defer in.lock.Unlock()
 	args := arg.buildArgs()
-	sqlStr, items, err := sqlFunc.PrepareSQL(args...)
-	sqlStr = gDbConn.FormatPrepareSQL(sqlStr)
-	sqlargs := convert2Interfaces(items)
+	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
+	//sqlStr = gDbConn.FormatPrepareSQL(sqlStr)
+	//sqlargs := convert2Interfaces(items)
 	if err != nil {
 		log.Warnf("generate sql failed: %v", err)
 		return reflect.Value{}, err

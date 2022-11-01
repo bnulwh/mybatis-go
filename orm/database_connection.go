@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	log "github.com/bnulwh/logrus"
 	"sync"
+	"time"
 )
 
 var (
@@ -36,6 +37,7 @@ func Open(cfg *Config) (db *DB, err error) {
 		Error:     nil,
 		Statement: &Statement{},
 	}
+	db.Statement.init()
 	if dialector != nil {
 		db.Dialector = dialector
 	}
@@ -99,4 +101,63 @@ func (db *DB) prepare(ctx context.Context, query string) (Stmt, error) {
 	//	log.Warnf("ping failed. %v", err)
 	//}
 	//return dc.database.Prepare(sqlStr)
+}
+
+func (db *DB) DB() (*sql.DB, error) {
+	connPool := db.ConnPool
+	if dbConnector, ok := connPool.(GetDBConnector); ok {
+		return dbConnector.GetDBConn()
+	}
+	if sqldb, ok := connPool.(*sql.DB); ok {
+		return sqldb, nil
+	}
+	return nil, ErrInvalidDB
+}
+
+func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	start := time.Now()
+	tx, err := db.DB()
+	if err != nil {
+		db.updateExecStatement(start, false)
+		return nil, err
+	}
+	defer db.updateExecStatement(start, true)
+	return tx.ExecContext(ctx, query, args...)
+}
+func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	start := time.Now()
+	tx, err := db.DB()
+	if err != nil {
+		db.updateQueryStatement(start, false)
+		return nil, err
+	}
+	defer db.updateQueryStatement(start, true)
+	return tx.QueryContext(ctx, query, args...)
+}
+func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	start := time.Now()
+	tx, err := db.DB()
+	if err != nil {
+		db.updateQueryStatement(start, false)
+		log.Errorf("get db failed: %v", err)
+		return nil
+	}
+	defer db.updateQueryStatement(start, true)
+	return tx.QueryRowContext(ctx, query, args...)
+}
+func (db *DB) Stats() sql.DBStats {
+	tx, err := db.DB()
+	if err != nil {
+		log.Errorf("get db failed: %v", err)
+		return sql.DBStats{}
+	}
+	return tx.Stats()
+}
+
+func (db *DB) updateExecStatement(tm time.Time, success bool) {
+	db.Statement.updateExecStatement(tm, success)
+}
+
+func (db *DB) updateQueryStatement(tm time.Time, success bool) {
+	db.Statement.updateQueryStatement(tm, success)
 }

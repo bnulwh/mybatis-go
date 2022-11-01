@@ -21,13 +21,13 @@ func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error)
 func execute(sqlStr string, args ...interface{}) (int64, error) {
 	log.Debugf("sql: %v", sqlStr)
 	ctx := context.Background()
-	stmt, err := gDbConn.prepare(ctx, sqlStr)
-	if err != nil {
-		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
-		return 0, err
-	}
+	//stmt, err := gDbConn.prepare(ctx, sqlStr)
+	//if err != nil {
+	//	log.Errorf("prepare sql %v failed: %v", sqlStr, err)
+	//	return 0, err
+	//}
 	//defer closeStmt(conn, stmt)
-	result, err := stmt.ExecContext(ctx, args...)
+	result, err := gDbConn.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		log.Errorf("execute sql %v failed: %v", sqlStr, err)
 		return 0, err
@@ -55,13 +55,13 @@ func closeStmt(stmt *sql.Stmt) {
 
 func queryRows(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
 	ctx := context.Background()
-	stmt, err := gDbConn.prepare(ctx, sqlStr)
-	if err != nil {
-		log.Errorf("prepare sql %v failed: %v", sqlStr, err)
-		return nil, err
-	}
+	//stmt, err := gDbConn.prepare(ctx, sqlStr)
+	//if err != nil {
+	//	log.Errorf("prepare sql %v failed: %v", sqlStr, err)
+	//	return nil, err
+	//}
 	//defer closeStmt(conn, stmt)
-	rows, err := stmt.QueryContext(ctx, args...)
+	rows, err := gDbConn.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
 		log.Errorf("query sql %v failed: %v", sqlStr, err)
 		return nil, err
