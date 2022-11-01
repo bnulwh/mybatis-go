@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 )
@@ -16,10 +17,12 @@ type Statement struct {
 	QueryMinDuration   int64
 	ExecuteMaxDuration int64
 	ExecuteMinDuration int64
+	DBExecCount        int64
 	DBExecDuration     int64
-	DBQueryDuration    int64
 	DBExecMaxDuration  int64
 	DBExecMinDuration  int64
+	DBQueryCount       int64
+	DBQueryDuration    int64
 	DBQueryMaxDuration int64
 	DBQueryMinDuration int64
 }
@@ -63,7 +66,7 @@ func (state *Statement) updateQueryStatement(start time.Time, success bool) {
 	}
 }
 func (state *Statement) updateDBExecStatement(start time.Time) {
-
+	atomic.AddInt64(&state.DBExecCount, 1)
 	d := time.Since(start).Milliseconds()
 	atomic.AddInt64(&state.DBExecDuration, d)
 	if d > state.DBExecMaxDuration {
@@ -75,6 +78,7 @@ func (state *Statement) updateDBExecStatement(start time.Time) {
 }
 
 func (state *Statement) updateDBQueryStatement(start time.Time) {
+	atomic.AddInt64(&state.DBQueryCount, 1)
 	d := time.Since(start).Milliseconds()
 	atomic.AddInt64(&state.DBQueryDuration, d)
 	if d > state.DBQueryMaxDuration {
@@ -83,4 +87,19 @@ func (state *Statement) updateDBQueryStatement(start time.Time) {
 	if d < state.DBQueryMinDuration {
 		atomic.SwapInt64(&state.DBQueryMinDuration, d)
 	}
+}
+
+func (state *Statement) String() string {
+
+	return fmt.Sprintf("%v query : %v/%v/%v ms,"+
+		"%v exec : %v/%v/%v ms,"+
+		"%v db query : %v/%v/%v ms,"+
+		"%v db exec : %v/%v/%v ms, %v errors",
+		state.QueryCount, state.QueryMinDuration, state.QueryMaxDuration, state.QueryDuration,
+		state.ExecuteCount, state.ExecuteMinDuration, state.ExecuteMaxDuration, state.ExecuteDuration,
+		state.DBQueryCount, state.DBQueryMinDuration, state.DBQueryMaxDuration, state.DBQueryDuration,
+		state.DBExecCount, state.DBExecMinDuration, state.DBExecMaxDuration, state.DBExecDuration,
+		state.ErrorCount,
+	)
+
 }

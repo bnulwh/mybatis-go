@@ -27,8 +27,13 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	//defer in.lock.Unlock()
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
+	log.Debugf("func: %v", sqlFunc)
+	log.Debugf("state: %v", gDbConn.Statement)
 	args := arg.buildArgs()
 	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
+	sqlStr = strings.ReplaceAll(sqlStr, "\n", " ")
+	sqlStr = strings.ReplaceAll(sqlStr, "\t", " ")
+	sqlStr = strings.ReplaceAll(sqlStr, "\r", " ")
 	//sqlStr = gDbConn.FormatPrepareSQL(sqlStr)
 	//sqlargs := convert2Interfaces(items)
 	if err != nil {

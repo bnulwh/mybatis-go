@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"fmt"
 	log "github.com/bnulwh/logrus"
 	"reflect"
 	"sync/atomic"
@@ -36,6 +37,11 @@ func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
 	if d < in.MinDuration {
 		atomic.SwapInt64(&in.MinDuration, d)
 	}
+}
+func (in *SqlFunction) String() string {
+	return fmt.Sprintf("%v %v/%v calls spend %v/%v/%v ms, %v gen spend %v ms", in.Id,
+		in.TotalUsage-in.FailedUsage, in.TotalUsage, in.MinDuration, in.TotalDuration, in.MaxDuration,
+		in.GenerateCount, in.GenerateDuration)
 }
 
 func (in *SqlFunction) updateGenerate(start time.Time) {
