@@ -11,6 +11,7 @@ import (
 
 type SqlFunction struct {
 	Id               string
+	Owner            string
 	Type             SqlFunctionType
 	Param            SqlParam
 	Result           SqlResult
@@ -39,8 +40,8 @@ func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
 	}
 }
 func (in *SqlFunction) String() string {
-	return fmt.Sprintf("%v %v/%v calls spend %v/%v/%v ms, %v gen spend %v ms", in.Id,
-		in.TotalUsage-in.FailedUsage, in.TotalUsage, in.MinDuration, in.TotalDuration, in.MaxDuration,
+	return fmt.Sprintf("%v.%v %v/%v calls spend %v/%v/%v ms, %v gen spend %v ms", in.Owner, in.Id,
+		in.TotalUsage-in.FailedUsage, in.TotalUsage, in.MinDuration, in.MaxDuration, in.TotalDuration,
 		in.GenerateCount, in.GenerateDuration)
 }
 
@@ -198,13 +199,14 @@ func (in *SqlFunction) generateSqlWithoutParam() string {
 	return buf.String()
 }
 
-func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns map[string]*SqlElement) *SqlFunction {
+func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns map[string]*SqlElement, owner string) *SqlFunction {
 	log.Debugf("begin parse sql function from %v %v", node.Id, node.Name)
 	defer log.Debugf("finish parse sql function from %v %v", node.Id, node.Name)
 	tp := parseSqlFunctionType(node.Name)
 	return &SqlFunction{
-		Type:             tp,
 		Id:               node.Id,
+		Owner:            owner,
+		Type:             tp,
 		Param:            parseSqlParamFromXmlAttrs(node.Attrs),
 		Result:           parseSqlResultFromXmlAttrs(node.Attrs, rms),
 		Items:            parsesqlFragmentsFromXmlElements(node.Elements, sns),

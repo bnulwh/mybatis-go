@@ -84,15 +84,16 @@ func loadMapper(filename string) *SqlMapper {
 		log.Warnf("parse xml file %v failed", filename)
 		return nil
 	}
+	namespace := node.Attrs["namespace"]
 	mps := filterResultMap(node.Elements)
 	nms := makeNamedMap(mps)
 	sns := filterSqlElement(node.Elements)
 	nss := makeNamedSql(sns)
-	items := filterSqlFunction(node.Elements, nms, nss)
+	items := filterSqlFunction(node.Elements, nms, nss, namespace)
 	nis := makeNamedFuntion(items)
 	return &SqlMapper{
 		Filename:       filename,
-		Namespace:      node.Attrs["namespace"],
+		Namespace:      namespace,
 		Maps:           mps,
 		SqlNodes:       sns,
 		Functions:      items,
@@ -130,7 +131,7 @@ func filterSqlElement(elems []xmlElement) []*SqlElement {
 	}
 	return ses
 }
-func filterSqlFunction(elems []xmlElement, rms map[string]*ResultMap, sns map[string]*SqlElement) []*SqlFunction {
+func filterSqlFunction(elems []xmlElement, rms map[string]*ResultMap, sns map[string]*SqlElement, owner string) []*SqlFunction {
 	var sfs []*SqlFunction
 	for _, elem := range elems {
 		switch elem.ElementType {
@@ -138,7 +139,7 @@ func filterSqlFunction(elems []xmlElement, rms map[string]*ResultMap, sns map[st
 			xn := elem.Val.(xmlNode)
 			switch strings.ToLower(xn.Name) {
 			case "select", "insert", "delete", "update":
-				sfs = append(sfs, parseSqlFunctionFromXmlNode(xn, rms, sns))
+				sfs = append(sfs, parseSqlFunctionFromXmlNode(xn, rms, sns, owner))
 			}
 		}
 	}

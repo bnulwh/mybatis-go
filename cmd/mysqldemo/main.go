@@ -6,6 +6,7 @@ import (
 	"github.com/bnulwh/mybatis-go/orm"
 	"github.com/bnulwh/mybatis-go/types"
 	_ "github.com/go-sql-driver/mysql"
+	"sync"
 )
 
 func init() {
@@ -16,6 +17,7 @@ func init() {
 	}
 }
 func main() {
+	wg := sync.WaitGroup{}
 	defer orm.Close()
 	mp := mapper.GetUserInfoModelMapper()
 	//var rb sql.RawBytes
@@ -29,8 +31,18 @@ func main() {
 			log.Infof("row: %v", types.ToJson(row))
 		}
 	}
-	item, err := mp.SelectByPrimaryKey(1)
-	if err == nil {
-		log.Infof("item: %v", types.ToJson(item))
+	for j := 0; j < 10; j++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for i := 0; i < 1000; i++ {
+				item, err := mp.SelectByPrimaryKey(1)
+				if err == nil {
+					log.Infof("item: %v", types.ToJson(item))
+				}
+			}
+		}(j)
+
 	}
+	wg.Wait()
 }
