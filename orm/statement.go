@@ -91,10 +91,7 @@ func (state *Statement) updateDBQueryStatement(start time.Time) {
 
 func (state *Statement) String() string {
 
-	return fmt.Sprintf("%v query : %v/%v/%v ms,"+
-		"%v exec : %v/%v/%v ms,"+
-		"%v db query : %v/%v/%v ms,"+
-		"%v db exec : %v/%v/%v ms, %v errors",
+	return fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v",
 		state.QueryCount, state.QueryMinDuration, state.QueryMaxDuration, state.QueryDuration,
 		state.ExecuteCount, state.ExecuteMinDuration, state.ExecuteMaxDuration, state.ExecuteDuration,
 		state.DBQueryCount, state.DBQueryMinDuration, state.DBQueryMaxDuration, state.DBQueryDuration,

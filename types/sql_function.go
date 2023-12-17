@@ -40,7 +40,7 @@ func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
 	}
 }
 func (in *SqlFunction) String() string {
-	return fmt.Sprintf("%v.%v %v/%v calls spend %v/%v/%v ms, %v gen spend %v ms", in.Owner, in.Id,
+	return fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v", in.Owner, in.Id,
 		in.TotalUsage-in.FailedUsage, in.TotalUsage, in.MinDuration, in.MaxDuration, in.TotalDuration,
 		in.GenerateCount, in.GenerateDuration)
 }
