@@ -23,7 +23,11 @@ func newInstance(typ reflect.Type) interface{} {
 		return new(sql.NullInt64)
 	case "float32", "float64":
 		return new(sql.NullFloat64)
-	case "time.Time", "sql.NullTime", "mysql.NullTime":
+	case "time.Time":
+		return new(time.Time)
+	case "sql.NullTime":
+		return new(sql.NullTime)
+	case "mysql.NullTime":
 		return new(mysql.NullTime)
 	case "sql.RawBytes":
 		return new(sql.RawBytes)
@@ -170,6 +174,14 @@ func convertMySqlTime2Time(ptr interface{}) (time.Time, error) {
 	return time.Time{}, nil
 }
 
+func convertTimeToTime(ptr interface{}) (time.Time, error) {
+	pval, ok := ptr.(*time.Time)
+	if ok {
+		return *pval, nil
+	}
+	return time.Time{}, nil
+}
+
 func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error) {
 	switch typ.String() {
 	case "string":
@@ -178,6 +190,7 @@ func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error)
 		return convertRawBytes2String(ptr)
 	case "bool":
 		return convertSqlBool2Bool(ptr)
+
 	case "int":
 		return convertSqlInt32ToInt(ptr)
 	case "int8":
@@ -202,7 +215,9 @@ func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error)
 		return convertSqlFloat64ToFloat32(ptr)
 	case "float64":
 		return convertSqlFloat64ToFloat64(ptr)
-	case "time.Time", "sql.NullTime":
+	case "time.Time":
+		return convertTimeToTime(ptr)
+	case "sql.NullTime":
 		return convertSqlTime2Time(ptr)
 	case "mysql.NullTime":
 		return convertMySqlTime2Time(ptr)
