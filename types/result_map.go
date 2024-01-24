@@ -37,7 +37,7 @@ func (in *ResultMap) generateContent(pkg string) []byte {
 	buf.WriteString(")\n\n")
 	buf.WriteString(fmt.Sprintf("type %s struct{\n", sname))
 	for _, item := range in.Results {
-		buf.WriteString(fmt.Sprintf("\t%s \t%s\n", UpperFirst(item.Property), item.Type.String()))
+		buf.WriteString(fmt.Sprintf("\t%s \t%s\t`json:\"%s\"`\n", UpperFirst(item.Property), item.Type.String(), item.Property))
 	}
 	buf.WriteString("}\n\n")
 	buf.WriteString("func init(){\n")
@@ -56,8 +56,8 @@ func (in *ResultMap) hasTimeItem() bool {
 }
 
 func parseResultMapFromXmlNode(node xmlNode) *ResultMap {
-	log.Debugf("begin parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
-	defer log.Debugf("finish parse result map from: %v %v %v", node.Id, node.Name,ToJson(node.Attrs))
+	log.Debugf("begin parse result map from: %v %v %v", node.Id, node.Name, ToJson(node.Attrs))
+	defer log.Debugf("finish parse result map from: %v %v %v", node.Id, node.Name, ToJson(node.Attrs))
 	id := node.Id
 	tn := node.Attrs["type"]
 	var arr []*ResultItem

@@ -16,15 +16,15 @@ func init() {
 func main() {
 	var dbType, host, user, pwd, dbName, dir, prefix, tables string
 	var port int
-	flag.StringVar(&dbType, "type", "mysql", "database type: mysql/postgres")
-	flag.StringVar(&host, "host", "localhost", "database address,default: localhost")
-	flag.IntVar(&port, "port", 3306, "database port")
-	flag.StringVar(&user, "username", "root", "database username")
-	flag.StringVar(&pwd, "password", "123456", "database password")
-	flag.StringVar(&dbName, "db", "kubecloud", "database")
-	flag.StringVar(&dir, "output", "temp", "saving folder")
-	flag.StringVar(&prefix, "prefix", "", "prefix of table")
-	flag.StringVar(&tables, "tables", "", "tables to export,split with ','")
+	flag.StringVar(&dbType, "type", "mysql", "数据库类型: mysql/postgres")
+	flag.StringVar(&host, "host", "localhost", "数据库地址: localhost")
+	flag.IntVar(&port, "port", 3306, "数据库端口")
+	flag.StringVar(&user, "username", "", "用户名")
+	flag.StringVar(&pwd, "password", "", "密码")
+	flag.StringVar(&dbName, "db", "", "数据库名")
+	flag.StringVar(&dir, "output", "temp", "保存路径")
+	flag.StringVar(&prefix, "prefix", "", "表名前缀")
+	flag.StringVar(&tables, "tables", "", "数据库表,分隔符用英文逗号 ','")
 	flag.Parse()
 	if user == "" || pwd == "" || dbName == "" {
 		flag.Usage()
