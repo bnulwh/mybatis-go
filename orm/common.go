@@ -25,9 +25,7 @@ func newInstance(typ reflect.Type) interface{} {
 		return new(sql.NullFloat64)
 	case "time.Time":
 		return new(time.Time)
-	case "sql.NullTime":
-		return new(sql.NullTime)
-	case "mysql.NullTime":
+	case "sql.NullTime", "mysql.NullTime":
 		return new(mysql.NullTime)
 	case "sql.RawBytes":
 		return new(sql.RawBytes)
@@ -217,9 +215,7 @@ func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error)
 		return convertSqlFloat64ToFloat64(ptr)
 	case "time.Time":
 		return convertTimeToTime(ptr)
-	case "sql.NullTime":
-		return convertSqlTime2Time(ptr)
-	case "mysql.NullTime":
+	case "sql.NullTime", "mysql.NullTime":
 		return convertMySqlTime2Time(ptr)
 	case "interface {}":
 		return convertSqlString2String(ptr)
