@@ -2,7 +2,7 @@ package types
 
 import (
 	"fmt"
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 )
 
 type sqlInclude struct {

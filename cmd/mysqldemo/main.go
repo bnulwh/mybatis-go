@@ -1,7 +1,8 @@
 package main
 
 import (
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/mapper"
 	"github.com/bnulwh/mybatis-go/orm"
 	"github.com/bnulwh/mybatis-go/types"
@@ -10,7 +11,8 @@ import (
 )
 
 func init() {
-	log.ConfigLocalFileSystemLogger("./logs", "mysqldemo")
+	logrus.ConfigLocalFileSystemLogger("./logs", "mysqldemo")
+	orm.SetLogger(logrus.StandardLogger())
 	err := orm.Initialize("application-mysql.properties")
 	if err != nil {
 		panic(err)

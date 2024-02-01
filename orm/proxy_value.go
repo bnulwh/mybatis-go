@@ -1,7 +1,7 @@
 package orm
 
 import (
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
 )
 
@@ -90,6 +90,6 @@ func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp re
 	} else {
 		fieldVal.Set(reflect.MakeFunc(fieldTyp, fn))
 	}
-	log.Debug("[mybatis-go] write method success:" + source.Type().Name() + " > " + sructField.Name + " " + fieldVal.Type().String())
+	log.Debugf("[mybatis-go] write method success:" + source.Type().Name() + " > " + sructField.Name + " " + fieldVal.Type().String())
 	//tagParams = nil
 }

@@ -11,6 +11,7 @@ import (
 func init() {
 	//log.SetLevel(log.InfoLevel)
 	log.ConfigLocalFileSystemLogger("logs", "schema2code")
+	orm.SetLogger(log.StandardLogger())
 }
 
 func main() {

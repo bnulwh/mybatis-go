@@ -1,7 +1,7 @@
 package utils
 
 import (
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"os"
 )
 

@@ -2,7 +2,7 @@ package orm
 
 import (
 	"bytes"
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
 )
 

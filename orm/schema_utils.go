@@ -1,7 +1,7 @@
 package orm
 
 import (
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/types"
 	"path/filepath"
 )

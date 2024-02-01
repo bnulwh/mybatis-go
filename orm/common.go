@@ -3,7 +3,7 @@ package orm
 import (
 	"database/sql"
 	"fmt"
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"github.com/go-sql-driver/mysql"
 	"reflect"
 	"strings"

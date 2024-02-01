@@ -3,7 +3,7 @@ package orm
 import (
 	"fmt"
 	"github.com/beevik/etree"
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/types"
 	"io/ioutil"
 	"reflect"

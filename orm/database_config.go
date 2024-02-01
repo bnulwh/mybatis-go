@@ -3,7 +3,7 @@ package orm
 import (
 	"errors"
 	"fmt"
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"regexp"
 	"strconv"
 	"strings"

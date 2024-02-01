@@ -2,11 +2,16 @@ package orm
 
 import (
 	"fmt"
-	log "github.com/bnulwh/logrus"
+
+	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/utils"
 	"io/ioutil"
 	"strings"
 )
+
+func SetLogger(logger log.Logger) {
+	log.SetLogger(logger)
+}
 
 func Initialize(filename string) error {
 	cm := LoadSettings(filename)

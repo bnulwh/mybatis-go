@@ -1,7 +1,7 @@
 package types
 
 import (
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
 	"strings"
 )
