@@ -44,7 +44,7 @@ func prepareColumns(colTypes []*sql.ColumnType) []interface{} {
 func createMap(ptrs []interface{}, colTypes []*sql.ColumnType) map[string]interface{} {
 	mp := map[string]interface{}{}
 	for i, coltyp := range colTypes {
-		v, err := convertInstanceType(ptrs[i], coltyp.ScanType())
+		v, err := convertInstanceType(ptrs[i], coltyp)
 		if err != nil {
 			log.Warnf("convert %v to %v %v failed: %v", ptrs[i], coltyp.Name(), coltyp.ScanType(), err)
 			continue

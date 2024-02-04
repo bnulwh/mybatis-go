@@ -6,6 +6,7 @@ import (
 	"github.com/bnulwh/mybatis-go/log"
 	"github.com/go-sql-driver/mysql"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -50,6 +51,17 @@ func convertRawBytes2String(ptr interface{}) (string, error) {
 		return string(*pval), nil
 	}
 	return "", nil
+}
+func convertRawBytes2Bool(ptr interface{}) (bool, error) {
+	pval, ok := ptr.(*sql.RawBytes)
+	if ok {
+		sval := string(*pval)
+		if sval == "\x00" {
+			return false, nil
+		}
+		return strconv.ParseBool(sval)
+	}
+	return false, nil
 }
 
 func convertSqlBool2Bool(ptr interface{}) (bool, error) {
@@ -180,12 +192,17 @@ func convertTimeToTime(ptr interface{}) (time.Time, error) {
 	return time.Time{}, nil
 }
 
-func convertInstanceType(ptr interface{}, typ reflect.Type) (interface{}, error) {
+func convertInstanceType(ptr interface{}, colType *sql.ColumnType) (interface{}, error) {
+	typ := colType.ScanType()
 	switch typ.String() {
 	case "string":
 		return convertSqlString2String(ptr)
 	case "sql.RawBytes":
-		return convertRawBytes2String(ptr)
+		if colType.DatabaseTypeName() == "BIT" {
+			return convertRawBytes2Bool(ptr)
+		} else {
+			return convertRawBytes2String(ptr)
+		}
 	case "bool":
 		return convertSqlBool2Bool(ptr)
 
