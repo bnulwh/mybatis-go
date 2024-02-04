@@ -30,7 +30,7 @@ func (in *ResultMap) generateContent(pkg string) []byte {
 	sname := GetShortName(in.TypeName)
 	buf.WriteString(fmt.Sprintf("package %s\n\n", pkg))
 	buf.WriteString("import(\n")
-	buf.WriteString("\t\"github.com/bnulwh/mybatis-go/orm\"\n")
+	//buf.WriteString("\t\"github.com/bnulwh/mybatis-go/orm\"\n")
 	if in.hasTimeItem() {
 		buf.WriteString("\t\"time\"\n")
 	}
@@ -40,9 +40,9 @@ func (in *ResultMap) generateContent(pkg string) []byte {
 		buf.WriteString(fmt.Sprintf("\t%s \t%s\t`json:\"%s\"`\n", UpperFirst(item.Property), item.Type.String(), item.Property))
 	}
 	buf.WriteString("}\n\n")
-	buf.WriteString("func init(){\n")
-	buf.WriteString(fmt.Sprintf("\torm.RegisterModel(new(%s))\n", sname))
-	buf.WriteString("}\n\n")
+	//buf.WriteString("func init(){\n")
+	//buf.WriteString(fmt.Sprintf("\torm.RegisterModel(new(%s))\n", sname))
+	//buf.WriteString("}\n\n")
 	return buf.Bytes()
 }
 func (in *ResultMap) hasTimeItem() bool {

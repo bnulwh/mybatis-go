@@ -51,8 +51,13 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 	buf.WriteString(") \n\n")
 	buf.WriteString(fmt.Sprintf("type %s struct {\n", sname))
 	buf.WriteString("\torm.BaseMapper\n")
+	mp := make(map[string]string)
 	for _, item := range in.Functions {
 		buf.WriteString(item.generateDefine())
+		if item.Result.ResultM != nil {
+			key := GetShortName(item.Result.ResultM.TypeName)
+			mp[key] = item.Result.ResultM.TypeName
+		}
 	}
 	buf.WriteString("}\n\n")
 	buf.WriteString("var (\n")
@@ -60,6 +65,9 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 	buf.WriteString(fmt.Sprintf("\tg%sOnce  sync.Once\n", sname))
 	buf.WriteString(")\n\n")
 	buf.WriteString("func init() {\n")
+	for k, _ := range mp {
+		buf.WriteString(fmt.Sprintf("\torm.RegisterModel(new(%s))\n", k))
+	}
 	buf.WriteString(fmt.Sprintf("\torm.RegisterMapper(new(%s))\n", sname))
 	buf.WriteString("}\n\n")
 	buf.WriteString(fmt.Sprintf("func Get%s() *%s{\n", sname, sname))
