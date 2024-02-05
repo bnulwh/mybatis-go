@@ -13,6 +13,14 @@ type SqlMappers struct {
 	NamedMappers map[string]*SqlMapper
 }
 
+//func NewSqlMappersEx(ds *DatabaseStructure) *SqlMappers {
+//	var mps []SqlMapper
+//	nmp := map[string]*SqlMapper{}
+//	for _,tableName := range ds.TableList{
+//
+//	}
+//}
+
 func NewSqlMappers(dir string) *SqlMappers {
 	filenames := filterMapperFiles(dir)
 	var mps []SqlMapper
