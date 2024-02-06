@@ -38,6 +38,12 @@ func (in *ResultMap) generateContent(pkg string) []byte {
 	buf.WriteString(")\n\n")
 	buf.WriteString(fmt.Sprintf("type %s struct{\n", sname))
 	for _, item := range in.Results {
+		if strings.Compare(strings.ToLower(item.Property), "deleted") == 0 {
+			continue
+		}
+		if strings.Compare(strings.ToLower(item.Property), "delete_time") == 0 {
+			continue
+		}
 		buf.WriteString(fmt.Sprintf("\t%s \t%s\t`json:\"%s\"`\n", UpperFirst(item.Property), item.Type.String(), item.Property))
 	}
 	buf.WriteString("}\n\n")

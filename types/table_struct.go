@@ -117,6 +117,12 @@ func (ts *TableStructure) writeResultMap(mapper *etree.Element, prefix string) {
 	resultMap.CreateAttr("id", DefaultResultMapName)
 	resultMap.CreateAttr("type", ts.getModelName(prefix))
 	for _, column := range ts.Columns {
+		if strings.Compare(strings.ToLower(column.Name), "deleted") == 0 {
+			continue
+		}
+		if strings.Compare(strings.ToLower(column.Name), "delete_time") == 0 {
+			continue
+		}
 		result := resultMap.CreateElement("result")
 		result.CreateAttr("column", column.Name)
 		result.CreateAttr("jdbcType", column.getJdbcType())
@@ -128,6 +134,12 @@ func (ts *TableStructure) writeBaseColumnList(mapper *etree.Element) {
 	sql.CreateAttr("id", DefaultBCLName)
 	var cnames []string
 	for _, column := range ts.Columns {
+		if strings.Compare(strings.ToLower(column.Name), "deleted") == 0 {
+			continue
+		}
+		if strings.Compare(strings.ToLower(column.Name), "delete_time") == 0 {
+			continue
+		}
 		cnames = append(cnames, column.Name)
 	}
 	sql.CreateText(fmt.Sprintf("\n\t\t%s\n\t", strings.Join(cnames, ",\n\t\t")))
@@ -155,6 +167,12 @@ func (ts *TableStructure) writeDeleteFunction(mapper *etree.Element) {
 func (ts *TableStructure) generateInsertSQL() string {
 	var cnames, cvalues []string
 	for _, column := range ts.Columns {
+		if strings.Compare(strings.ToLower(column.Name), "deleted") == 0 {
+			continue
+		}
+		if strings.Compare(strings.ToLower(column.Name), "delete_time") == 0 {
+			continue
+		}
 		cnames = append(cnames, column.Name)
 		cvalues = append(cvalues, fmt.Sprintf("#{%s,jdbcType=%s}", column.getPropertyName(), column.getJdbcType()))
 	}
@@ -173,6 +191,12 @@ func (ts *TableStructure) generateUpdateSQL() string {
 	var cvalues []string
 	for _, column := range ts.Columns {
 		if column.Primary {
+			continue
+		}
+		if strings.Compare(strings.ToLower(column.Name), "deleted") == 0 {
+			continue
+		}
+		if strings.Compare(strings.ToLower(column.Name), "delete_time") == 0 {
 			continue
 		}
 		cvalues = append(cvalues, fmt.Sprintf("%s=#{%s,jdbcType=%s}", column.Name, column.getPropertyName(), column.getJdbcType()))
@@ -223,7 +247,7 @@ func (ts *TableStructure) writeSelectFunction(mapper *etree.Element) {
 	sf.CreateText("\n\t\tselect ")
 	si := sf.CreateElement("include")
 	si.CreateAttr("refid", DefaultBCLName)
-	sf.CreateText(fmt.Sprintf("\n\t\tfrom %s where %s=#{%s,jdbcType=%s}\n\t",
+	sf.CreateText(fmt.Sprintf("\n\t\tfrom %s where %s=#{%s,jdbcType=%s} and deleted = false\n\t",
 		ts.Table,
 		ts.PrimaryColumn.Name,
 		ts.PrimaryColumn.getPropertyName(),
@@ -237,7 +261,7 @@ func (ts *TableStructure) writeSelectAllFunction(mapper *etree.Element) {
 	sf.CreateText("\n\t\t select ")
 	si := sf.CreateElement("include")
 	si.CreateAttr("refid", DefaultBCLName)
-	sf.CreateText(fmt.Sprintf("\n\t\t from %s \n\t", ts.Table))
+	sf.CreateText(fmt.Sprintf("\n\t\t from %s where deleted = false\n\t", ts.Table))
 }
 
 func (ts *TableStructure) writeCountFunction(mapper *etree.Element) {
@@ -245,7 +269,7 @@ func (ts *TableStructure) writeCountFunction(mapper *etree.Element) {
 	sf.CreateAttr("id", "countByPrimaryKey")
 	sf.CreateAttr("parameterType", ts.getPrimaryJdbcType())
 	sf.CreateAttr("resultType", "int")
-	sf.CreateText(fmt.Sprintf("\n\t\tselect count(%s) \n\t\tfrom %s\n\t", ts.PrimaryColumn.Name, ts.Table))
+	sf.CreateText(fmt.Sprintf("\n\t\tselect count(%s) \n\t\tfrom %s where deleted = false\n\t", ts.PrimaryColumn.Name, ts.Table))
 }
 func (ts *TableStructure) writeSetDeletedFunction(mapper *etree.Element, prefix string) {
 	up := mapper.CreateElement("update")
