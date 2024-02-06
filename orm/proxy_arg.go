@@ -4,7 +4,7 @@ import (
 	"reflect"
 )
 
-//代理数据
+// 代理数据
 type ProxyArg struct {
 	TagArgs    []TagArg
 	TagArgsLen int

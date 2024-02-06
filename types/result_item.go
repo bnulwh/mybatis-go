@@ -13,9 +13,9 @@ type ResultItem struct {
 	PrimaryKey bool
 }
 
-//<id column="id" jdbcType="INTEGER" property="id" />
-//    <result column="created_by" jdbcType="VARCHAR" property="createdBy" />
+// <id column="id" jdbcType="INTEGER" property="id" />
 //
+//	<result column="created_by" jdbcType="VARCHAR" property="createdBy" />
 func parseResultItemFromXmlNode(elem xmlElement) *ResultItem {
 	log.Debugf("--parse result item from: %v", ToJson(elem))
 	xn := elem.Val.(xmlNode)

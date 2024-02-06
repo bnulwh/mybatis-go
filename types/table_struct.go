@@ -60,6 +60,8 @@ func (ts *TableStructure) saveToFile(filename, prefix string) error {
 	ts.writeDeleteFunction(mapper)
 	ts.writeInsertFunction(mapper, prefix)
 	ts.writeUpdateFunction(mapper, prefix)
+	ts.writeUpdateTimeFunction(mapper, prefix)
+	ts.writeSetDeletedFunction(mapper, prefix)
 	ts.writeSelectFunction(mapper)
 	ts.writeSelectAllFunction(mapper)
 	ts.writeCountFunction(mapper)
@@ -188,6 +190,25 @@ func (ts *TableStructure) generateUpdateSQL() string {
 	)
 	return sql
 }
+func (ts *TableStructure) generateSetDeletedSQL() string {
+	sql := fmt.Sprintf("\n\t\tupdate %s \n\t\tset deleted=true,delete_time=now() \n\t\t where %s=#{%s,jdbcType=%s}\n\t",
+		ts.Table,
+		ts.PrimaryColumn.Name,
+		ts.PrimaryColumn.getPropertyName(),
+		ts.PrimaryColumn.getJdbcType(),
+	)
+	return sql
+}
+func (ts *TableStructure) generateUpdateTimeSQL() string {
+	sql := fmt.Sprintf("\n\t\tupdate %s \n\t\tset update_time=now() \n\t\t where %s=#{%s,jdbcType=%s}\n\t",
+		ts.Table,
+		ts.PrimaryColumn.Name,
+		ts.PrimaryColumn.getPropertyName(),
+		ts.PrimaryColumn.getJdbcType(),
+	)
+	return sql
+}
+
 func (ts *TableStructure) writeUpdateFunction(mapper *etree.Element, prefix string) {
 	up := mapper.CreateElement("update")
 	up.CreateAttr("id", "updateByPrimaryKey")
@@ -225,4 +246,16 @@ func (ts *TableStructure) writeCountFunction(mapper *etree.Element) {
 	sf.CreateAttr("parameterType", ts.getPrimaryJdbcType())
 	sf.CreateAttr("resultType", "int")
 	sf.CreateText(fmt.Sprintf("\n\t\tselect count(%s) \n\t\tfrom %s\n\t", ts.PrimaryColumn.Name, ts.Table))
+}
+func (ts *TableStructure) writeSetDeletedFunction(mapper *etree.Element, prefix string) {
+	up := mapper.CreateElement("update")
+	up.CreateAttr("id", "setDeleted")
+	up.CreateAttr("parameterType", ts.getPrimaryJdbcType())
+	up.CreateText(ts.generateSetDeletedSQL())
+}
+func (ts *TableStructure) writeUpdateTimeFunction(mapper *etree.Element, prefix string) {
+	up := mapper.CreateElement("update")
+	up.CreateAttr("id", "updateUpTime")
+	up.CreateAttr("parameterType", ts.getPrimaryJdbcType())
+	up.CreateText(ts.generateUpdateTimeSQL())
 }

@@ -6,7 +6,7 @@ import (
 	"reflect"
 )
 
-//check beans
+// check beans
 func beanCheck(value reflect.Value) {
 	var t = value.Type()
 	if t.Kind() == reflect.Ptr {
@@ -39,7 +39,7 @@ func isCustomStruct(value reflect.Type) bool {
 	}
 }
 
-//方法基本规则检查
+// 方法基本规则检查
 func methodFieldCheck(beanType *reflect.Type, methodType *reflect.StructField, warning bool) {
 	if methodType.Type.NumOut() < 1 {
 		var buffer bytes.Buffer

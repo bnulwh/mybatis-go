@@ -22,12 +22,12 @@ type SqlMapper struct {
 
 func (in *SqlMapper) GenerateFiles(dir, pkg string) {
 	for _, mp := range in.Maps {
-		err := mp.GenerateFile(dir, pkg)
+		err := mp.GenerateFile(filepath.Join(dir, "models"), pkg)
 		if err != nil {
 			log.Warnf("result map %v generate file failed: %v", mp.TypeName, err)
 		}
 	}
-	err := in.generateMapperFile(dir, pkg)
+	err := in.generateMapperFile(filepath.Join(dir, "mapper"), pkg)
 	if err != nil {
 		log.Warnf("mapper %v generate mapper file failed: %v", in.Namespace, err)
 	}
@@ -44,10 +44,12 @@ func (in *SqlMapper) generateMapperFile(dir, pkg string) error {
 func (in *SqlMapper) generateContent(pkg string) []byte {
 	var buf bytes.Buffer
 	sname := GetShortName(in.Namespace)
-	buf.WriteString(fmt.Sprintf("package %s\n\n", pkg))
+	//buf.WriteString(fmt.Sprintf("package %s\n\n", pkg))
+	buf.WriteString("package mapper\n\n")
 	buf.WriteString("import (\n")
 	buf.WriteString("\t\"github.com/bnulwh/mybatis-go/orm\"\n")
 	buf.WriteString("\t\"sync\"\n")
+	buf.WriteString("\t\"models\"\n")
 	buf.WriteString(") \n\n")
 	buf.WriteString(fmt.Sprintf("type %s struct {\n", sname))
 	buf.WriteString("\torm.BaseMapper\n")
@@ -66,7 +68,7 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 	buf.WriteString(")\n\n")
 	buf.WriteString("func init() {\n")
 	for k, _ := range mp {
-		buf.WriteString(fmt.Sprintf("\torm.RegisterModel(new(%s))\n", k))
+		buf.WriteString(fmt.Sprintf("\torm.RegisterModel(new(models.%s))\n", k))
 	}
 	buf.WriteString(fmt.Sprintf("\torm.RegisterMapper(new(%s))\n", sname))
 	buf.WriteString("}\n\n")

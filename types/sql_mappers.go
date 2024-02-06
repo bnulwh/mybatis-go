@@ -48,6 +48,14 @@ func (in *SqlMappers) GenerateFiles(dir, pkg string) {
 	if err != nil {
 		return
 	}
+	err = utils.MakeDirAll(filepath.Join(dir, "mapper"))
+	if err != nil {
+		return
+	}
+	err = utils.MakeDirAll(filepath.Join(dir, "models"))
+	if err != nil {
+		return
+	}
 	for _, mapper := range in.Mappers {
 		mapper.GenerateFiles(dir, pkg)
 	}

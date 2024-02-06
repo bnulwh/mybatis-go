@@ -28,7 +28,8 @@ func (in *ResultMap) GenerateFile(dir, pkg string) error {
 func (in *ResultMap) generateContent(pkg string) []byte {
 	var buf bytes.Buffer
 	sname := GetShortName(in.TypeName)
-	buf.WriteString(fmt.Sprintf("package %s\n\n", pkg))
+	//buf.WriteString(fmt.Sprintf("package %s\n\n", pkg))
+	buf.WriteString("package models\n\n")
 	buf.WriteString("import(\n")
 	//buf.WriteString("\t\"github.com/bnulwh/mybatis-go/orm\"\n")
 	if in.hasTimeItem() {

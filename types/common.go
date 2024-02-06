@@ -222,7 +222,7 @@ func toGolangType(tn string) string {
 	case "MAP", "HASHMAP", "TREEMAP":
 		return "map[string]interface{}"
 	}
-	return sname
+	return "models." + sname
 }
 
 func ToJavaType(typ reflect.Type) string {

@@ -50,7 +50,7 @@ func (in *SqlFunction) updateGenerate(start time.Time) {
 	atomic.AddInt64(&in.GenerateDuration, time.Since(start).Milliseconds())
 }
 
-//GenerateSQL
+// GenerateSQL
 func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, error) {
 	log.Debugf("========================================")
 	log.Debugf("sql function %v begin generate sql args: %v", in.Id, args)
@@ -116,6 +116,7 @@ func (in *SqlFunction) generateDefine() string {
 	case SelectFunction:
 		buf.WriteString("[]")
 		if in.Result.ResultM != nil {
+			buf.WriteString("models.")
 			buf.WriteString(GetShortName(in.Result.ResultM.TypeName))
 		} else {
 			buf.WriteString(toGolangType(in.Result.ResultT.String()))

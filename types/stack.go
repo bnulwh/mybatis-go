@@ -12,7 +12,7 @@ type stack struct {
 
 func newStack() *stack {
 	list := l.New()
-	return &stack{list: list,}
+	return &stack{list: list}
 }
 
 func (s *stack) Push(t interface{}) {
