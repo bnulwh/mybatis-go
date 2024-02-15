@@ -111,7 +111,7 @@ func bindMapper(name string, mapper reflect.Value) {
 		if err != nil {
 			panic(err)
 		}
-		// methodFieldCheck(&outTyp, &funcField, true)
+		methodFieldCheck(&outTyp, &funcField, true)
 		//执行期
 		var proxyFunc = func(arg ProxyArg) []reflect.Value {
 			//exe sql

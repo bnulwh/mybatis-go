@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
 )
@@ -67,14 +68,14 @@ func buildProxy(mapperValue reflect.Value, buildFunc func(funcField reflect.Stru
 	}
 }
 
-func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp reflect.Type, sructField reflect.StructField, proxyFunc func(arg ProxyArg) []reflect.Value) {
-	var tagArgs = parseTagArgs(sructField.Tag.Get(`args`))
+func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp reflect.Type, structField reflect.StructField, proxyFunc func(arg ProxyArg) []reflect.Value) {
+	var tagArgs = parseTagArgs(structField.Tag.Get(`args`))
 	if len(tagArgs) > fieldTyp.NumIn() {
-		panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + sructField.Name)
+		panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + structField.Name)
 	}
 	var tagArgsLen = len(tagArgs)
 	if tagArgsLen > 0 && fieldTyp.NumIn() != tagArgsLen {
-		panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + sructField.Name)
+		panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + structField.Name)
 	}
 	var fn = func(args []reflect.Value) (results []reflect.Value) {
 		proxyResults := proxyFunc(NewProxyArg(tagArgs, args))
@@ -83,13 +84,38 @@ func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp re
 		}
 		return results
 	}
+	vfn := reflect.ValueOf(fn)
 	if fieldVal.Kind() == reflect.Ptr {
 		fp := reflect.New(fieldTyp)
 		fp.Elem().Set(reflect.MakeFunc(fieldTyp, fn))
+		checkResults(vfn, fp.Elem())
 		fieldVal.Set(fp)
 	} else {
+		checkResults(vfn, fieldVal)
 		fieldVal.Set(reflect.MakeFunc(fieldTyp, fn))
 	}
-	log.Debugf("[mybatis-go] write method success:" + source.Type().Name() + " > " + sructField.Name + " " + fieldVal.Type().String())
+	log.Debugf("[mybatis-go] write method success:" + source.Type().Name() + " > " + structField.Name + " " + fieldVal.Type().String())
 	//tagParams = nil
+}
+
+func checkResults(vfn, fval reflect.Value) {
+	if vfn.Kind() != reflect.Func || fval.Kind() != reflect.Func {
+		panic(`[mybatis-go] method fail! wrong kind check`)
+	}
+	if vfn.Type().NumOut() != fval.Type().NumOut() {
+		panic(`[mybatis-go] method fail! wrong num out check `)
+	}
+	if vfn.Type().NumIn() != fval.Type().NumIn() {
+		panic(`[mybatis-go] method fail! wrong num in check`)
+	}
+	for i := 0; i < vfn.Type().NumIn(); i++ {
+		if vfn.Type().In(i) != fval.Type().In(i) {
+			panic(`[mybatis-go] method fail! wrong num in check params pos ` + fmt.Sprint(i))
+		}
+	}
+	for i := 0; i < vfn.Type().NumOut(); i++ {
+		if vfn.Type().Out(i) != fval.Type().Out(i) {
+			panic(`[mybatis-go] method fail! wrong num out check params pos ` + fmt.Sprint(i))
+		}
+	}
 }

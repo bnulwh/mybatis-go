@@ -18,3 +18,4 @@ vendor/
 .idea/
 logs/
 
+/orm/proxy_value.go

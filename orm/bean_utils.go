@@ -2,7 +2,6 @@ package orm
 
 import (
 	"bytes"
-	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
 )
 
@@ -67,10 +66,10 @@ func methodFieldCheck(beanType *reflect.Type, methodType *reflect.StructField, w
 		panic(buffer.String())
 	}
 
-	var args = methodType.Tag.Get("args")
-	if methodType.Type.NumIn() > 1 && args == "" {
-		if warning {
-			log.Warnf("[mybatis-go] warning ======================== " + (*beanType).Name() + "." + methodType.Name + "() have not define tag args:\"\",maybe can not get param value!")
-		}
-	}
+	//var args = methodType.Tag.Get("args")
+	//if methodType.Type.NumIn() > 1 && args == "" {
+	//	if warning {
+	//		log.Warnf("[mybatis-go] warning ======================== " + (*beanType).Name() + "." + methodType.Name + "() have not define tag args:\"\",maybe can not get param value!")
+	//	}
+	//}
 }
