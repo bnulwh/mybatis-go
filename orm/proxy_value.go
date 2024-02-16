@@ -88,34 +88,41 @@ func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp re
 	if fieldVal.Kind() == reflect.Ptr {
 		fp := reflect.New(fieldTyp)
 		fp.Elem().Set(reflect.MakeFunc(fieldTyp, fn))
-		checkResults(vfn, fp.Elem())
+		err := checkResults(vfn, fp.Elem())
+		if err != nil {
+			panic(fmt.Errorf("%v %v %v %v", err, source.Type().Name(), structField.Name, fieldVal.Type().String()))
+		}
 		fieldVal.Set(fp)
 	} else {
-		checkResults(vfn, fieldVal)
+		err := checkResults(vfn, fieldVal)
+		if err != nil {
+			panic(fmt.Errorf("%v %v %v %v", err, source.Type().Name(), structField.Name, fieldVal.Type().String()))
+		}
 		fieldVal.Set(reflect.MakeFunc(fieldTyp, fn))
 	}
 	log.Debugf("[mybatis-go] write method success:" + source.Type().Name() + " > " + structField.Name + " " + fieldVal.Type().String())
 	//tagParams = nil
 }
 
-func checkResults(vfn, fval reflect.Value) {
+func checkResults(vfn, fval reflect.Value) error {
 	if vfn.Kind() != reflect.Func || fval.Kind() != reflect.Func {
-		panic(`[mybatis-go] method fail! wrong kind check`)
+		return fmt.Errorf(`[mybatis-go] method fail! wrong kind check`)
 	}
 	if vfn.Type().NumOut() != fval.Type().NumOut() {
-		panic(`[mybatis-go] method fail! wrong num out check `)
+		return fmt.Errorf(`[mybatis-go] method fail! wrong num out check %v %v`, vfn.Type().NumOut(), fval.Type().NumOut())
 	}
 	if vfn.Type().NumIn() != fval.Type().NumIn() {
-		panic(`[mybatis-go] method fail! wrong num in check`)
+		return fmt.Errorf(`[mybatis-go] method fail! wrong num in check %v %v`, vfn.Type().NumIn(), fval.Type().NumIn())
 	}
 	for i := 0; i < vfn.Type().NumIn(); i++ {
 		if vfn.Type().In(i) != fval.Type().In(i) {
-			panic(`[mybatis-go] method fail! wrong num in check params pos ` + fmt.Sprint(i))
+			return fmt.Errorf(`[mybatis-go] method fail! wrong num in check params pos %v, %v, %v`, i, vfn.Type().In(i), fval.Type().In(i))
 		}
 	}
 	for i := 0; i < vfn.Type().NumOut(); i++ {
 		if vfn.Type().Out(i) != fval.Type().Out(i) {
-			panic(`[mybatis-go] method fail! wrong num out check params pos ` + fmt.Sprint(i))
+			return fmt.Errorf(`[mybatis-go] method fail! wrong num out check params pos %v, %v, %v`, i, vfn.Type().Out(i), fval.Type().Out(i))
 		}
 	}
+	return nil
 }
