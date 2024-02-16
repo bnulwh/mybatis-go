@@ -90,13 +90,13 @@ func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp re
 		fp.Elem().Set(reflect.MakeFunc(fieldTyp, fn))
 		err := checkResults(vfn, fp.Elem())
 		if err != nil {
-			panic(fmt.Errorf("%v %v %v %v", err, source.Type().Name(), structField.Name, fieldVal.Type().String()))
+			panic(fmt.Sprintf("%v %v %v %v", err, source.Type().Name(), structField.Name, fieldVal.Type().String()))
 		}
 		fieldVal.Set(fp)
 	} else {
 		err := checkResults(vfn, fieldVal)
 		if err != nil {
-			panic(fmt.Errorf("%v %v %v %v", err, source.Type().Name(), structField.Name, fieldVal.Type().String()))
+			panic(fmt.Sprintf("%v %v %v %v", err, source.Type().Name(), structField.Name, fieldVal.Type().String()))
 		}
 		fieldVal.Set(reflect.MakeFunc(fieldTyp, fn))
 	}

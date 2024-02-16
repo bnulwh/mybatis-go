@@ -47,7 +47,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		if err != nil {
 			return reflect.Value{}, err
 		}
-		return reflect.ValueOf(rf), nil
+		return reflect.ValueOf(int64(rf)), nil
 	case types.SelectFunction:
 		rows, err := queryRows(sqlStr, sqlargs...)
 		if err != nil {
@@ -58,7 +58,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		log.Debugf("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
 		return results, nil
 	}
-	return reflect.Value{}, nil
+	return reflect.Value{}, fmt.Errorf("unsupport sql function type %v", sqlFunc.Type)
 }
 
 func convert2Interfaces(arr []string) []interface{} {

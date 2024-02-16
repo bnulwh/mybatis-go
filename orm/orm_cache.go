@@ -116,22 +116,26 @@ func bindMapper(name string, mapper reflect.Value) {
 		var proxyFunc = func(arg ProxyArg) []reflect.Value {
 			//exe sql
 			rv, e := bm.executeMethod(sqlFunc, arg)
-			if returnType.ReturnOutType != nil {
-				switch (*returnType.ReturnOutType).Kind() {
-				case reflect.Slice:
+			switch sqlFunc.Type {
+			case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
+				return buildReturnValues(returnType, rv, e)
+			default:
+				if returnType.ReturnOutType != nil {
+					switch (*returnType.ReturnOutType).Kind() {
+					case reflect.Slice:
+						return buildReturnValues(returnType, rv, e)
+					}
+					switch rv.Kind() {
+					case reflect.Slice:
+						item := rv.Index(0)
+						return buildReturnValues(returnType, item, e)
+					}
 					return buildReturnValues(returnType, rv, e)
-				}
-				switch rv.Kind() {
-				case reflect.Slice:
-					item := rv.Index(0)
-					return buildReturnValues(returnType, item, e)
 				}
 				return buildReturnValues(returnType, rv, e)
 			}
-			return buildReturnValues(returnType, rv, e)
 		}
 		return proxyFunc
-
 	})
 }
 
