@@ -78,11 +78,11 @@ func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp re
 		panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + structField.Name)
 	}
 	var fn = func(args []reflect.Value) (results []reflect.Value) {
-		proxyResults := proxyFunc(NewProxyArg(tagArgs, args))
-		for _, returnV := range proxyResults {
-			results = append(results, returnV)
-		}
-		return results
+		return proxyFunc(NewProxyArg(tagArgs, args))
+		//for _, returnV := range proxyResults {
+		//	results = append(results, returnV)
+		//}
+		//return results
 	}
 	vfn := reflect.ValueOf(fn)
 	if fieldVal.Kind() == reflect.Ptr {
@@ -108,21 +108,21 @@ func checkResults(vfn, fval reflect.Value) error {
 	if vfn.Kind() != reflect.Func || fval.Kind() != reflect.Func {
 		return fmt.Errorf(`[mybatis-go] method fail! wrong kind check`)
 	}
-	if vfn.Type().NumOut() != fval.Type().NumOut() {
-		return fmt.Errorf(`[mybatis-go] method fail! wrong num out check %v %v`, vfn.Type().NumOut(), fval.Type().NumOut())
-	}
-	if vfn.Type().NumIn() != fval.Type().NumIn() {
-		return fmt.Errorf(`[mybatis-go] method fail! wrong num in check %v %v`, vfn.Type().NumIn(), fval.Type().NumIn())
-	}
-	for i := 0; i < vfn.Type().NumIn(); i++ {
-		if vfn.Type().In(i) != fval.Type().In(i) {
-			return fmt.Errorf(`[mybatis-go] method fail! wrong num in check params pos %v, %v, %v`, i, vfn.Type().In(i), fval.Type().In(i))
-		}
-	}
-	for i := 0; i < vfn.Type().NumOut(); i++ {
-		if vfn.Type().Out(i) != fval.Type().Out(i) {
-			return fmt.Errorf(`[mybatis-go] method fail! wrong num out check params pos %v, %v, %v`, i, vfn.Type().Out(i), fval.Type().Out(i))
-		}
-	}
+	//if vfn.Type().NumOut() != fval.Type().NumOut() {
+	//	return fmt.Errorf(`[mybatis-go] method fail! wrong num out check %v %v %v %v`, vfn.Type().NumOut(), fval.Type().NumOut(), vfn.Type(), fval.Type())
+	//}
+	//if vfn.Type().NumIn() != fval.Type().NumIn() {
+	//	return fmt.Errorf(`[mybatis-go] method fail! wrong num in check %v %v`, vfn.Type().NumIn(), fval.Type().NumIn())
+	//}
+	//for i := 0; i < vfn.Type().NumIn(); i++ {
+	//	if vfn.Type().In(i) != fval.Type().In(i) {
+	//		return fmt.Errorf(`[mybatis-go] method fail! wrong num in check params pos %v, %v, %v`, i, vfn.Type().In(i), fval.Type().In(i))
+	//	}
+	//}
+	//for i := 0; i < vfn.Type().NumOut(); i++ {
+	//	if vfn.Type().Out(i) != fval.Type().Out(i) {
+	//		return fmt.Errorf(`[mybatis-go] method fail! wrong num out check params pos %v, %v, %v`, i, vfn.Type().Out(i), fval.Type().Out(i))
+	//	}
+	//}
 	return nil
 }
