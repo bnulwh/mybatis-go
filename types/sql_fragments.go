@@ -3,7 +3,7 @@ package types
 import (
 	"bytes"
 	"fmt"
-	log "github.com/bnulwh/logrus"
+	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
 	"regexp"
 	"strings"
