@@ -16,8 +16,8 @@ const (
 
 func NewTableStruct(table string, res []map[string]interface{}) (*TableStructure, error) {
 	ret := &TableStructure{
-		Columns:       []*ColumnStucture{},
-		ColumnMap:     map[string]*ColumnStucture{},
+		Columns:       []*ColumnStructure{},
+		ColumnMap:     map[string]*ColumnStructure{},
 		Table:         table,
 		PrimaryColumn: nil,
 	}
@@ -45,16 +45,16 @@ func NewTableStruct(table string, res []map[string]interface{}) (*TableStructure
 }
 
 type TableStructure struct {
-	Columns       []*ColumnStucture
-	ColumnMap     map[string]*ColumnStucture
+	Columns       []*ColumnStructure
+	ColumnMap     map[string]*ColumnStructure
 	Table         string
-	PrimaryColumn *ColumnStucture
+	PrimaryColumn *ColumnStructure
 }
 
-func (ts *TableStructure) saveToFile(filename, prefix string) error {
+func (ts *TableStructure) SaveToFile(filename, prefix string) error {
 	doc := etree.NewDocument()
 	ts.writeHeader(doc)
-	mapper := ts.createMapper(doc, prefix)
+	mapper := ts.CreateMapper(doc, prefix)
 	ts.writeResultMap(mapper, prefix)
 	ts.writeBaseColumnList(mapper)
 	ts.writeDeleteFunction(mapper)
@@ -106,7 +106,7 @@ func (ts *TableStructure) getModelName(prefix string) string {
 	return strings.Join(res, "")
 }
 
-func (ts *TableStructure) createMapper(doc *etree.Document, prefix string) *etree.Element {
+func (ts *TableStructure) CreateMapper(doc *etree.Document, prefix string) *etree.Element {
 	mapper := doc.CreateElement("mapper")
 	mapper.CreateAttr("namespace", ts.getMapperName(prefix))
 	return mapper

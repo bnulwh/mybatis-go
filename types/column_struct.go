@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-type ColumnStucture struct {
+type ColumnStructure struct {
 	Name    string
 	Type    reflect.Type
 	DbType  string
@@ -14,9 +14,9 @@ type ColumnStucture struct {
 	Primary bool
 }
 
-func newColumnStructure(row map[string]interface{}) *ColumnStucture {
+func newColumnStructure(row map[string]interface{}) *ColumnStructure {
 	log.Debugf("row %v", row)
-	return &ColumnStucture{
+	return &ColumnStructure{
 		Name:    row["column_name"].(string),
 		Type:    ParseJdbcTypeFrom(row["column_type"].(string)),
 		DbType:  row["column_type"].(string),
@@ -25,7 +25,7 @@ func newColumnStructure(row map[string]interface{}) *ColumnStucture {
 	}
 }
 
-func (cs ColumnStucture) getJdbcType() string {
+func (cs ColumnStructure) getJdbcType() string {
 	jt := strings.ToUpper(GetJdbcTypePart(cs.DbType))
 	if jt == "TEXT" || jt == "LONGTEXT" || jt == "TINYTEXT" {
 		return "VARCHAR"
@@ -36,7 +36,7 @@ func (cs ColumnStucture) getJdbcType() string {
 	return jt
 }
 
-func (cs ColumnStucture) getPropertyName() string {
+func (cs ColumnStructure) getPropertyName() string {
 	arr := strings.Split(cs.Name, "_")
 	var res []string
 	res = append(res, arr[0])

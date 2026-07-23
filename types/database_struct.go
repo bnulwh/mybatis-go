@@ -33,7 +33,7 @@ func (ds *DatabaseStructure) SaveToDir(dir, prefix, tables string) error {
 			continue
 		}
 		filename := filepath.Join(dir, fmt.Sprintf("%s.xml", ts.getMapperName(prefix)))
-		err = ts.saveToFile(filename, prefix)
+		err = ts.SaveToFile(filename, prefix)
 		if err != nil {
 			log.Warnf("save table %s failed. %v", name, err)
 		}
