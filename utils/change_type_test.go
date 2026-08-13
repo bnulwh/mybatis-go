@@ -3,6 +3,7 @@ package utils
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func Test_change2String(t *testing.T) {
@@ -726,5 +727,34 @@ func Test_change2Float64(t *testing.T) {
 	r15, err := change2Float64(float32(1.0))
 	if r15 != 1 || err != nil || reflect.TypeOf(r15).Kind() != reflect.Float64 {
 		t.Errorf("test change2Float64 failed. %v", err)
+	}
+}
+
+func Test_change2Time(t *testing.T) {
+	// 直接传 time.Time
+	now := time.Now()
+	r1, err := change2Time(now)
+	if !r1.Equal(now) || err != nil {
+		t.Error("test change2Time(time.Time) failed.")
+	}
+	// RFC3339（sqlite 默认写入格式）
+	r2, err := change2Time("2026-08-13T17:32:12.4991154Z")
+	if err != nil || r2.Year() != 2026 {
+		t.Error("test change2Time(RFC3339) failed.")
+	}
+	// 常用无时区格式
+	r3, err := change2Time("2026-08-13 17:32:12")
+	if err != nil || r3.Hour() != 17 {
+		t.Error("test change2Time(datetime) failed.")
+	}
+	// 日期格式
+	r4, err := change2Time("2026-08-13")
+	if err != nil || r4.Day() != 13 {
+		t.Error("test change2Time(date) failed.")
+	}
+	// 非法格式
+	_, err = change2Time("not a time")
+	if err == nil {
+		t.Error("test change2Time(invalid) failed.")
 	}
 }

@@ -15,6 +15,7 @@ type DatabaseType string
 const (
 	MySqlDb           DatabaseType = "mysql"
 	PostgresDb        DatabaseType = "postgres"
+	SqliteDb          DatabaseType = "sqlite"
 	DefaultMaxIdle                 = 100
 	DefaultMaxOpen                 = 100
 	DefaultMaxTimeout              = 300
@@ -93,6 +94,12 @@ func (ds *DatabaseSetting) generateConn() string {
 	case MySqlDb:
 		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
 			ds.Username, ds.Password, ds.Host, ds.Port, ds.Name)
+	case SqliteDb:
+		// Name 为 sqlite 文件路径；_loc=auto 使 DATETIME 列返回 time.Time
+		if strings.Contains(ds.Name, "?") {
+			return ds.Name
+		}
+		return fmt.Sprintf("%s?_loc=auto", ds.Name)
 	}
 	return ""
 }
@@ -103,6 +110,8 @@ func (ds *DatabaseSetting) getDriver() string {
 		return "mysql"
 	case PostgresDb:
 		return "postgres"
+	case SqliteDb:
+		return "sqlite"
 	}
 	return ""
 }
@@ -121,25 +130,29 @@ func parseDatabaseConfig(m map[string]string) *Config {
 		log.Errorf("parse postgres addr failed: %v", err)
 		panic(err)
 	}
-	u, ok := m["spring.datasource.username"]
-	if !ok {
-		log.Errorf("get database username failed.")
-		panic("get database username failed.")
-	}
-	p, ok := m["spring.datasource.password"]
-	if !ok {
-		log.Errorf("get database password failed.")
-		panic("get database password failed.")
-	}
-	ic := parseInt(m, "spring.datasource.max-idle", DefaultMaxIdle)
-	oc := parseInt(m, "spring.datasource.max-open", DefaultMaxOpen)
-	mt := parseInt(m, "spring.datasource.max-timeout", DefaultMaxTimeout)
-
 	dt, err := parseDatabaseType(tp)
 	if err != nil {
 		log.Errorf("parse datbase type failed.")
 		panic("parse datbase type failed.")
 	}
+	var u, p string
+	if dt != SqliteDb {
+		var ok bool
+		u, ok = m["spring.datasource.username"]
+		if !ok {
+			log.Errorf("get database username failed.")
+			panic("get database username failed.")
+		}
+		p, ok = m["spring.datasource.password"]
+		if !ok {
+			log.Errorf("get database password failed.")
+			panic("get database password failed.")
+		}
+	}
+	ic := parseInt(m, "spring.datasource.max-idle", DefaultMaxIdle)
+	oc := parseInt(m, "spring.datasource.max-open", DefaultMaxOpen)
+	mt := parseInt(m, "spring.datasource.max-timeout", DefaultMaxTimeout)
+
 	return &Config{
 		Setting: MyBatisSetting{
 			DatabaseSetting: DatabaseSetting{
@@ -166,6 +179,8 @@ func parseDatabaseType(tps string) (DatabaseType, error) {
 		return MySqlDb, nil
 	case "postgres", "postgresql":
 		return PostgresDb, nil
+	case "sqlite", "sqlite3":
+		return SqliteDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -174,6 +189,13 @@ func parseAddr(m map[string]string) (string, string, int64, string, error) {
 	val, ok := m["spring.datasource.url"]
 	if !ok {
 		return "", "", 0, "", errors.New("not found key spring.datasource.url")
+	}
+	val = strings.TrimSpace(val)
+	if strings.HasPrefix(strings.ToLower(val), "jdbc:sqlite:") {
+		// jdbc:sqlite:path 或 jdbc:sqlite:file:path
+		path := val[len("jdbc:sqlite:"):]
+		path = strings.TrimPrefix(path, "file:")
+		return "sqlite", "", 0, path, nil
 	}
 	re := regexp.MustCompile(`jdbc:([\w]+)://([\w-\\.]+):([\d]+)/([\w_-]+)`)
 	matched := re.FindStringSubmatch(val)

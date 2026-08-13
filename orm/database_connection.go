@@ -29,6 +29,8 @@ func Open(cfg *Config) (db *DB, err error) {
 		dialector = NewPostgresDialector(cfg)
 	case "mysql":
 		dialector = NewMySqlDialector(cfg)
+	case "sqlite":
+		dialector = NewSqliteDialector(cfg)
 	default:
 		return nil, ErrInvalidDB
 	}

@@ -24,6 +24,11 @@ func newTableStruct(dbName, table string) (*types.TableStructure, error) {
     COLUMN_TYPE as column_type,COLUMN_COMMENT as column_comment,COLUMN_KEY as column_key 
     from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'
     ORDER BY ORDINAL_POSITION ASC`, dbName, table)
+	case SqliteDb:
+		// sqlite 无 information_schema，用 pragma_table_info 表值函数获取列信息
+		sql = fmt.Sprintf(`SELECT name AS column_name, type AS column_type,
+    '' AS column_comment, CASE WHEN pk > 0 THEN 'PRI' ELSE '' END AS column_key
+    FROM pragma_table_info('%s')`, table)
 	default:
 		log.Errorf("unsupport database type %v to get table structure", gDbConn.Setting.Type)
 		return nil, fmt.Errorf("unsupport database type %v to get table structure", gDbConn.Setting.Type)

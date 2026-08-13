@@ -378,12 +378,25 @@ func change2Float64(val interface{}) (float64, error) {
 	}
 }
 func change2Time(val interface{}) (time.Time, error) {
-	switch val.(type) {
-	case time.Time:
-		return val.(time.Time), nil
-	default:
-		return time.Parse("2006-01-02 15:04:05", fmt.Sprintf("%v", val))
+	if t, ok := val.(time.Time); ok {
+		return t, nil
 	}
+	str := fmt.Sprintf("%v", val)
+	// 兼容多种时间格式：RFC3339（sqlite 默认写入）、sqlite format 7、常用无时区格式
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, str); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("parsing time %q: unsupported format", str)
 }
 func ChangeType(val interface{}, typ reflect.Type) (interface{}, error) {
 	switch typ.String() {

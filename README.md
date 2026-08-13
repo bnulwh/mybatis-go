@@ -7,7 +7,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **MyBatis 风格**：XML Mapper 定义 SQL，`#{}` / `${}` 参数绑定，`<if>` / `<where>` 等动态 SQL
 - **反射代理**：Mapper struct 的函数字段在运行时自动注入代理，无需手动实现
 - **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap` 配置
-- **多数据库**：支持 PostgreSQL 和 MySQL
+- **多数据库**：支持 PostgreSQL、MySQL 和 SQLite
 - **代码生成**：内置 `generator` 和 `schema2code` 工具，从 XML 或数据库表结构生成 Go 代码
 - **预编译缓存**：Prepared Statement 自动缓存和复用
 
@@ -15,7 +15,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 
 - [x] PostgreSQL 支持 — 已实现并测试通过
 - [x] MySQL 支持 — 已实现（`cmd/mysqldemo/main.go`）
-- [ ] SQLite 支持
+- [x] SQLite 支持 — 已实现（纯 Go 驱动 modernc.org/sqlite，无需 CGO，`cmd/sqlitedemo` 示例）
 - [ ] 多数据源支持
 - [ ] 其他改进和优化
 
