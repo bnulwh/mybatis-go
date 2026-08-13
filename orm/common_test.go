@@ -101,6 +101,30 @@ func Test_newInstance(t *testing.T) {
 	}
 }
 
+func Test_convertTimeToTime(t *testing.T) {
+	tm := time.Now()
+	r1, err := convertTimeToTime(&sql.NullTime{Time: tm, Valid: true})
+	if !r1.Equal(tm) || err != nil {
+		t.Error("test convertTimeToTime(NullTime valid) failed.")
+	}
+	r2, err := convertTimeToTime(&sql.NullTime{Time: tm, Valid: false})
+	if !r2.IsZero() || err != nil {
+		t.Error("test convertTimeToTime(NullTime invalid) failed.")
+	}
+	r3, err := convertTimeToTime(&mysql.NullTime{Time: tm, Valid: true})
+	if !r3.Equal(tm) || err != nil {
+		t.Error("test convertTimeToTime(mysql.NullTime valid) failed.")
+	}
+	r4, err := convertTimeToTime(&tm)
+	if !r4.Equal(tm) || err != nil {
+		t.Error("test convertTimeToTime(time.Time) failed.")
+	}
+	r5, err := convertTimeToTime("not a pointer")
+	if !r5.IsZero() || err != nil {
+		t.Error("test convertTimeToTime(wrong type) failed.")
+	}
+}
+
 func Test_convertSqlString2String(t *testing.T) {
 	r1, err := convertSqlString2String(&sql.NullString{
 		String: "test",
