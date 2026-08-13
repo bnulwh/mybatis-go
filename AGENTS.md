@@ -23,6 +23,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 | `go test ./orm/... -v` | 运行 orm 测试（`Test_newInstance` 为预先存在的问题） |
 | `go test -v -count=1 ./... -coverprofile=cover.out` | 全量测试 + 覆盖率 |
 | `bash coverage.sh` | 生成覆盖率 HTML 报告 |
+| `bash scripts/auto-commit.sh [秒]` | 自动提交监视：检测到修改后自动 commit + push（见「自动提交」） |
 | `go build -o generator cmd/generator/main.go` | 编译 generator 工具 |
 | `go build -o schema2code cmd/schema2code/main.go` | 编译 schema2code 工具 |
 
@@ -86,6 +87,19 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
   - XML Mapper 的文件名与 `namespace` 对应，放在 `resources/mapper` 目录。
 - **日志**: 通过 `log` 包调用所有日志（`log.Debugf`/`Infof`/`Warnf`/`Errorf``），可替换实现。
 - **配置**: 支持 Spring Boot 风格 `.properties` 文件（`spring.datasource.*`）和 `mybatis.mapper-locations`。
+## 自动提交（项目配置）
+
+项目已启用「修改后自动提交仓库」机制，配置全部存于仓库内（可版本化）：
+
+- **hooks 目录**：`.githooks/`，通过 `git config core.hooksPath .githooks` 指向（本机已配置）
+  - `.githooks/post-commit` — 每次 commit 成功后自动 `git push` 到远程（失败静默降级，不影响本地提交）
+- **监视脚本**：`scripts/auto-commit.sh` — 检测工作区变更后自动 `git add -A` + commit（提交信息按变更文件名自动生成）
+  - `bash scripts/auto-commit.sh` — 后台监视，默认每 60s 检查一次（Ctrl+C 停止）
+  - `bash scripts/auto-commit.sh 10` — 每 10s 检查一次
+  - `bash scripts/auto-commit.sh 0` — 单次检查后立即退出
+  - commit 后自动触发 post-commit hook 完成 push
+- 新克隆仓库需执行一次启用 hooks：`git config core.hooksPath .githooks`
+
 ## 备注
 
-- `orm/common_test.go` 中 `Test_newInstance` 在 `time.Time` 类型上失败，为预先存在的测试问题。
+- `orm/common_test.go` 中 `Test_newInstance` 已修复（`newInstance` 对 `time.Time`/`sql.NullTime` 返回 `*sql.NullTime`，`convertTimeToTime` 统一处理三种时间指针类型）。

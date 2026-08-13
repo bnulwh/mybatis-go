@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# post-commit hook — 每次 commit 成功后自动 push 到远程
+# 失败时静默降级（网络/远程不可用不影响本地提交）
+if git push --quiet 2>/dev/null; then
+    echo "[post-commit] pushed to origin"
+else
+    echo "[post-commit] push skipped (remote unavailable), use 'git push' manually"
+fi
