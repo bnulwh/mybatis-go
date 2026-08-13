@@ -18,4 +18,15 @@ vendor/
 .idea/
 logs/
 
-/orm/proxy_value.go
+# 编译产物（无扩展名二进制）
+/generator
+/mysqldemo
+/postgresdemo
+/schema2code
+
+# 代码生成测试输出
+/temp/
+/orm/test.xml
+
+# 本机工具配置
+/reasonix.toml
