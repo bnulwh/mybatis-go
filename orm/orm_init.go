@@ -37,10 +37,11 @@ func ReConnect() error {
 
 func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string) error {
 	cfg := newDatabaseConfig(dbType, host, port, user, pwd, dbName)
-	db, err2 := Open(cfg)
-	if err2 == nil {
-		gDbConn = db
+	db, err := Open(cfg)
+	if err != nil {
+		return err
 	}
+	gDbConn = db
 	return nil
 }
 func LoadSettings(filename string) map[string]string {

@@ -27,6 +27,8 @@ func Open(cfg *Config) (db *DB, err error) {
 	switch cfg.DriverName() {
 	case "postgres":
 		dialector = NewPostgresDialector(cfg)
+	case "kingbase":
+		dialector = NewKingbaseDialector(cfg)
 	case "mysql":
 		dialector = NewMySqlDialector(cfg)
 	case "sqlite":
@@ -73,9 +75,9 @@ func (db *DB) close() {
 		preparedStmt.Close()
 	}
 
-	if sqldb, ok := db.ConnPool.(*sql.DB); ok {
-		err := sqldb.Close()
-		if err != nil {
+	// PreparedStmt 模式下 ConnPool 是 PreparedStmtDB 包装，需通过 DB() 解包关闭底层连接
+	if sqldb, err := db.DB(); err == nil && sqldb != nil {
+		if err := sqldb.Close(); err != nil {
 			log.Errorf("close db error: %v", err)
 		}
 	}

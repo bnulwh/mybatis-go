@@ -9,7 +9,7 @@ import (
 func newTableStruct(dbName, table string) (*types.TableStructure, error) {
 	var sql string
 	switch gDbConn.Setting.Type {
-	case PostgresDb:
+	case PostgresDb, KingbaseDb:
 		sql = fmt.Sprintf(`SELECT
     A.ordinal_position,A.table_name,A.column_name,CASE A.is_nullable WHEN 'NO' THEN 0 ELSE 1 END AS is_nullable,
     col_description(B.attrelid,B.attnum) as column_comment,

@@ -29,6 +29,23 @@ func (db *PreparedStmtDB) GetDBConn() (*sql.DB, error) {
 	return nil, ErrInvalidDB
 }
 
+// Ping 委托给底层连接池，确保 PreparedStmt 模式下连接健康检查不失效
+func (db *PreparedStmtDB) Ping() error {
+	sqldb, err := db.GetDBConn()
+	if err != nil {
+		return err
+	}
+	return sqldb.Ping()
+}
+
+func (db *PreparedStmtDB) PingContext(ctx context.Context) error {
+	sqldb, err := db.GetDBConn()
+	if err != nil {
+		return err
+	}
+	return sqldb.PingContext(ctx)
+}
+
 func (db *PreparedStmtDB) Close() {
 	db.Mux.Lock()
 	defer db.Mux.Unlock()

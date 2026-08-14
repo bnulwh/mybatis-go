@@ -45,7 +45,7 @@ func fetchTables(dbName string) ([]string, error) {
 	switch gDbConn.Setting.Type {
 	case MySqlDb:
 		sql = fmt.Sprintf("select DISTINCT TABLE_NAME as table_name from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s'", dbName)
-	case PostgresDb:
+	case PostgresDb, KingbaseDb:
 		sql = "select relname as TABLE_NAME from pg_class where  relkind = 'r' and relname not like 'pg_%' and relname not like 'sql_%'"
 	case SqliteDb:
 		sql = "select name as table_name from sqlite_master where type='table' and name not like 'sqlite_%'"

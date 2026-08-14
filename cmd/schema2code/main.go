@@ -18,7 +18,7 @@ func init() {
 func main() {
 	var dbType, host, user, pwd, dbName, dir, prefix, tables string
 	var port int
-	flag.StringVar(&dbType, "type", "mysql", "数据库类型: mysql/postgres/sqlite")
+	flag.StringVar(&dbType, "type", "mysql", "数据库类型: mysql/postgres/kingbase/sqlite")
 	flag.StringVar(&host, "host", "localhost", "数据库地址: localhost")
 	flag.IntVar(&port, "port", 3306, "数据库端口")
 	flag.StringVar(&user, "username", "", "用户名(sqlite 无需填写)")

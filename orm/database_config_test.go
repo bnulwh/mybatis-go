@@ -15,6 +15,14 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r2 != "" || err == nil {
 		t.Error("test parseDatabaseType failed.")
 	}
+	r3, err := parseDatabaseType("kingbase8")
+	if r3 != KingbaseDb || err != nil {
+		t.Error("test parseDatabaseType kingbase8 failed.")
+	}
+	r4, err := parseDatabaseType("Kingbase")
+	if r4 != KingbaseDb || err != nil {
+		t.Error("test parseDatabaseType kingbase failed.")
+	}
 
 }
 
@@ -38,5 +46,10 @@ func Test_parseAddr(t *testing.T) {
 	tp3, host3, port3, db3, err := parseAddr(mp)
 	if tp3 != "mysql" || host3 != "a.bc.d.e" || port3 != 33 || db3 != "xxxx" || err != nil {
 		t.Error("test parseAddr failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:kingbase8://10.1.2.3:54321/testdb"
+	tp4, host4, port4, db4, err := parseAddr(mp)
+	if tp4 != "kingbase8" || host4 != "10.1.2.3" || port4 != 54321 || db4 != "testdb" || err != nil {
+		t.Error("test parseAddr kingbase8 failed.")
 	}
 }

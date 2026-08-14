@@ -15,6 +15,7 @@ type DatabaseType string
 const (
 	MySqlDb           DatabaseType = "mysql"
 	PostgresDb        DatabaseType = "postgres"
+	KingbaseDb        DatabaseType = "kingbase"
 	SqliteDb          DatabaseType = "sqlite"
 	DefaultMaxIdle                 = 100
 	DefaultMaxOpen                 = 100
@@ -88,7 +89,8 @@ func newDatabaseConfig(dbType, host string, port int, user, pwd, dbName string) 
 
 func (ds *DatabaseSetting) generateConn() string {
 	switch ds.Type {
-	case PostgresDb:
+	case PostgresDb, KingbaseDb:
+		// KingbaseES 兼容 PostgreSQL 连接串格式
 		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 			ds.Host, ds.Port, ds.Username, ds.Password, ds.Name)
 	case MySqlDb:
@@ -110,6 +112,8 @@ func (ds *DatabaseSetting) getDriver() string {
 		return "mysql"
 	case PostgresDb:
 		return "postgres"
+	case KingbaseDb:
+		return "kingbase"
 	case SqliteDb:
 		return "sqlite"
 	}
@@ -179,6 +183,8 @@ func parseDatabaseType(tps string) (DatabaseType, error) {
 		return MySqlDb, nil
 	case "postgres", "postgresql":
 		return PostgresDb, nil
+	case "kingbase", "kingbase8", "kingbase7", "kingbase6", "kingbase5":
+		return KingbaseDb, nil
 	case "sqlite", "sqlite3":
 		return SqliteDb, nil
 	default:
