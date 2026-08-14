@@ -17,8 +17,8 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - [x] MySQL 支持 — 已实现（`cmd/mysqldemo/main.go`）
 - [x] SQLite 支持 — 已实现（纯 Go 驱动 modernc.org/sqlite，无需 CGO，`cmd/sqlitedemo` 示例）
 - [x] KingbaseES 支持 — 已实现（人大金仓，兼容 PostgreSQL 线协议，复用 `lib/pq` 驱动，`cmd/kingbasedemo` 示例）
+- [x] 事务支持 — 已实现（`orm.Begin()` / `Commit()` / `Rollback()`）
 - [ ] 多数据源支持
-- [ ] 事务支持（Begin / Commit / Rollback）
 
 ## 安装
 
@@ -118,6 +118,33 @@ func main() {
 ```
 
 完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go` 和 `cmd/kingbasedemo/main.go`。
+
+## 事务
+
+```go
+tx, err := orm.Begin()
+if err != nil {
+    log.Errorf("begin failed: %v", err)
+    return
+}
+defer tx.Rollback() // 未 Commit 时自动回滚（重复调用是安全 no-op）
+
+// 事务开启后，Mapper 方法 / orm.Execute / orm.Query 自动在事务内执行
+if _, err := mp.Insert(UserInfoModel{Username: "tx_user"}); err != nil {
+    return // defer 回滚
+}
+if _, err := mp.UpdateByPrimaryKey(...); err != nil {
+    return
+}
+
+if err := tx.Commit(); err != nil {
+    log.Errorf("commit failed: %v", err)
+}
+```
+
+也可以直接使用 `tx.Exec` / `tx.Query` / `tx.QueryRow` 执行 SQL，或通过 `orm.BeginTx(ctx, opts)` 指定事务选项（如隔离级别）。
+
+> 注意：事务绑定全局连接（单事务槽），多个 goroutine 之间不要交错开启事务。
 
 ## 配置文件
 
@@ -232,6 +259,7 @@ go run ./cmd/kingbasedemo    # KingbaseES
 - SELECT 方法的返回值类型为 `([]Model, error)`，INSERT/UPDATE/DELETE 为 `(int64, error)`
 - KingbaseES 驱动由框架自动注册（`sql.Register("kingbase", &pq.Driver{})`），无需也不应重复引入驱动
 - 日志通过 `orm.SetLogger` 替换，实现 `log.Logger` 接口即可
+- 事务：`orm.Begin()` 开启后 Mapper 方法自动在事务内执行，`Commit()` / `Rollback()` 结束事务（见「事务」章节）
 
 ## 项目结构
 

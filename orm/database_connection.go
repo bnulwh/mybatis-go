@@ -3,6 +3,7 @@ package orm
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
 	"sync"
 	"time"
@@ -20,6 +21,8 @@ type DB struct {
 	*Config
 	Error     error
 	Statement *Statement
+	txMu      sync.RWMutex
+	curTx     *Transaction
 }
 
 func Open(cfg *Config) (db *DB, err error) {
@@ -118,9 +121,39 @@ func (db *DB) DB() (*sql.DB, error) {
 	return nil, ErrInvalidDB
 }
 
+func (db *DB) currentTx() *Transaction {
+	db.txMu.RLock()
+	defer db.txMu.RUnlock()
+	return db.curTx
+}
+
+func (db *DB) setCurTx(t *Transaction) error {
+	db.txMu.Lock()
+	defer db.txMu.Unlock()
+	if db.curTx != nil {
+		return fmt.Errorf("a transaction is already active, commit or rollback it first")
+	}
+	db.curTx = t
+	return nil
+}
+
+func (db *DB) clearCurTx(t *Transaction) {
+	db.txMu.Lock()
+	defer db.txMu.Unlock()
+	if db.curTx == t {
+		db.curTx = nil
+	}
+}
+
 func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	start := time.Now()
-	tx, err := db.DB()
+	if t := db.currentTx(); t != nil {
+		defer db.updateExecStatement(start, true)
+		cur := time.Now()
+		defer db.Statement.updateDBExecStatement(cur)
+		return t.tx.ExecContext(ctx, query, args...)
+	}
+	sqldb, err := db.DB()
 	if err != nil {
 		db.updateExecStatement(start, false)
 		return nil, err
@@ -128,11 +161,17 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 	defer db.updateExecStatement(start, true)
 	cur := time.Now()
 	defer db.Statement.updateDBExecStatement(cur)
-	return tx.ExecContext(ctx, query, args...)
+	return sqldb.ExecContext(ctx, query, args...)
 }
 func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	start := time.Now()
-	tx, err := db.DB()
+	if t := db.currentTx(); t != nil {
+		defer db.updateQueryStatement(start, true)
+		cur := time.Now()
+		defer db.Statement.updateDBQueryStatement(cur)
+		return t.tx.QueryContext(ctx, query, args...)
+	}
+	sqldb, err := db.DB()
 	if err != nil {
 		db.updateQueryStatement(start, false)
 		return nil, err
@@ -140,11 +179,17 @@ func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{
 	defer db.updateQueryStatement(start, true)
 	cur := time.Now()
 	defer db.Statement.updateDBQueryStatement(cur)
-	return tx.QueryContext(ctx, query, args...)
+	return sqldb.QueryContext(ctx, query, args...)
 }
 func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	start := time.Now()
-	tx, err := db.DB()
+	if t := db.currentTx(); t != nil {
+		defer db.updateQueryStatement(start, true)
+		cur := time.Now()
+		defer db.Statement.updateDBQueryStatement(cur)
+		return t.tx.QueryRowContext(ctx, query, args...)
+	}
+	sqldb, err := db.DB()
 	if err != nil {
 		db.updateQueryStatement(start, false)
 		log.Errorf("get db failed: %v", err)
@@ -153,7 +198,7 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interfa
 	defer db.updateQueryStatement(start, true)
 	cur := time.Now()
 	defer db.Statement.updateDBQueryStatement(cur)
-	return tx.QueryRowContext(ctx, query, args...)
+	return sqldb.QueryRowContext(ctx, query, args...)
 }
 func (db *DB) Stats() sql.DBStats {
 	tx, err := db.DB()

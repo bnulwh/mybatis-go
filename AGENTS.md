@@ -41,6 +41,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
   - `proxy_arg.go` — `ProxyArg` 封装函数调用参数（tag args 映射 + 位置参数）
   - `return_type.go` / `return_value.go` — 返回值类型推断与结果转换
   - `sql_execute.go` — 实际 `database/sql` 的 Exec/Query 调用
+  - `transaction.go` — 事务支持（`Begin`/`BeginTx`/`Commit`/`Rollback`，开启后 Mapper 与 orm.Execute/Query 自动在事务内执行）
   - `prepared_stmt.go` — 预编译语句缓存（`PreparedStmtDB`）
   - `database_config.go` — `Config` / `MyBatisSetting` 配置结构体与解析
   - `database_connection.go` — `DB` 结构体与 `Open()` 函数
