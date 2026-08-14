@@ -59,11 +59,3 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	}
 	return reflect.Value{}, fmt.Errorf("unsupport sql function type %v", sqlFunc.Type)
 }
-
-func convert2Interfaces(arr []string) []interface{} {
-	var results []interface{}
-	for _, s := range arr {
-		results = append(results, s)
-	}
-	return results
-}
