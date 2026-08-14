@@ -63,6 +63,9 @@ func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType) []map[string]interfac
 		mp := createMapWithConverters(tempItems, colTypes, converters)
 		results = append(results, mp)
 	}
-	log.Debugf("results: %v", types.ToJson(results))
+	// 仅在调试日志开启时序列化，避免日志级别关闭时仍整结果集 ToJson
+	if log.IsDebugEnabled() {
+		log.Debugf("results: %v", types.ToJson(results))
+	}
 	return results
 }

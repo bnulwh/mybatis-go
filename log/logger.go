@@ -15,12 +15,22 @@ type Logger interface {
 
 var root Logger = newConsoleLogger()
 
+// debugEnabler 可选接口：实现者可通过 IsDebugEnabled 精确控制调试日志开销
+// （避免日志级别关闭时仍执行昂贵参数求值，如整结果集 JSON 序列化）。
+type debugEnabler interface {
+	IsDebugEnabled() bool
+}
+
 type ConsoleLogger struct {
 	Enable bool
 }
 
 func newConsoleLogger() *ConsoleLogger {
 	return &ConsoleLogger{Enable: false}
+}
+
+func (log ConsoleLogger) IsDebugEnabled() bool {
+	return log.Enable
 }
 
 func (log ConsoleLogger) Debugf(format string, args ...interface{}) {
@@ -56,6 +66,15 @@ func current() string {
 
 func SetLogger(logger Logger) {
 	root = logger
+}
+
+// IsDebugEnabled 报告当前 Logger 是否启用调试日志。
+// 未实现 debugEnabler 接口的自定义 Logger 保守返回 true，保证不丢失现有日志输出。
+func IsDebugEnabled() bool {
+	if d, ok := root.(debugEnabler); ok {
+		return d.IsDebugEnabled()
+	}
+	return true
 }
 
 func Debugf(format string, args ...interface{}) {

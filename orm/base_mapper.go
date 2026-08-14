@@ -52,8 +52,9 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 			return reflect.Value{}, err
 		}
 		results := convert2Results(rows, sqlFunc.Result)
-		log.Debugf("results: %v", types.ToJson(results.Interface()))
-		log.Debugf("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
+		if log.IsDebugEnabled() {
+			log.Debugf("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
+		}
 		return results, nil
 	}
 	return reflect.Value{}, fmt.Errorf("unsupport sql function type %v", sqlFunc.Type)

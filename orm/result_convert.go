@@ -27,7 +27,9 @@ func convert2Results(rows []map[string]interface{}, resInfo types.SqlResult) ref
 		}
 		results = reflect.Append(results, reflect.ValueOf(result))
 	}
-	log.Debugf("results: %v", types.ToJson(results.Interface()))
+	if log.IsDebugEnabled() {
+		log.Debugf("results: %v", types.ToJson(results.Interface()))
+	}
 	//log.Infof("results ptr: %v", types.ToJson(reflect.Indirect(resultsPtr).Interface()))
 	return results
 }

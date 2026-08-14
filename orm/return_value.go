@@ -17,7 +17,9 @@ func buildReturnValues(returnType *ReturnType, returnValue reflect.Value, e erro
 			} else {
 
 				returnValues[index] = ensureReturnType(*returnType.ReturnOutType, returnValue)
-				log.Debugf("results: %v", types.ToJson(reflect.Indirect(returnValue).Interface()))
+				if log.IsDebugEnabled() {
+					log.Debugf("results: %v", types.ToJson(reflect.Indirect(returnValue).Interface()))
+				}
 			}
 		} else {
 			if e != nil {
