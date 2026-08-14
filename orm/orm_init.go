@@ -108,22 +108,26 @@ func LoadProperties(filename string) map[string]string {
 }
 
 func getRealValue(val string, em map[string]string) string {
-	pos := strings.Index(val, ":")
-	if pos < 0 {
-		key := val[2 : len(val)-1]
-		rv, ok := em[key]
-		if ok {
-			return rv
-		}
-		return ""
+	// 边界防护："${"、"${"等非法输入直接原样返回，避免 val[2:...] 越界 panic
+	if !strings.HasPrefix(val, "${") || len(val) <= 3 {
+		return val
 	}
-	key := val[2:pos]
-	rval := val[pos+1 : len(val)-1]
-	rv, ok := em[key]
-	if ok {
+	inner := val[2 : len(val)-1]
+	var key, def string
+	if pos := strings.Index(inner, ":"); pos >= 0 {
+		key = inner[:pos]
+		def = inner[pos+1:]
+	} else {
+		key = inner
+	}
+	// 空 key（如 "${:}"、"${:default}"）视为非法，原样返回
+	if key == "" {
+		return val
+	}
+	if rv, ok := em[key]; ok {
 		return rv
 	}
-	return rval
+	return def
 }
 
 func Close() {

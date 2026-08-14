@@ -33,6 +33,43 @@ func Test_InitializeDatabaseSuccess(t *testing.T) {
 	gDbConn = nil
 }
 
+func Test_getRealValue(t *testing.T) {
+	em := map[string]string{"ENV_A": "a_value", "ENV_B": "b_value"}
+
+	// 命中环境变量
+	if got := getRealValue("${ENV_A}", em); got != "a_value" {
+		t.Errorf("getRealValue(${ENV_A}) = %q, want a_value", got)
+	}
+	// 未命中且无默认值 → 空串
+	if got := getRealValue("${NOT_EXIST}", em); got != "" {
+		t.Errorf("getRealValue(${NOT_EXIST}) = %q, want empty", got)
+	}
+	// 未命中但有默认值 → 默认值
+	if got := getRealValue("${NOT_EXIST:default}", em); got != "default" {
+		t.Errorf("getRealValue(${NOT_EXIST:default}) = %q, want default", got)
+	}
+	// 环境变量优先于默认值
+	if got := getRealValue("${ENV_B:default}", em); got != "b_value" {
+		t.Errorf("getRealValue(${ENV_B:default}) = %q, want b_value", got)
+	}
+	// 默认值为空串
+	if got := getRealValue("${NOT_EXIST:}", em); got != "" {
+		t.Errorf("getRealValue(${NOT_EXIST:}) = %q, want empty", got)
+	}
+	// 修复 ④：非法输入不得 panic，且原样返回
+	for _, bad := range []string{"${", "${:", "${:}", "${}", "${x", "$:{", "plain"} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("getRealValue(%q) panicked: %v", bad, r)
+				}
+			}()
+			if got := getRealValue(bad, em); got != bad {
+				t.Errorf("getRealValue(%q) = %q, want raw input %q", bad, got, bad)
+			}
+		}()
+	}
+}
 func Test_ReConnectResetsPreparedStmt(t *testing.T) {
 	// 修复 ③：ReConnect 后预编译缓存必须清空重建并指向新连接池
 	dbPath := filepath.Join(t.TempDir(), "reconnect_test.db")
