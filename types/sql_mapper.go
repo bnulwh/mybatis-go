@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -38,7 +38,7 @@ func (in *SqlMapper) generateMapperFile(dir, pkg string) error {
 	filename := filepath.Join(dir, fmt.Sprintf("%s.go", sname))
 	log.Infof("generate mapper file: %v", filename)
 	bts := in.generateContent(pkg)
-	return ioutil.WriteFile(filename, bts, 0640)
+	return os.WriteFile(filename, bts, 0640)
 }
 
 func (in *SqlMapper) generateContent(pkg string) []byte {

@@ -5,7 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -29,7 +29,7 @@ type xmlNode struct {
 }
 
 func parseXmlFile(filename string) (*xmlNode, error) {
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}

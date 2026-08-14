@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/beevik/etree"
 	"github.com/bnulwh/mybatis-go/log"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strings"
 )
@@ -71,7 +71,7 @@ func (ts *TableStructure) SaveToFile(filename, prefix string) error {
 		return err
 	}
 	//fmt.Println(string(bts))
-	return ioutil.WriteFile(filename, bts, 0640)
+	return os.WriteFile(filename, bts, 0640)
 }
 
 func (ts *TableStructure) writeHeader(doc *etree.Document) {

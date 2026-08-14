@@ -5,7 +5,7 @@ import (
 
 	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/utils"
-	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -93,7 +93,7 @@ func LoadSettings(filename string) map[string]string {
 }
 
 func LoadProperties(filename string) map[string]string {
-	body, err := ioutil.ReadFile(filename)
+	body, err := os.ReadFile(filename)
 	if err != nil {
 		log.Warnf("load file %v failed: %v", filename, err)
 		return map[string]string{}

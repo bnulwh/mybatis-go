@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -22,7 +22,7 @@ func (in *ResultMap) GenerateFile(dir, pkg string) error {
 	filename := filepath.Join(dir, fmt.Sprintf("%s.go", sname))
 	log.Debugf("generate file %v", filename)
 	bts := in.generateContent(pkg)
-	return ioutil.WriteFile(filename, bts, 0640)
+	return os.WriteFile(filename, bts, 0640)
 }
 
 func (in *ResultMap) generateContent(pkg string) []byte {

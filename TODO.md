@@ -63,7 +63,7 @@
 
 ## 🟢 P2 — 代码质量 / 现代化
 
-- [ ] **P2-1 ioutil 弃用**：`orm/orm_init.go`、`types/result_map.go`、`types/sql_mapper.go`、`types/table_struct.go`、`types/xml_parse.go` 使用 `ioutil.ReadFile/WriteFile`（Go 1.16+ 已弃用），改为 `os.ReadFile/WriteFile`
+- [x] **P2-1 ✅ 已修复 ioutil 弃用**：`orm/orm_init.go`、`types/result_map.go`、`types/sql_mapper.go`、`types/table_struct.go`、`types/xml_parse.go` 的 `ioutil.ReadFile/WriteFile` 全部改为 `os.ReadFile/WriteFile`
 - [ ] **P2-2 死代码清理**：`orm/base_mapper.go` 的 `convert2Interfaces`、`orm/interfaces.go` 的 `Rows` 接口均未使用，可删除
 - [ ] **P2-3 依赖升级**：`go-sql-driver/mysql v1.6.0` → v1.8.x；`lib/pq v1.10.1` 已进维护模式（评估 `pgx/v5` 迁移）；`beevik/etree v1.1.0` 有更新版；go.mod 已为 `go 1.21`（旧 TODO 中「go 1.14」已过时）
 - [ ] **P2-4 .gitignore 去重**：`/generator /mysqldemo /postgresdemo /schema2code /temp/ /orm/test.xml /reasonix.toml` 块重复出现两次，合并
