@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -23,6 +24,10 @@ type SqlFunction struct {
 	MinDuration      int64
 	GenerateCount    int64
 	GenerateDuration int64
+
+	// 无参 SQL 结果静态不变，首次生成后缓存（P2-5）
+	noParamOnce sync.Once
+	noParamSQL  string
 }
 
 func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
@@ -191,13 +196,17 @@ func (in *SqlFunction) generateSqlWithParam(m interface{}) string {
 }
 
 func (in *SqlFunction) generateSqlWithoutParam() string {
-	log.Debugf("sql function %v generate sql without param", in.Id)
-	var buf bytes.Buffer
-	for _, item := range in.Items {
-		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithoutParam())
-	}
-	return buf.String()
+	// 无参 SQL 的拼接结果静态不变，只生成一次（sync.Once 保证并发安全）
+	in.noParamOnce.Do(func() {
+		log.Debugf("sql function %v generate sql without param", in.Id)
+		var buf bytes.Buffer
+		for _, item := range in.Items {
+			buf.WriteString(" ")
+			buf.WriteString(item.generateSqlWithoutParam())
+		}
+		in.noParamSQL = buf.String()
+	})
+	return in.noParamSQL
 }
 
 func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns map[string]*SqlElement, owner string) *SqlFunction {
