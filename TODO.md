@@ -37,33 +37,27 @@
 
 ## 🔴 P0 — 性能（剩余）
 
-### P0-2 ⭐ 消除 Debug 日志的强制 JSON 序列化（约 30 分钟，零风险）
-Go 在**调用前**就求值参数，即使日志级别关闭，以下调用每次执行都会全量序列化整个结果集：
-
-- `orm/sql_execute.go:66` — `log.Debugf("results: %v", types.ToJson(results))`（每查询一次）
-- `orm/result_convert.go:30` — `log.Debugf("results: %v", types.ToJson(results.Interface()))`
-- `orm/return_value.go:20` — `log.Debugf("results: %v", types.ToJson(...))`（每 Mapper 调用）
-- `orm/base_mapper.go:55-56` — 两行重复的 `types.ToJson(...)` 序列化（可删一行）
-- `types/sql_function.go` — `GenerateSQL` 的 `Debugf("... args: %v", args)`
-
-修复方案：`log` 包增加 `IsDebugEnabled()`（用**可选接口** `interface{ IsDebugEnabled() bool }` 做类型断言，避免破坏现有自定义 Logger），热点处改为
-`if log.IsDebugEnabled() { log.Debugf("results: %v", types.ToJson(results)) }`。
-解析期（init 阶段）的 XML 日志（`types/*.go` 的 `ToJson(elem)`）优先级低，可一并处理。
+### P0-2 ✅ 已修复（commit `489638e`）
+- `log` 包新增 `IsDebugEnabled()`（可选接口 `debugEnabler`，未实现者保守返回 true 不丢日志）
+- 四个热路径序列化点（`fetchRows`/`convert2Results`/`buildReturnValues`/`executeMethod`）改为 `if log.IsDebugEnabled()` 守卫；顺带删除 `executeMethod` 重复的 ToJson 调试行
+- 新增 `log/logger_test.go`
+- 解析期（init 阶段）XML 日志优先级低，可后续一并处理
 
 ---
 
 ## 🟡 P1 — 健壮性 / 并发安全
 
-### P1-1 全局缓存 map 无锁
-`modelCache.Models` / `mapperCache.Mappers` 是普通 map，`RegisterModel`/`RegisterMapper` 与 Mapper 并发调用（如运行时注册 + 热加载）存在 data race。建议加 `sync.RWMutex` 或改为注册后只读。
+### P1-1 ✅ 已修复（全局缓存 map 加锁）
+- `modelCache` / `mapperCache` 加 `sync.RWMutex`：注册写锁、创建读锁；`bindSqls`（修改 `funcInfo.SqlFunc`）持写锁
+- 新增并发冒烟测试 `Test_ModelCacheConcurrent` / `Test_MapperCacheConcurrent`
 
-### P1-2 PreparedStmtDB 缓存无上限
-动态 SQL 的缓存 key 无限增长会持续钉住连接池连接（`sql.DB.Prepare` 语义）。`PreparedSQL` 初始容量 100 但无上限强制。建议：
-- 超限时不再缓存新语句（直接 prepare + close），或
-- 接入 LRU 淘汰
+### P1-2 ✅ 已修复（PreparedStmtDB 缓存上限）
+- 新增 `maxPreparedStmts = 100` 上限；缓存满后参数化 SQL 降级为直接执行（不再缓存、不钉连接、无泄漏）
+- 新增回归测试 `Test_PreparedStmtCacheCap`
 
-### P1-3 默认日志被禁用
-`log` 包默认 `ConsoleLogger.Enable=false`，不调用 `SetLogger` 时所有日志（**含 Error**）都不可见。建议默认开启（至少 Error/Warn），或文档明确要求 `SetLogger`。
+### P1-3 ✅ 已修复（默认日志开启）
+- `ConsoleLogger` 引入 `Level` 分级（Debug/Info/Warn/Error），默认 `Enable=true, Level=WarnLevel`：不调用 `SetLogger` 时 Warn/Error 可见
+- 新增 `log.DebugEnabled/InfoEnabled/WarnEnabled/ErrorEnabled` 级别查询 + `Test_DefaultLevel`
 
 ---
 

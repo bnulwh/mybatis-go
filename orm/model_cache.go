@@ -6,9 +6,11 @@ import (
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 type modelCache struct {
+	mu     sync.RWMutex
 	Models map[string]reflect.Type
 }
 
@@ -34,15 +36,19 @@ func (in *modelCache) addModel(typ reflect.Type) {
 	log.Debugf("name: %v", name)
 	sn := types.GetShortName(name)
 	log.Debugf("short name: %v", sn)
+	in.mu.Lock()
 	in.Models[name] = typ
 	in.Models[strings.ToLower(name)] = typ
 	in.Models[sn] = typ
 	in.Models[strings.ToLower(sn)] = typ
 	in.Models[getFullName(typ)] = typ
+	in.mu.Unlock()
 }
 
 func (in *modelCache) createModel(name string) (reflect.Value, error) {
+	in.mu.RLock()
 	typ, ok := in.Models[strings.ToLower(strings.TrimSpace(name))]
+	in.mu.RUnlock()
 	if !ok {
 		return reflect.Value{}, fmt.Errorf("model type %s not registered", name)
 	}

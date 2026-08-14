@@ -40,6 +40,9 @@ func (in *ormCache) initSqls(dir string) error {
 }
 
 func (in *ormCache) bindSqls() error {
+	// bindSql 会修改 funcInfo.SqlFunc，持写锁防止与并发 createMapper 读冲突
+	in.mappers.mu.Lock()
+	defer in.mappers.mu.Unlock()
 	var errs []error
 	for name := range in.mappers.Mappers {
 		log.Debugf("bind mapper %s", name)

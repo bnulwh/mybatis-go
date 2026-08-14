@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+// maxPreparedStmts 预编译缓存上限：超过后降级为直接执行，
+// 避免动态 SQL 无限缓存持续钉住连接池连接。
+const maxPreparedStmts = 100
+
 type Stmt struct {
 	*sql.Stmt
 	prepared   chan struct{}
@@ -124,11 +128,19 @@ func (db *PreparedStmtDB) prepare(ctx context.Context, conn ConnPool, query stri
 	return cacheStmt, nil
 }
 
+// cacheFull 报告预编译缓存是否已满（超过 maxPreparedStmts）。
+func (db *PreparedStmtDB) cacheFull() bool {
+	db.Mux.RLock()
+	defer db.Mux.RUnlock()
+	return len(db.Stmts) >= maxPreparedStmts
+}
+
 // 无参数 SQL（DDL、静态查询）直接执行，不进入预编译缓存：
 // PostgreSQL 的扩展协议不支持 prepare DDL，且静态 SQL 会无谓地独占连接。
+// 缓存已满时同样降级为直接执行，避免无界缓存钉死连接。
 func (db *PreparedStmtDB) ExecContext(ctx context.Context, query string, args ...interface{}) (result sql.Result, err error) {
-	if len(args) == 0 {
-		return db.ConnPool.ExecContext(ctx, query)
+	if len(args) == 0 || db.cacheFull() {
+		return db.ConnPool.ExecContext(ctx, query, args...)
 	}
 	stmt, err := db.prepare(ctx, db.ConnPool, query)
 	if err == nil {
@@ -143,8 +155,8 @@ func (db *PreparedStmtDB) ExecContext(ctx context.Context, query string, args ..
 	return result, err
 }
 func (db *PreparedStmtDB) QueryContext(ctx context.Context, query string, args ...interface{}) (rows *sql.Rows, err error) {
-	if len(args) == 0 {
-		return db.ConnPool.QueryContext(ctx, query)
+	if len(args) == 0 || db.cacheFull() {
+		return db.ConnPool.QueryContext(ctx, query, args...)
 	}
 	stmt, err := db.prepare(ctx, db.ConnPool, query)
 	if err == nil {
@@ -159,6 +171,9 @@ func (db *PreparedStmtDB) QueryContext(ctx context.Context, query string, args .
 	return rows, err
 }
 func (db *PreparedStmtDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	if db.cacheFull() {
+		return db.ConnPool.QueryRowContext(ctx, query, args...)
+	}
 	stmt, err := db.prepare(ctx, db.ConnPool, query)
 	if err == nil {
 		return stmt.QueryRowContext(ctx, args...)

@@ -14,7 +14,6 @@ func Test_modelCache_registerModel(t *testing.T) {
 		Name string
 	}
 	mc.registerModel(new(ts))
-	fmt.Println(mc)
 	fmt.Println(len(mc.Models))
 	if len(mc.Models) == 0 {
 		t.Error("test modelCache registerModel failed.")

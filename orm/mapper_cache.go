@@ -6,6 +6,7 @@ import (
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 type funcInfo struct {
@@ -26,6 +27,7 @@ type mapperInfo struct {
 }
 
 type mapperCache struct {
+	mu      sync.RWMutex
 	Mappers map[string]*mapperInfo
 }
 
@@ -127,14 +129,18 @@ func (in *mapperCache) addMapper(typ reflect.Type) {
 	info := newMapperInfo(typ)
 	name := typ.Name()
 	sn := types.GetShortName(name)
+	in.mu.Lock()
 	in.Mappers[name] = info
 	in.Mappers[strings.ToLower(name)] = info
 	in.Mappers[sn] = info
 	in.Mappers[strings.ToLower(sn)] = info
 	in.Mappers[getFullName(typ)] = info
+	in.mu.Unlock()
 }
 func (in *mapperCache) createMapper(name string) (reflect.Value, error) {
+	in.mu.RLock()
 	mp, ok := in.Mappers[strings.ToLower(strings.TrimSpace(name))]
+	in.mu.RUnlock()
 	if !ok {
 		return reflect.ValueOf(-1), fmt.Errorf("mapper type %s not registered", name)
 	}
