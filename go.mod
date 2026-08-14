@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/beevik/etree v1.1.0
-	github.com/bnulwh/logrus v1.19.0
+	github.com/bnulwh/logrus v1.9.2
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/lib/pq v1.10.1
 	modernc.org/sqlite v1.34.0
@@ -14,12 +14,8 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/jonboulle/clockwork v0.5.0 // indirect
-	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible // indirect
-	github.com/lestrrat-go/strftime v1.0.4 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/sys v0.22.0 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
