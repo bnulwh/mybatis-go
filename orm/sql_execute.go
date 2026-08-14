@@ -45,14 +45,22 @@ func queryRows(sqlStr string, args ...interface{}) ([]map[string]interface{}, er
 func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType) []map[string]interface{} {
 	//var results []interface{}
 	var results []map[string]interface{}
+	// P1-3：扫描目标与转换函数只建一次，跨行复用（Scan 覆盖值，NULL 由 Valid 标记）。
+	// 注意：部分驱动（如 modernc sqlite）在首行 Next() 之后才填充 ScanType，
+	// 因此延迟到首次进入循环后再构建，与旧实现的行为保持一致。
+	var tempItems []interface{}
+	var converters []convertFn
 	for rows.Next() {
-		tempItems := prepareColumns(colTypes)
+		if tempItems == nil {
+			tempItems = prepareColumns(colTypes)
+			converters = buildConverters(colTypes)
+		}
 		err := rows.Scan(tempItems...)
 		if err != nil {
 			log.Warnf("scan error: %v", err)
 			continue
 		}
-		mp := createMap(tempItems, colTypes)
+		mp := createMapWithConverters(tempItems, colTypes, converters)
 		results = append(results, mp)
 	}
 	log.Debugf("results: %v", types.ToJson(results))

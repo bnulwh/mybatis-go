@@ -192,51 +192,79 @@ func convertTimeToTime(ptr interface{}) (time.Time, error) {
 	return time.Time{}, nil
 }
 
-func convertInstanceType(ptr interface{}, colType *sql.ColumnType) (interface{}, error) {
+// convertFn 列值转换函数（P1-4：一次查询只做一次类型分派，每行直接调用）
+type convertFn func(ptr interface{}) (interface{}, error)
+
+// convertToConvertFn 将返回具体类型的转换函数包装为 convertFn。
+func convertToConvertFn[T any](fn func(ptr interface{}) (T, error)) convertFn {
+	return func(ptr interface{}) (interface{}, error) { return fn(ptr) }
+}
+
+// resolveConverter 根据列类型解析单列转换函数。
+func resolveConverter(colType *sql.ColumnType) convertFn {
 	typ := colType.ScanType()
+	if typ == nil {
+		// 驱动未填充 ScanType 时回退到字符串转换
+		return convertToConvertFn(convertSqlString2String)
+	}
 	switch typ.String() {
 	case "string":
-		return convertSqlString2String(ptr)
+		return convertToConvertFn(convertSqlString2String)
 	case "sql.RawBytes":
 		if colType.DatabaseTypeName() == "BIT" {
-			return convertRawBytes2Bool(ptr)
+			return convertToConvertFn(convertRawBytes2Bool)
 		} else {
-			return convertRawBytes2String(ptr)
+			return convertToConvertFn(convertRawBytes2String)
 		}
 	case "bool":
-		return convertSqlBool2Bool(ptr)
+		return convertToConvertFn(convertSqlBool2Bool)
 
 	case "int":
-		return convertSqlInt32ToInt(ptr)
+		return convertToConvertFn(convertSqlInt32ToInt)
 	case "int8":
-		return convertSqlInt32ToInt8(ptr)
+		return convertToConvertFn(convertSqlInt32ToInt8)
 	case "int16":
-		return convertSqlInt32ToInt16(ptr)
+		return convertToConvertFn(convertSqlInt32ToInt16)
 	case "int32":
-		return convertSqlInt32ToInt32(ptr)
+		return convertToConvertFn(convertSqlInt32ToInt32)
 	case "uint":
-		return convertSqlInt32ToUInt(ptr)
+		return convertToConvertFn(convertSqlInt32ToUInt)
 	case "uint8":
-		return convertSqlInt32ToUInt8(ptr)
+		return convertToConvertFn(convertSqlInt32ToUInt8)
 	case "uint16":
-		return convertSqlInt32ToUInt16(ptr)
+		return convertToConvertFn(convertSqlInt32ToUInt16)
 	case "uint32":
-		return convertSqlInt32ToUInt32(ptr)
+		return convertToConvertFn(convertSqlInt32ToUInt32)
 	case "int64", "sql.NullInt64":
-		return convertSqlInt64ToInt64(ptr)
+		return convertToConvertFn(convertSqlInt64ToInt64)
 	case "uint64":
-		return convertSqlInt64ToUInt64(ptr)
+		return convertToConvertFn(convertSqlInt64ToUInt64)
 	case "float32":
-		return convertSqlFloat64ToFloat32(ptr)
+		return convertToConvertFn(convertSqlFloat64ToFloat32)
 	case "float64":
-		return convertSqlFloat64ToFloat64(ptr)
+		return convertToConvertFn(convertSqlFloat64ToFloat64)
 	case "time.Time", "sql.NullTime", "mysql.NullTime":
-		return convertTimeToTime(ptr)
+		return convertToConvertFn(convertTimeToTime)
 	case "interface {}":
-		return convertSqlString2String(ptr)
+		return convertToConvertFn(convertSqlString2String)
 	}
-	log.Warnf("not support convert type: %v ,value: %v", typ, ptr)
-	return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, ptr)
+	log.Warnf("not support convert type: %v", typ)
+	return func(ptr interface{}) (interface{}, error) {
+		return nil, fmt.Errorf("not support convert type: %v ,value: %v", typ, ptr)
+	}
+}
+
+// buildConverters 为一次查询的列预编译转换函数表。
+func buildConverters(colTypes []*sql.ColumnType) []convertFn {
+	converters := make([]convertFn, len(colTypes))
+	for i, colType := range colTypes {
+		converters[i] = resolveConverter(colType)
+	}
+	return converters
+}
+
+func convertInstanceType(ptr interface{}, colType *sql.ColumnType) (interface{}, error) {
+	return resolveConverter(colType)(ptr)
 }
 
 func combineErrors(errs ...error) error {
