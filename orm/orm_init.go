@@ -90,7 +90,7 @@ func LoadProperties(filename string) map[string]string {
 	for _, line := range strings.Split(string(body), "\n") {
 		line = strings.TrimSpace(line)
 
-		if len(line) == 0 || strings.Contains("!#", line[0:1]) {
+		if len(line) == 0 || line[0] == '!' || line[0] == '#' {
 			continue
 		}
 		pos := strings.Index(line, "=")
@@ -100,7 +100,7 @@ func LoadProperties(filename string) map[string]string {
 		if pos <= 0 {
 			continue
 		}
-		key := line[0:pos]
+		key := strings.TrimSpace(line[0:pos])
 		val := strings.Trim(line[pos+1:], "'\" ")
 		envMap[key] = val
 	}

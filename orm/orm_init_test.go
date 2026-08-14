@@ -159,3 +159,38 @@ func Test_PreparedStmtDBPing(t *testing.T) {
 		t.Errorf("Ping on healthy PreparedStmtDB failed: %v", err)
 	}
 }
+
+func Test_LoadProperties(t *testing.T) {
+	content := "" +
+		"# 注释行\n" +
+		"! 叹号注释行\n" +
+		"\n" +
+		"spring.datasource.url= jdbc:postgresql://localhost:5432/testdb\n" +
+		"spring.datasource.username = root\n" +
+		"key.with.colon: value:with:colons\n" +
+		"no.separator\n" +
+		"=no.key\n"
+	fp := filepath.Join(t.TempDir(), "test.properties")
+	if err := os.WriteFile(fp, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m := LoadProperties(fp)
+
+	if len(m) != 3 {
+		t.Errorf("expected 3 entries, got %d: %v", len(m), m)
+	}
+	if m["spring.datasource.url"] != "jdbc:postgresql://localhost:5432/testdb" {
+		t.Errorf("url parsed wrong: %q", m["spring.datasource.url"])
+	}
+	if m["spring.datasource.username"] != "root" {
+		t.Errorf("username parsed wrong: %q", m["spring.datasource.username"])
+	}
+	if m["key.with.colon"] != "value:with:colons" {
+		t.Errorf("colon-separated key parsed wrong: %q", m["key.with.colon"])
+	}
+
+	// 不存在的文件返回空 map，不报错
+	if got := LoadProperties(filepath.Join(t.TempDir(), "no-such-file.properties")); len(got) != 0 {
+		t.Errorf("expected empty map for missing file, got %v", got)
+	}
+}
