@@ -10,6 +10,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES
 - **代码生成**：内置 `generator`（XML → Go）和 `schema2code`（数据库表 → Go）工具
 - **预编译缓存**：Prepared Statement 自动缓存和复用
+- **事务支持**：`orm.Begin()` / `Commit()` / `Rollback()`，事务开启后 Mapper 方法与 SQL 自动参与
 
 ## 路线图
 
@@ -204,6 +205,8 @@ URL 类型支持 `jdbc:kingbase8://`、`jdbc:kingbase://` 等（parseDatabaseTyp
 
 支持环境变量覆盖：配置值形如 `${ENV_NAME}` 或 `${ENV_NAME:default}` 时会自动替换。
 
+JDBC URL 支持 IPv6 地址，如 `jdbc:postgresql://[2001:db8::1]:5432/testdb`（MySQL DSN 会自动补方括号）。
+
 ### 编程式配置（不使用 properties 文件）
 
 ```go
@@ -273,6 +276,7 @@ go run ./cmd/kingbasedemo    # KingbaseES
 │   ├── sqlitedemo/      # SQLite 使用示例
 │   └── demo/            # 通用使用示例
 ├── orm/                 # 核心 ORM 框架
+│   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
 │   ├── mysql_dialector.go / postgres_dialector.go
 │   ├── sqlite_dialector.go / kingbase_dialector.go   # 数据库方言
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
@@ -287,6 +291,11 @@ go run ./cmd/kingbasedemo    # KingbaseES
 
 ```bash
 go test ./types/... ./utils/...        # 不依赖数据库的单元测试
-go test ./orm/... -v                   # 含 SQLite 端到端测试（无需外部数据库）
+go test ./orm/... -v                   # 含 SQLite 端到端测试（Mapper / 事务 / 表结构，无需外部数据库）
 go test -v -count=1 ./... -coverprofile=cover.out
 ```
+
+## 更新日志
+
+- **2026-08-14**：新增人大金仓 KingbaseES 支持（兼容 PostgreSQL 线协议，自动以 `kingbase` 名称注册 `lib/pq` 驱动，含 `cmd/kingbasedemo` 示例与 `schema2code -type kingbase`）；新增事务支持（`Begin` / `Commit` / `Rollback`，Mapper 方法自动参与事务）；JDBC URL 支持 IPv6；`LoadProperties` 键值解析健壮性改进
+- **2026-08-14**：可靠性修复 — `InitializeDatabase` 不再吞错、`PreparedStmt` 模式下连接健康检查恢复、`ReConnect` 重建预编译缓存、配置占位符非法输入不再 panic
