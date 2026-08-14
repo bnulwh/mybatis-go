@@ -254,6 +254,16 @@ err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "
 // 或 orm.InitializeDatabase("kingbase", "localhost", 54321, "system", "123456", "testdb")
 ```
 
+## 性能优化
+
+框架在执行热路径上做了以下优化（详见 `TODO.md`）：
+
+- **预编译语句缓存**：参数化 SQL 按文本缓存 Prepared Statement，数据库不再重复解析 + 生成执行计划（见上方配置项说明）
+- **占位符方言转换**：PostgreSQL/KingbaseES 的 `?` 自动转为 `$n`，MySQL/SQLite 原样保留；仅在存在参数时转换，避免误伤无参 SQL 中的字面量 `?`
+- **扫描目标复用**：结果集扫描目标（`sql.NullXxx` 指针）每次查询只分配一次、跨行复用，替代逐行分配
+- **反射预编译**：列值转换函数表（`convertFn`）与 resultMap 的 property→字段索引映射在查询开始时预编译一次，行循环内直接调用，避免每行每列 `ScanType` switch 分派与 `FieldByName` O(N) 名称匹配
+- **无参 SQL 生成缓存**：无参 SQL 的拼接结果静态不变，首次生成后缓存复用
+
 ## 代码生成
 
 ### generator — 从 XML Mapper 生成 Go 代码
@@ -338,6 +348,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-08-14**：性能优化 — 接通预编译语句缓存（`DB.ExecContext/QueryContext` 走 `PreparedStmtDB` 包装，新增 `spring.datasource.prepared-stmt` 配置默认开启）；PostgreSQL/KingbaseES 占位符自动 `?`→`$n`（修复 lib/pq 参数化查询跑不通的问题）；结果集转换优化（扫描目标复用 + 列转换函数/字段索引预编译，`fetchRows` 首次 `Next()` 后构建以兼容驱动惰性 `ScanType`）；无参 SQL 生成结果缓存（`sync.Once`）
 - **2026-08-14**：新增多数据源支持（`InitializeDataSources` / `UseDataSource` / `AddDataSource`，配置 `mybatis.datasources` + `spring.datasource.<name>.*`）
 - **2026-08-14**：新增人大金仓 KingbaseES 支持（兼容 PostgreSQL 线协议，自动以 `kingbase` 名称注册 `lib/pq` 驱动，含 `cmd/kingbasedemo` 示例与 `schema2code -type kingbase`）；新增事务支持（`Begin` / `Commit` / `Rollback`，Mapper 方法自动参与事务）；JDBC URL 支持 IPv6；`LoadProperties` 键值解析健壮性改进
 - **2026-08-14**：可靠性修复 — `InitializeDatabase` 不再吞错、`PreparedStmt` 模式下连接健康检查恢复、`ReConnect` 重建预编译缓存、配置占位符非法输入不再 panic
