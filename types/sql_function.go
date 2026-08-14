@@ -37,17 +37,43 @@ func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
 	}
 	d := time.Since(start).Milliseconds()
 	atomic.AddInt64(&in.TotalDuration, d)
-	if d > in.MaxDuration {
-		atomic.SwapInt64(&in.MaxDuration, d)
-	}
-	if d < in.MinDuration {
-		atomic.SwapInt64(&in.MinDuration, d)
+	updateMaxDuration(&in.MaxDuration, d)
+	updateMinDuration(&in.MinDuration, d)
+}
+
+// updateMaxDuration 以 CAS 循环原子更新最大值（避免并发 Swap 互相覆盖）。
+func updateMaxDuration(target *int64, v int64) {
+	for {
+		cur := atomic.LoadInt64(target)
+		if v <= cur || atomic.CompareAndSwapInt64(target, cur, v) {
+			return
+		}
 	}
 }
+
+// updateMinDuration 以 CAS 循环原子更新最小值；0 表示未初始化，首调直接设置。
+func updateMinDuration(target *int64, v int64) {
+	for {
+		cur := atomic.LoadInt64(target)
+		if cur == 0 {
+			if atomic.CompareAndSwapInt64(target, 0, v) {
+				return
+			}
+			continue
+		}
+		if v >= cur || atomic.CompareAndSwapInt64(target, cur, v) {
+			return
+		}
+	}
+}
+
 func (in *SqlFunction) String() string {
 	return fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v", in.Owner, in.Id,
-		in.TotalUsage-in.FailedUsage, in.TotalUsage, in.MinDuration, in.MaxDuration, in.TotalDuration,
-		in.GenerateCount, in.GenerateDuration)
+		atomic.LoadInt64(&in.TotalUsage)-atomic.LoadInt64(&in.FailedUsage),
+		atomic.LoadInt64(&in.TotalUsage),
+		atomic.LoadInt64(&in.MinDuration), atomic.LoadInt64(&in.MaxDuration),
+		atomic.LoadInt64(&in.TotalDuration),
+		atomic.LoadInt64(&in.GenerateCount), atomic.LoadInt64(&in.GenerateDuration))
 }
 
 func (in *SqlFunction) updateGenerate(start time.Time) {
@@ -222,7 +248,7 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		Items:            parsesqlFragmentsFromXmlElements(node.Elements, sns),
 		TotalDuration:    0,
 		TotalUsage:       0,
-		MinDuration:      60000,
+		MinDuration:      0,
 		MaxDuration:      0,
 		FailedUsage:      0,
 		GenerateDuration: 0,
