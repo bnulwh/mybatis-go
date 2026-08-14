@@ -29,10 +29,31 @@ func InitializeFromSettings(cm map[string]string) error {
 }
 
 func ReConnect() error {
-	if gDbConn != nil {
-		return gDbConn.Dialector.Initialize(gDbConn)
+	if gDbConn == nil {
+		return fmt.Errorf("connection not init.")
 	}
-	return fmt.Errorf("connection not init.")
+	oldSQLDB, _ := gDbConn.DB()
+	if err := gDbConn.Dialector.Initialize(gDbConn); err != nil {
+		return err
+	}
+	// 预编译缓存绑定的是旧连接，重连后必须重置缓存并指向新连接池
+	if v, ok := gDbConn.cacheStore.Load(preparedStmtDBKey); ok {
+		preparedStmt := v.(*PreparedStmtDB)
+		preparedStmt.Reset()
+		preparedStmt.ConnPool = gDbConn.ConnPool
+		if gDbConn.PreparedStmt {
+			gDbConn.ConnPool = preparedStmt
+		}
+	}
+	// 仅当底层连接确实被替换时才关闭旧连接，避免泄漏
+	if newSQLDB, err := gDbConn.DB(); err == nil && oldSQLDB != nil && oldSQLDB != newSQLDB {
+		_ = oldSQLDB.Close()
+	}
+	// 验证新连接可用
+	if pinger, ok := gDbConn.ConnPool.(interface{ Ping() error }); ok {
+		return pinger.Ping()
+	}
+	return nil
 }
 
 func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string) error {

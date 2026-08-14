@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +31,59 @@ func Test_InitializeDatabaseSuccess(t *testing.T) {
 	// 清理，避免影响后续测试
 	Close()
 	gDbConn = nil
+}
+
+func Test_ReConnectResetsPreparedStmt(t *testing.T) {
+	// 修复 ③：ReConnect 后预编译缓存必须清空重建并指向新连接池
+	dbPath := filepath.Join(t.TempDir(), "reconnect_test.db")
+	cfg := newDatabaseConfig("sqlite", "", 0, "", "", dbPath)
+	cfg.PreparedStmt = true
+	db, err := Open(cfg)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() {
+		gDbConn = nil
+		db.close()
+	}()
+	gDbConn = db
+
+	v, _ := db.cacheStore.Load(preparedStmtDBKey)
+	ps := v.(*PreparedStmtDB)
+
+	// 重连前先缓存一个 statement，模拟旧连接上的预编译缓存
+	if _, err := ps.prepare(context.Background(), db.ConnPool, "select 1"); err != nil {
+		t.Fatalf("prepare failed: %v", err)
+	}
+	if len(ps.Stmts) != 1 {
+		t.Fatalf("expected 1 cached stmt before reconnect, got %d", len(ps.Stmts))
+	}
+
+	if err := ReConnect(); err != nil {
+		t.Fatalf("ReConnect failed: %v", err)
+	}
+
+	// 预编译缓存必须清空
+	if len(ps.Stmts) != 0 || len(ps.PreparedSQL) != 0 {
+		t.Errorf("prepared stmt cache not reset after reconnect: stmts=%d preparedSql=%d",
+			len(ps.Stmts), len(ps.PreparedSQL))
+	}
+	// 包装器必须指向新连接池
+	newSQLDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db.DB failed: %v", err)
+	}
+	if ps.ConnPool != newSQLDB {
+		t.Error("PreparedStmtDB.ConnPool should point to new connection after reconnect")
+	}
+	// PreparedStmt 模式下 db.ConnPool 应恢复为包装器
+	if db.ConnPool != ps {
+		t.Error("db.ConnPool should be re-wrapped with PreparedStmtDB after reconnect")
+	}
+	// 重连后新连接必须可用
+	if err := ps.Ping(); err != nil {
+		t.Errorf("Ping on new connection failed: %v", err)
+	}
 }
 
 func Test_OpenWithPreparedStmtStillPings(t *testing.T) {
