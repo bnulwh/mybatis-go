@@ -124,7 +124,12 @@ func (db *PreparedStmtDB) prepare(ctx context.Context, conn ConnPool, query stri
 	return cacheStmt, nil
 }
 
+// 无参数 SQL（DDL、静态查询）直接执行，不进入预编译缓存：
+// PostgreSQL 的扩展协议不支持 prepare DDL，且静态 SQL 会无谓地独占连接。
 func (db *PreparedStmtDB) ExecContext(ctx context.Context, query string, args ...interface{}) (result sql.Result, err error) {
+	if len(args) == 0 {
+		return db.ConnPool.ExecContext(ctx, query)
+	}
 	stmt, err := db.prepare(ctx, db.ConnPool, query)
 	if err == nil {
 		result, err = stmt.ExecContext(ctx, args...)
@@ -138,6 +143,9 @@ func (db *PreparedStmtDB) ExecContext(ctx context.Context, query string, args ..
 	return result, err
 }
 func (db *PreparedStmtDB) QueryContext(ctx context.Context, query string, args ...interface{}) (rows *sql.Rows, err error) {
+	if len(args) == 0 {
+		return db.ConnPool.QueryContext(ctx, query)
+	}
 	stmt, err := db.prepare(ctx, db.ConnPool, query)
 	if err == nil {
 		rows, err = stmt.QueryContext(ctx, args...)
@@ -155,7 +163,8 @@ func (db *PreparedStmtDB) QueryRowContext(ctx context.Context, query string, arg
 	if err == nil {
 		return stmt.QueryRowContext(ctx, args...)
 	}
-	return &sql.Row{}
+	// 无法构造带错误的 *sql.Row（字段不可导出），返回 nil 避免 &sql.Row{} 在 Scan 时解引用崩溃
+	return nil
 }
 
 func (db *PreparedStmtDB) Stats() sql.DBStats {

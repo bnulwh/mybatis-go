@@ -34,8 +34,6 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	sqlStr = strings.ReplaceAll(sqlStr, "\n", " ")
 	sqlStr = strings.ReplaceAll(sqlStr, "\t", " ")
 	sqlStr = strings.ReplaceAll(sqlStr, "\r", " ")
-	//sqlStr = gDbConn.FormatPrepareSQL(sqlStr)
-	//sqlargs := convert2Interfaces(items)
 	if err != nil {
 		log.Warnf("generate sql failed: %v", err)
 		return reflect.Value{}, err

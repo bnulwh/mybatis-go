@@ -80,6 +80,7 @@ func newDatabaseConfig(dbType, host string, port int, user, pwd, dbName string) 
 		MaxOpen:      DefaultMaxOpen,
 		MaxIdle:      DefaultMaxIdle,
 		MaxTimeout:   DefaultMaxTimeout,
+		PreparedStmt: true,
 		SpringConfig: false,
 		Dialector:    nil,
 		ConnPool:     nil,
@@ -163,6 +164,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 	ic := parseInt(m, "spring.datasource.max-idle", DefaultMaxIdle)
 	oc := parseInt(m, "spring.datasource.max-open", DefaultMaxOpen)
 	mt := parseInt(m, "spring.datasource.max-timeout", DefaultMaxTimeout)
+	ps := parseBool(m, "spring.datasource.prepared-stmt", true)
 
 	return &Config{
 		Setting: MyBatisSetting{
@@ -178,12 +180,29 @@ func parseDatabaseConfig(m map[string]string) *Config {
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,
 		MaxTimeout:   mt,
+		PreparedStmt: ps,
 		SpringConfig: true,
 		Dialector:    nil,
 		ConnPool:     nil,
 		cacheStore:   &sync.Map{},
 	}
 }
+
+// parseBool 解析布尔配置项；key 不存在或值非法时返回默认值。
+func parseBool(m map[string]string, key string, def bool) bool {
+	v, ok := m[key]
+	if !ok {
+		return def
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "true", "1", "yes", "on":
+		return true
+	case "false", "0", "no", "off":
+		return false
+	}
+	return def
+}
+
 func parseDatabaseType(tps string) (DatabaseType, error) {
 	switch strings.ToLower(tps) {
 	case "mysql":

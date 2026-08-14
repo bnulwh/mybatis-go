@@ -86,28 +86,14 @@ func (db *DB) close() {
 	}
 }
 
-func (db *DB) prepare(ctx context.Context, query string) (Stmt, error) {
-	//if !dc.connected {
-	//	dc.connect2Database()
-	//}
-	v, _ := db.cacheStore.Load(preparedStmtDBKey)
-	preparedStmt := v.(*PreparedStmtDB)
-	log.Debugf("conn stats: %#v", preparedStmt.Stats())
-	return preparedStmt.prepare(ctx, db.ConnPool, query)
-	//var err error
-	//conn, err := dc.database.Conn(ctx)
-	//if err != nil {
-	//	log.Warnf("create conn failed. %v", err)
-	//	return nil, nil, err
-	//}
-	//stmt, err := conn.PrepareContext(ctx, sqlStr)
-	//return conn, stmt, err
-
-	//err := dc.database.Ping()
-	//if err != nil {
-	//	log.Warnf("ping failed. %v", err)
-	//}
-	//return dc.database.Prepare(sqlStr)
+// formatSQL 按方言转换参数化 SQL 的占位符：
+// PostgreSQL/KingbaseES 需要 ? -> $n（lib/pq 不支持 ?），MySQL/SQLite 原样保留。
+// 仅在存在参数时转换，避免误伤无参数 SQL（如 DDL）中的字面量 '?'。
+func (db *DB) formatSQL(query string, args []interface{}) string {
+	if len(args) == 0 || db.Dialector == nil {
+		return query
+	}
+	return db.Dialector.FormatPrepareSQL(query)
 }
 
 func (db *DB) DB() (*sql.DB, error) {
@@ -147,58 +133,60 @@ func (db *DB) clearCurTx(t *Transaction) {
 
 func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	start := time.Now()
+	query = db.formatSQL(query, args)
 	if t := db.currentTx(); t != nil {
 		defer db.updateExecStatement(start, true)
 		cur := time.Now()
 		defer db.Statement.updateDBExecStatement(cur)
 		return t.tx.ExecContext(ctx, query, args...)
 	}
-	sqldb, err := db.DB()
-	if err != nil {
+	if db.ConnPool == nil {
 		db.updateExecStatement(start, false)
-		return nil, err
+		return nil, ErrInvalidDB
 	}
 	defer db.updateExecStatement(start, true)
 	cur := time.Now()
 	defer db.Statement.updateDBExecStatement(cur)
-	return sqldb.ExecContext(ctx, query, args...)
+	// 直接走 ConnPool：PreparedStmt 模式下为 PreparedStmtDB 包装（预编译缓存），
+	// 普通模式为 *sql.DB。不要用 db.DB() 解包，否则会绕过预编译缓存。
+	return db.ConnPool.ExecContext(ctx, query, args...)
 }
 func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	start := time.Now()
+	query = db.formatSQL(query, args)
 	if t := db.currentTx(); t != nil {
 		defer db.updateQueryStatement(start, true)
 		cur := time.Now()
 		defer db.Statement.updateDBQueryStatement(cur)
 		return t.tx.QueryContext(ctx, query, args...)
 	}
-	sqldb, err := db.DB()
-	if err != nil {
+	if db.ConnPool == nil {
 		db.updateQueryStatement(start, false)
-		return nil, err
+		return nil, ErrInvalidDB
 	}
 	defer db.updateQueryStatement(start, true)
 	cur := time.Now()
 	defer db.Statement.updateDBQueryStatement(cur)
-	return sqldb.QueryContext(ctx, query, args...)
+	return db.ConnPool.QueryContext(ctx, query, args...)
 }
 func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	start := time.Now()
+	query = db.formatSQL(query, args)
 	if t := db.currentTx(); t != nil {
 		defer db.updateQueryStatement(start, true)
 		cur := time.Now()
 		defer db.Statement.updateDBQueryStatement(cur)
 		return t.tx.QueryRowContext(ctx, query, args...)
 	}
-	sqldb, err := db.DB()
-	if err != nil {
+	if db.ConnPool == nil {
 		db.updateQueryStatement(start, false)
-		log.Errorf("get db failed: %v", err)
+		log.Errorf("get db failed: %v", ErrInvalidDB)
 		return nil
 	}
 	defer db.updateQueryStatement(start, true)
 	cur := time.Now()
 	defer db.Statement.updateDBQueryStatement(cur)
-	return sqldb.QueryRowContext(ctx, query, args...)
+	return db.ConnPool.QueryRowContext(ctx, query, args...)
 }
 func (db *DB) Stats() sql.DBStats {
 	tx, err := db.DB()

@@ -238,7 +238,10 @@ URL 类型支持 `jdbc:kingbase8://`、`jdbc:kingbase://` 等（parseDatabaseTyp
 | `spring.datasource.max-idle` | 连接池最大空闲连接数 | 100 |
 | `spring.datasource.max-open` | 连接池最大打开连接数 | 100 |
 | `spring.datasource.max-timeout` | 连接最大存活时长（秒） | 300 |
+| `spring.datasource.prepared-stmt` | 是否启用预编译语句缓存（`false` 关闭，适合 PgBouncer 等不支持服务端预编译的代理场景） | true |
 | `mybatis.mapper-locations` | XML Mapper 文件目录 | - |
+
+> **预编译语句缓存**：默认开启。参数化 SQL（Mapper 的 `#{}` 或 `Execute/Query` 带参调用）会按 SQL 文本缓存预编译语句，避免数据库重复解析与生成执行计划；无参数 SQL（DDL、静态查询）直接执行，不进入缓存。PostgreSQL/KingbaseES 的占位符会自动从 `?` 转为 `$1、$2…`（lib/pq 不支持 `?`）。
 
 支持环境变量覆盖：配置值形如 `${ENV_NAME}` 或 `${ENV_NAME:default}` 时会自动替换。
 
