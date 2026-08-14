@@ -8,7 +8,6 @@
 # Test binary, built with `go test -c`
 *.test
 
-
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 *.html
@@ -18,18 +17,6 @@ vendor/
 .idea/
 logs/
 
-# 编译产物（无扩展名二进制）
-/generator
-/mysqldemo
-/postgresdemo
-/schema2code
-
-# 代码生成测试输出
-/temp/
-/orm/test.xml
-
-# 本机工具配置
-/reasonix.toml
 # 编译产物（无扩展名二进制）
 /generator
 /mysqldemo

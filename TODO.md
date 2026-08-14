@@ -66,7 +66,7 @@
 - [x] **P2-1 ✅ 已修复 ioutil 弃用**：`orm/orm_init.go`、`types/result_map.go`、`types/sql_mapper.go`、`types/table_struct.go`、`types/xml_parse.go` 的 `ioutil.ReadFile/WriteFile` 全部改为 `os.ReadFile/WriteFile`
 - [x] **P2-2 ✅ 已修复 死代码清理**：删除 `orm/base_mapper.go` 的 `convert2Interfaces` 与 `orm/interfaces.go` 的 `Rows` 接口（均无引用）
 - [ ] **P2-3 依赖升级**：`go-sql-driver/mysql v1.6.0` → v1.8.x；`lib/pq v1.10.1` 已进维护模式（评估 `pgx/v5` 迁移）；`beevik/etree v1.1.0` 有更新版；go.mod 已为 `go 1.21`（旧 TODO 中「go 1.14」已过时）
-- [ ] **P2-4 .gitignore 去重**：`/generator /mysqldemo /postgresdemo /schema2code /temp/ /orm/test.xml /reasonix.toml` 块重复出现两次，合并
+- [x] **P2-4 ✅ 已修复 .gitignore 去重**：`/generator /mysqldemo /postgresdemo /schema2code /temp/ /orm/test.xml /reasonix.toml` 重复块已合并
 - [ ] **P2-5 MinDuration 初始化语义**：`SqlFunction.MinDuration` 初始 60000（60 秒），首次调用后自愈，但语义不清晰，建议初始化为 `math.MaxInt64` 或 0 + 首调特殊处理
 
 ---
