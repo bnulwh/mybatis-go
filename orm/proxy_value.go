@@ -69,7 +69,7 @@ func buildProxy(mapperValue reflect.Value, buildFunc func(funcField reflect.Stru
 }
 
 func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp reflect.Type, structField reflect.StructField, proxyFunc func(arg ProxyArg) []reflect.Value) {
-	var tagArgs = parseTagArgs(structField.Tag.Get(`args`))
+	var tagArgs = parseTagArgs(getTagArgNames(structField.Tag))
 	if len(tagArgs) > fieldTyp.NumIn() {
 		panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + structField.Name)
 	}

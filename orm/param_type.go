@@ -35,7 +35,7 @@ func makeParamType(funcName string, funcType reflect.Type, funcTag reflect.Struc
 			ArgsLen:    0,
 		}
 	}
-	tagArgs := parseTagArgs(funcTag.Get(`args`))
+	tagArgs := parseTagArgs(getTagArgNames(funcTag))
 	if len(tagArgs) > funcType.NumIn() {
 		panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + funcName)
 	}

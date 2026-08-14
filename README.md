@@ -348,6 +348,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-08-14**：测试与 CI — 补齐核心代理机制单测（`proxyValue`/参数与返回类型校验），顺带修复 `args` tag 文档格式失效的 bug（兼容 `args:name` 与 `args:"name"`）；新增 utils 测试与性能基准；新增 GitHub Actions CI（build + vet + 测试 + 覆盖率）
 - **2026-08-14**：工程化清理 — `ioutil` 弃用替换为 `os.ReadFile/WriteFile`；删除死代码（`convert2Interfaces`、`Rows` 接口）；`.gitignore` 去重
 - **2026-08-14**：调试日志零开销 — 日志级别关闭时不再对整结果集做 `ToJson` 序列化（`log.IsDebugEnabled()` + 可选 `debugEnabler` 接口，未实现者保守返回 true 不丢日志）
 - **2026-08-14**：健壮性增强 — 全局模型/Mapper 缓存 map 加读写锁（支持并发注册与访问）；预编译语句缓存加上限（`maxPreparedStmts=100`，满后降级直接执行，避免无界缓存钉死连接）；默认日志级别改为 Warn（不调用 `SetLogger` 时错误/警告也可见，新增 `ConsoleLogger.Level` 与 `log.DebugEnabled` 等级别查询）

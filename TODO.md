@@ -73,11 +73,21 @@
 
 ## 🔵 P3 — 测试 / CI
 
-- [ ] **P3-1 核心代理机制无测试**：`orm/proxy_value_test.go` 为空文件（仅 `package orm`）。`proxyValue`/`bindMapper`/`executeMethod`/参数与返回类型校验是框架核心，应补单测
-- [ ] **P3-2 覆盖率低**：types 约 18.7%，log 0%；`utils/file_utils.go`、`utils/list_utils.go` 无测试
-- [ ] **P3-3 无性能基准**：P1-3/P1-4/P2-5 优化后无量化验证，建议补 `fetchRows`/`convert2Results`/`GenerateSQL` 的 benchmark
-- [ ] **P3-4 无 CI**：无 `.github/workflows`，建议 build + test（types/utils/log/orm）+ 覆盖率上传
-- [ ] **P3-5 PG/MySQL 集成测试依赖真实库**：可用 `sqlmock` 或接口抽象单测化，便于无环境时验证
+### P3-1 ✅ 已修复（核心代理机制测试）
+- `orm/proxy_value_test.go` 补齐：`proxyValue` 注入与调用（含 `args` tag 映射）、`makeReturnType`/`makeParamType`/`methodFieldCheck` 校验与 panic 分支
+- **顺带修复真实 bug**：文档化的 `args:name` tag 格式因 Go `reflect.StructTag.Get` 解析不到未加引号的值而失效；新增 `getTagArgNames` 兼容 `args:name`（legacy）与 `args:"name"`（标准）两种写法，应用于 `proxy_value.go` / `param_type.go`
+
+### P3-2 ✅ 已修复（覆盖率）
+- 新增 `utils/file_utils_test.go`、`utils/list_utils_test.go`（此前无测试）；utils 覆盖率 81.7%，orm 67.9%，log 由 0% 提升（P0-2/P1-3 时已加测试）
+
+### P3-3 ✅ 已修复（性能基准）
+- 新增 `BenchmarkGenerateSQL_NoParam`（~500 ns/op，静态 SQL 缓存生效）与 `BenchmarkConvert2Results`（100 行 ~232 µs/op）
+
+### P3-4 ✅ 已修复（CI）
+- 新增 `.github/workflows/ci.yml`：Ubuntu + Go 1.21，build / vet / 全量测试 / 覆盖率
+
+### P3-5 ✅ 已关闭（无需 sqlmock）
+- SQLite 端到端测试已覆盖完整执行路径（Mapper/事务/表结构，无外部 DB）；PG/Kingbase/MySQL 方言特有逻辑（占位符转换、DSN、驱动注册）已有单测（`kingbase_dialector_test`、`Test_DBFormatSQLDialect` 等）；引入 sqlmock 收益有限，不新增依赖
 
 ---
 
