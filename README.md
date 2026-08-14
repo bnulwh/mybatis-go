@@ -19,7 +19,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - [x] SQLite 支持 — 已实现（纯 Go 驱动 modernc.org/sqlite，无需 CGO，`cmd/sqlitedemo` 示例）
 - [x] KingbaseES 支持 — 已实现（人大金仓，兼容 PostgreSQL 线协议，复用 `lib/pq` 驱动，`cmd/kingbasedemo` 示例）
 - [x] 事务支持 — 已实现（`orm.Begin()` / `Commit()` / `Rollback()`）
-- [ ] 多数据源支持
+- [x] 多数据源支持 — 已实现（`orm.InitializeDataSources` / `orm.UseDataSource`）
 
 ## 安装
 
@@ -146,6 +146,43 @@ if err := tx.Commit(); err != nil {
 也可以直接使用 `tx.Exec` / `tx.Query` / `tx.QueryRow` 执行 SQL，或通过 `orm.BeginTx(ctx, opts)` 指定事务选项（如隔离级别）。
 
 > 注意：事务绑定全局连接（单事务槽），多个 goroutine 之间不要交错开启事务。
+
+## 多数据源
+
+支持在单个配置文件中声明多个数据源，并通过 `orm.UseDataSource(name)` 切换活跃数据源（影响后续 Mapper 方法 / `orm.Execute` / `orm.Query` / `Begin`）。
+
+```properties
+# 默认数据源（无名称前缀）
+spring.datasource.url= jdbc:mysql://localhost:3306/db1
+spring.datasource.username= root
+spring.datasource.password= 123456
+
+# 附加数据源：在 mybatis.datasources 中列出名称，配置键带 <name> 前缀
+mybatis.datasources= secondary
+spring.datasource.secondary.url= jdbc:postgresql://localhost:5432/db2
+spring.datasource.secondary.username= root
+spring.datasource.secondary.password= 123456
+```
+
+```go
+orm.InitializeDataSources("application.properties") // 或 orm.InitializeDataSourcesFromSettings(cm)
+
+orm.UseDataSource("secondary") // 切换，后续操作走 db2
+mp.SelectAll()
+
+orm.UseDataSource("default")   // 切回默认
+```
+
+编程方式注册命名数据源：
+
+```go
+orm.AddDataSource("report", "postgres", "10.1.2.3", 5432, "root", "123456", "reportdb")
+orm.UseDataSource("report")
+```
+
+其他 API：`orm.GetDataSource(name)`、`orm.GetDataSourceNames()`、`orm.ReConnectDataSource(name)`。
+
+> 注意：切换发生在全局层，请避免在并发 goroutine 中交错切换数据源；Mapper XML 定义对所有数据源共享。
 
 ## 配置文件
 
@@ -277,6 +314,7 @@ go run ./cmd/kingbasedemo    # KingbaseES
 │   └── demo/            # 通用使用示例
 ├── orm/                 # 核心 ORM 框架
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
+│   ├── multi_datasource.go  # 多数据源注册表（InitializeDataSources / UseDataSource / AddDataSource）
 │   ├── mysql_dialector.go / postgres_dialector.go
 │   ├── sqlite_dialector.go / kingbase_dialector.go   # 数据库方言
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
@@ -297,5 +335,6 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-08-14**：新增多数据源支持（`InitializeDataSources` / `UseDataSource` / `AddDataSource`，配置 `mybatis.datasources` + `spring.datasource.<name>.*`）
 - **2026-08-14**：新增人大金仓 KingbaseES 支持（兼容 PostgreSQL 线协议，自动以 `kingbase` 名称注册 `lib/pq` 驱动，含 `cmd/kingbasedemo` 示例与 `schema2code -type kingbase`）；新增事务支持（`Begin` / `Commit` / `Rollback`，Mapper 方法自动参与事务）；JDBC URL 支持 IPv6；`LoadProperties` 键值解析健壮性改进
 - **2026-08-14**：可靠性修复 — `InitializeDatabase` 不再吞错、`PreparedStmt` 模式下连接健康检查恢复、`ReConnect` 重建预编译缓存、配置占位符非法输入不再 panic

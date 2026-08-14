@@ -24,33 +24,42 @@ func InitializeFromSettings(cm map[string]string) error {
 	db, err2 := Open(cfg)
 	if err2 == nil {
 		gDbConn = db
+		gDataSources.closeAll()
+		gDataSources.reset()
+		gDataSources.add(defaultDataSourceName, db)
 	}
 	return combineErrors(err1, err2)
 }
 
+// ReConnect 重连当前活跃数据源（兼容旧 API）。
 func ReConnect() error {
 	if gDbConn == nil {
 		return fmt.Errorf("connection not init.")
 	}
-	oldSQLDB, _ := gDbConn.DB()
-	if err := gDbConn.Dialector.Initialize(gDbConn); err != nil {
+	return gDbConn.Reconnect()
+}
+
+// Reconnect 重连当前 DB 的连接池（预编译缓存重建、旧连接关闭、Ping 验证）。
+func (db *DB) Reconnect() error {
+	oldSQLDB, _ := db.DB()
+	if err := db.Dialector.Initialize(db); err != nil {
 		return err
 	}
 	// 预编译缓存绑定的是旧连接，重连后必须重置缓存并指向新连接池
-	if v, ok := gDbConn.cacheStore.Load(preparedStmtDBKey); ok {
+	if v, ok := db.cacheStore.Load(preparedStmtDBKey); ok {
 		preparedStmt := v.(*PreparedStmtDB)
 		preparedStmt.Reset()
-		preparedStmt.ConnPool = gDbConn.ConnPool
-		if gDbConn.PreparedStmt {
-			gDbConn.ConnPool = preparedStmt
+		preparedStmt.ConnPool = db.ConnPool
+		if db.PreparedStmt {
+			db.ConnPool = preparedStmt
 		}
 	}
 	// 仅当底层连接确实被替换时才关闭旧连接，避免泄漏
-	if newSQLDB, err := gDbConn.DB(); err == nil && oldSQLDB != nil && oldSQLDB != newSQLDB {
+	if newSQLDB, err := db.DB(); err == nil && oldSQLDB != nil && oldSQLDB != newSQLDB {
 		_ = oldSQLDB.Close()
 	}
 	// 验证新连接可用
-	if pinger, ok := gDbConn.ConnPool.(interface{ Ping() error }); ok {
+	if pinger, ok := db.ConnPool.(interface{ Ping() error }); ok {
 		return pinger.Ping()
 	}
 	return nil
@@ -63,6 +72,9 @@ func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string)
 		return err
 	}
 	gDbConn = db
+	gDataSources.closeAll()
+	gDataSources.reset()
+	gDataSources.add(defaultDataSourceName, db)
 	return nil
 }
 func LoadSettings(filename string) map[string]string {
@@ -131,6 +143,7 @@ func getRealValue(val string, em map[string]string) string {
 }
 
 func Close() {
-	gDbConn.close()
-	//gDone <- "done"
+	gDataSources.closeAll()
+	gDataSources.reset()
+	gDbConn = nil
 }
