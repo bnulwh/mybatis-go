@@ -53,3 +53,37 @@ func Test_parseAddr(t *testing.T) {
 		t.Error("test parseAddr kingbase8 failed.")
 	}
 }
+
+func Test_parseAddr_ipv6(t *testing.T) {
+	mp := map[string]string{"spring.datasource.url": "jdbc:postgresql://[2001:db8::1]:5432/testdb"}
+	tp, host, port, db, err := parseAddr(mp)
+	if tp != "postgresql" || host != "2001:db8::1" || port != 5432 || db != "testdb" || err != nil {
+		t.Errorf("test parseAddr ipv6 failed: type=%v host=%v port=%v db=%v err=%v", tp, host, port, db, err)
+	}
+	mp["spring.datasource.url"] = "jdbc:mysql://[fe80::1]:3306/my.db"
+	tp2, host2, port2, db2, err2 := parseAddr(mp)
+	if tp2 != "mysql" || host2 != "fe80::1" || port2 != 3306 || db2 != "my.db" || err2 != nil {
+		t.Errorf("test parseAddr ipv6 mysql failed: type=%v host=%v port=%v db=%v err=%v", tp2, host2, port2, db2, err2)
+	}
+}
+
+func Test_generateConn_ipv6(t *testing.T) {
+	// MySQL：IPv6 地址必须带方括号
+	want := "root:pwd@tcp([2001:db8::1]:3306)/mydb"
+	if got := newDatabaseConfig("mysql", "2001:db8::1", 3306, "root", "pwd", "mydb").GenerateDSN(); got != want {
+		t.Errorf("mysql ipv6 dsn failed, got: %q want: %q", got, want)
+	}
+	// 已带方括号的 host 不重复加
+	if got := newDatabaseConfig("mysql", "[2001:db8::1]", 3306, "root", "pwd", "mydb").GenerateDSN(); got != want {
+		t.Errorf("mysql bracketed ipv6 dsn failed, got: %q want: %q", got, want)
+	}
+	// PostgreSQL：host= 直传即可，驱动内部 JoinHostPort 处理方括号
+	want3 := "host=2001:db8::1 port=5432 user=root password=pwd dbname=testdb sslmode=disable"
+	if got := newDatabaseConfig("postgres", "2001:db8::1", 5432, "root", "pwd", "testdb").GenerateDSN(); got != want3 {
+		t.Errorf("postgres ipv6 dsn failed, got: %q want: %q", got, want3)
+	}
+	// 域名/IPv4 行为不变
+	if got := newDatabaseConfig("mysql", "a.bc.d.e", 33, "root", "pwd", "mydb").GenerateDSN(); got != "root:pwd@tcp(a.bc.d.e:33)/mydb" {
+		t.Errorf("mysql ipv4 dsn failed, got: %q", got)
+	}
+}

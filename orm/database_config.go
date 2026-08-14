@@ -94,8 +94,8 @@ func (ds *DatabaseSetting) generateConn() string {
 		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 			ds.Host, ds.Port, ds.Username, ds.Password, ds.Name)
 	case MySqlDb:
-		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-			ds.Username, ds.Password, ds.Host, ds.Port, ds.Name)
+		return fmt.Sprintf("%s:%s@tcp(%s)/%s",
+			ds.Username, ds.Password, joinHostPort(ds.Host, ds.Port), ds.Name)
 	case SqliteDb:
 		// Name 为 sqlite 文件路径；_loc=auto 使 DATETIME 列返回 time.Time
 		if strings.Contains(ds.Name, "?") {
@@ -104,6 +104,14 @@ func (ds *DatabaseSetting) generateConn() string {
 		return fmt.Sprintf("%s?_loc=auto", ds.Name)
 	}
 	return ""
+}
+
+// joinHostPort 拼接 host:port；IPv6 地址（含冒号）需加方括号，驱动才能正确解析
+func joinHostPort(host string, port int64) string {
+	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
+		host = "[" + host + "]"
+	}
+	return fmt.Sprintf("%s:%d", host, port)
 }
 
 func (ds *DatabaseSetting) getDriver() string {
@@ -123,7 +131,6 @@ func (ds *DatabaseSetting) getDriver() string {
 func (in *Config) GenerateDSN() string {
 	return in.Setting.generateConn()
 }
-
 func (in *Config) DriverName() string {
 	return in.Setting.getDriver()
 }
@@ -203,13 +210,18 @@ func parseAddr(m map[string]string) (string, string, int64, string, error) {
 		path = strings.TrimPrefix(path, "file:")
 		return "sqlite", "", 0, path, nil
 	}
-	re := regexp.MustCompile(`jdbc:([\w]+)://([\w-\\.]+):([\d]+)/([\w_-]+)`)
+	re := regexp.MustCompile(`jdbc:([\w]+)://(?:\[([^\]]+)\]|([\w.-]+)):(\d+)/([\w._-]+)`)
 	matched := re.FindStringSubmatch(val)
-	if len(matched) < 5 {
+	if len(matched) < 6 {
 		return "", "", 0, "", errors.New("unsupport format of spring.datasource.url")
 	}
-	i, _ := strconv.Atoi(matched[3])
-	return matched[1], matched[2], int64(i), matched[4], nil
+	// matched[2] 为 IPv6（方括号内），matched[3] 为 IPv4/域名
+	host := matched[2]
+	if host == "" {
+		host = matched[3]
+	}
+	i, _ := strconv.Atoi(matched[4])
+	return matched[1], host, int64(i), matched[5], nil
 }
 
 func parseInt(m map[string]string, key string, def int64) int {
