@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/beevik/etree v1.1.0
-	github.com/bnulwh/logrus v1.9.2
+	github.com/bnulwh/logrus v1.9.3
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/lib/pq v1.10.1
 	modernc.org/sqlite v1.34.0
