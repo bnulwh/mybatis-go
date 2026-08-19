@@ -98,6 +98,37 @@
 
 ---
 
+## 📁 samples 目录（RuoYi Mapper）兼容性缺陷
+
+> **来源**：`samples/` 目录（从 `threedb.jar` 提取的 23 个 XML / 166 条 SQL，RuoYi 标准表结构，方言 KingbaseES）
+> **验证方式**：`types.NewSqlMappers("samples")` 真实解析全部文件 + 代表性函数 `GenerateSQL`/`PrepareSQL` 生成 SQL 复现实际影响
+> **整理时间**：2026-08-19
+
+### ✅ 已修复
+
+- **S-01 `<where>` 标签支持（11 处）**：解析器原先只认 `if/include/for/foreach/choose`，`<where>` 整体被丢弃 → WHERE 子句消失、返回全表。新增 `whereSqlFragment`/`sqlWhere`（`types/sql_where.go`），子片段全空时输出空、否则输出 `where` 并剥离首个条件前导 `AND/OR`（大小写不敏感）；`<if>` 内嵌套 `<where>` 亦支持。回归测试 `Test_WhereFragment_*`（7 个用例，`types/sql_where_test.go`）。
+- **S-08 `<include>` 内 `#{}`/`${}` 参数不替换（P1）**：`<sql>` 块原来只取纯文本、嵌套标签被忽略，include 复制后参数替换失效。`SqlElement` 新增 `Fragments []*sqlFragment`，嵌套标签（`<where>/<if>/<foreach>` 等）解析为片段；`sqlInclude` 渲染片段并正确收集占位符参数（随 S-01 一并修复）。
+
+### 🔴 P0 待修复（崩溃 / 错误 SQL）
+
+- **S-02 `<set>` 标签被丢弃（11 处）**：UPDATE 语句缺失 set 子句 → 语法错误（如 `updateConfig`）。实现方式参照 S-01：新增 `setSqlFragment`/`sqlSet`，子片段非空时输出 `set` 并剥离前导/尾随逗号，空时输出空。
+- **S-03 点号参数 `#{a.b}` 正则只匹配 `[\w]+`（48 处）**：`#{params.beginTime}`、`#{item.deptId}`、`#{userId}`（点号）等不替换 → SQL 残留 `#{...}` 字面量报错。`parseSqlFragmentParamFromText` 的参数名正则需扩展为支持 `.`（`[\w.]+`）或按 `.` 分段取值。
+- **S-04 原始替换 `${params.dataScope}`/`${sql}` 不支持（6 处）**：残留字面量，dataScope 数据权限逻辑丢失。需在 `simpleSql` 渲染中支持 `${}` 的 raw 字符串注入（不入占位符参数）。
+- **S-05 `parameterType="Long"` 无映射分支（55 处）**：落入 StructSqlParam 走反射结构体路径 → `collection="array"` 批量删除生成空 `in ()` 子句，SQL 非法。`parseSqlParamTypeFrom` 需补充 `LONG`（及 `Integer`/`String` 等）基础类型 → SliceSqlParam/BaseSqlParam 映射。
+
+### 🟡 P1 待修复（功能缺失）
+
+- **S-06 resultMap 的 `<association>`/`<collection>` 被当普通 `<result>`**：生成模型出现 `Dept string`/`Roles string` 假字段，嵌套映射丢失。应在 `parseResultItemFromXmlNode` 区分 association/collection 并建立真实关联。
+- **S-07 `<if test="deptCheckStrictly">` 裸标识符恒为 true**：无 `null`/`''` 比较的裸标识符无条件可解析，布尔 false 时也不剔除（MyBatis 语义丢失）。`parseIfConditionsFromText` 需支持布尔裸标识符求值。
+
+### 🟢 P2 待修复（健壮性）
+
+- **S-09 `validParam` 对 `nil` 参数反射零值 panic**：`PrepareSQL(nil)`/`GenerateSQL(nil)` 崩溃，需空值防御。
+- **S-10 `filterMapperFiles` 全目录扫描 `.xml`**：`mybatis-config.xml` 被误加载为 Mapper（空 namespace），需排除非 Mapper XML（按 `mybatis-config` 根标签或 namespace 判定）。
+- **S-11 `useGeneratedKeys`/`keyProperty` 属性被忽略**：自增主键不回填，`parseSqlFunctionFromXmlNode` 需解析并暴露这两个属性。
+
+---
+
 ## 验收命令速查
 
 ```bash

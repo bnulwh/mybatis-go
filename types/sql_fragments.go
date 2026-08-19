@@ -136,8 +136,10 @@ func (in *sqlIfTest) prepareSqlWithSlice(m []interface{}, depth int) (string, []
 		case simpleSqlFragment:
 			buf.WriteString(item.Sql.Sql)
 		case includeSqlFragment:
-			buf.WriteString(item.Include.Sql)
-		case forLoopSqlFragment:
+		sqlstr, items := item.Include.prepareSqlWithSlice(m, depth+1)
+		buf.WriteString(sqlstr)
+		results = append(results, items...)
+	case forLoopSqlFragment:
 			sqlstr, items := item.ForLoop.prepareSql(map[string]interface{}{}, m, depth+1)
 			buf.WriteString(sqlstr)
 			results = append(results, items...)
@@ -159,7 +161,7 @@ func (in *sqlIfTest) generateSqlWithSlice(m []interface{}, depth int) string {
 		case simpleSqlFragment:
 			buf.WriteString(item.Sql.Sql)
 		case includeSqlFragment:
-			buf.WriteString(item.Include.Sql)
+			buf.WriteString(item.Include.generateSqlWithSlice(m, depth+1))
 		case forLoopSqlFragment:
 			buf.WriteString(item.ForLoop.generateSql(map[string]interface{}{}, m, depth+1))
 		default:
@@ -343,6 +345,13 @@ func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []xmlElement) (*sq
 
 			case "foreach":
 				stemp, err := parseSqlForLoopFromXmlNode(xn.Attrs, xn.Elements)
+				if err != nil {
+					return nil, err
+				}
+				sts = append(sts, stemp)
+
+			case "where":
+				stemp, err := parseSqlWhereFromXmlNode(xn.Elements, nil)
 				if err != nil {
 					return nil, err
 				}

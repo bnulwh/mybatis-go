@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cncec.project.mdm.mapper.MdmStaffRawMapper">
+
+    <!-- 根据人员编码查询人员原始数据 -->
+    <select id="selectByStaffCode" resultType="MdmStaffRaw">
+        select * from mdm_staff_raw where staff_code = #{staffCode}
+    </select>
+
+    <!-- 根据人员ID查询人员原始数据 -->
+    <select id="selectById" resultType="MdmStaffRaw">
+        select * from mdm_staff_raw where id = #{id}
+    </select>
+
+</mapper>

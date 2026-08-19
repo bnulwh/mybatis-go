@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cncec.project.mdm.mapper.MdmOrgRawMapper">
+
+    <!-- 根据组织编码查询组织原始数据 -->
+    <select id="selectByOrgCode" resultType="MdmOrgRaw">
+        select * from mdm_org_raw where org_code = #{orgCode} and deleted_at is null
+    </select>
+
+</mapper>
