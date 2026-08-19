@@ -39,9 +39,11 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 | 修改框架代码 / 排查调用链 | docs/agents/architecture.md（核心模块 + 核心流程） |
 | 编写代码时的完整规范 | docs/agents/conventions.md |
 | 完整命令表 / 工具编译 / 入口点 | docs/agents/commands.md |
+| MyBatis-Plus 内置 CRUD 的使用 / 生成 | docs/agents/mybatis-plus.md（schema2code -mp / BaseMapper 方法映射 / 逻辑删除 / 批量签名） |
 | samples 兼容性缺陷（S-01~S-11） | TODO.md「📁 samples 目录」段落（修复时务必同步更新） |
 | 自动提交 / hooks 配置 | docs/agents/auto-commit.md |
 
 ## 备注
 
 - `orm/common_test.go` 中 `Test_newInstance` 已修复（`newInstance` 对 `time.Time`/`sql.NullTime` 返回 `*sql.NullTime`，`convertTimeToTime` 统一处理三种时间指针类型）。
+- MyBatis-Plus 内置 CRUD（schema2code `-mp`）：方法 ID 对齐 Java `BaseMapper`，批量方法（含 `<foreach>`）codegen 自动生成切片签名（`DeleteBatchIds func([]int64)`），`SelectCount` 返回 `[]int64`；详见 docs/agents/mybatis-plus.md。

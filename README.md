@@ -8,6 +8,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **反射代理**：Mapper struct 的函数字段在运行时自动注入代理，无需手动实现
 - **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap`（含 `<association>` / `<collection>` 嵌套关联类型生成）
 - **自增主键回填**：`useGeneratedKeys` / `keyProperty` 支持，Insert 后自动回填自增主键到入参 struct 指针
+- **MyBatis-Plus 内置 CRUD**：`schema2code -mp` 从表结构直接生成 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）的 XML，原生加载、无需手写 GoExtraMapper（使用说明见 **docs/agents/mybatis-plus.md**）
 - **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES
 - **代码生成**：内置 `generator`（XML → Go）和 `schema2code`（数据库表 → Go）工具
 - **预编译缓存**：Prepared Statement 自动缓存和复用
@@ -305,6 +306,8 @@ go build -o generator cmd/generator/main.go
 ```bash
 go build -o schema2code cmd/schema2code/main.go
 ./schema2code -type mysql -host localhost -port 3306 -username root -password 123456 -db mydb -output temp
+# MyBatis-Plus 内置 CRUD：加 -mp 生成 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）
+./schema2code -type postgres -host localhost -port 5432 -username root -password 123456 -db mydb -prefix sys_ -tables sys_user -output temp -mp
 ```
 
 参数说明：
@@ -316,6 +319,7 @@ go build -o schema2code cmd/schema2code/main.go
 - `-output` 输出目录
 - `-prefix` 可选，表名前缀
 - `-tables` 可选，指定表名（逗号分隔），为空则生成全部表
+- `-mp` 可选，生成 MyBatis-Plus 内置 CRUD XML（BaseMapper 标准方法名；批量方法自动生成切片签名，如 `DeleteBatchIds func([]int64)`；`SelectCount` 返回 `[]int64`）
 
 ## 运行示例
 
@@ -372,6 +376,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-08-19（v0.1.8）**：MyBatis-Plus 内置 CRUD + codegen 增强 — `schema2code -mp` / `orm.SchemaToCodeMP` / `TableStructure.SaveMPToFile` 从表结构生成 BaseMapper 标准方法名 XML（insert/deleteById/updateById/selectById/selectOne/selectList/selectPage/selectCount/selectBatchIds/deleteBatchIds，逻辑删除自动适配）；codegen 检测 `<foreach>` 自动为批量方法生成切片签名（`deleteConfigByIds` → `func([]int64)`，对所有 Mapper 生效）；`SelectCount` 返回 `[]int64`；`<if>` 数值比较支持（M-02：`!= 0`/`> 0`/`== 0` 及 `x.length > 0`）；`convert2Map` nil 指针字段不再 panic（M-01）；使用说明见 docs/agents/mybatis-plus.md
 - **2026-08-19（v0.1.7）**：MySQL DATETIME 修复 + 自定义 DB/DSN 注入 — MySQL DSN 自动追加 `?parseTime=true&loc=Local`（DATETIME/TIMESTAMP 列可直接扫描为 `time.Time`，不再因驱动返回 `[]byte` 导致时间字段丢失/行失败）；`resolveConverter`/`newInstance` 兼容 `[]uint8` 扫描类型兑底（未开 parseTime 时原始字节转字符串，`change2Time` 可再解析）；`Config` 新增 `ConnPool`/`DSN` 注入（`orm.Open(cfg)` 优先使用注入的连接池与自定义 DSN，各方言 dialector 均支持，预编译缓存包装共存）
 - **2026-08-19（v0.1.6）**：RuoYi Mapper 兼容性修复 — `samples/` 目录 11 项兼容性缺陷（S-01~S-11）全部修复：`<where>` / `<set>` 标签支持、点号参数 `#{a.b}`、原始替换 `${...}`、`parameterType="Long"` 基础类型映射、resultMap `<association>` / `<collection>` 真实关联类型（`*SysDept` / `[]SysRole`）、裸标识符布尔 `<if>` 求值、`<include>` 内参数替换、nil 参数反射零值 panic 防御、排除非 Mapper XML（`mybatis-config.xml`）、`useGeneratedKeys` / `keyProperty` 自增主键回填（SQLite 端到端验证）
 - **2026-08-14**：测试与 CI — 补齐核心代理机制单测（`proxyValue`/参数与返回类型校验），顺带修复 `args` tag 文档格式失效的 bug（兼容 `args:name` 与 `args:"name"`）；新增 utils 测试与性能基准；新增 GitHub Actions CI（build + vet + 测试 + 覆盖率）
