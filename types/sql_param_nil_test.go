@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 const testNilParamMapperXML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -125,5 +126,62 @@ func Test_Convert2Map_InvalidValue(t *testing.T) {
 	mp := convert2Map(reflect.Value{})
 	if mp == nil || len(mp) != 0 {
 		t.Error("convert2Map(zero) should return empty map, got:", mp)
+	}
+}
+
+// Test_Convert2Map_NilPtrField M-01：struct 的 nil 指针字段（如 *time.Time 零值）
+// 不再对零 Value 调 Interface() panic，按 nil 输出（getFormatValue(nil) 渲染 SQL null）。
+func Test_Convert2Map_NilPtrField(t *testing.T) {
+	type withNilPtr struct {
+		Id    int64
+		Name  string
+		When  *time.Time // nil 指针字段
+		When2 *time.Time
+	}
+	when := time.Now()
+	u := withNilPtr{Id: 1, Name: "x", When2: &when}
+	mp := convert2Map(reflect.Indirect(reflect.ValueOf(u)))
+	if mp == nil {
+		t.Error("convert2Map should not return nil")
+		return
+	}
+	if mp["id"] != int64(1) {
+		t.Error("id should be 1, got:", mp["id"])
+	}
+	v, ok := mp["when"]
+	if !ok {
+		t.Error("nil ptr field should keep key in map")
+	} else if v != nil {
+		t.Error("nil ptr field should map to nil, got:", v)
+	}
+	if mp["when2"] == nil {
+		t.Error("non-nil ptr field should be dereferenced to time.Time")
+	}
+	// 类型化 nil 指针同样不 panic
+	var tp *time.Time
+	u2 := withNilPtr{Id: 2, When: tp}
+	mp2 := convert2Map(reflect.Indirect(reflect.ValueOf(u2)))
+	if v2, ok := mp2["when"]; !ok || v2 != nil {
+		t.Error("typed nil ptr should map to nil, got:", v2)
+	}
+}
+
+// Test_Convert2Map_NilPtrMapValue M-01：map 值为 nil 指针（如 map[string]*time.Time）同样不 panic。
+func Test_Convert2Map_NilPtrMapValue(t *testing.T) {
+	when := time.Now()
+	m := map[string]*time.Time{
+		"a": nil,
+		"b": &when,
+	}
+	mp := convert2Map(reflect.ValueOf(m))
+	if mp == nil {
+		t.Error("convert2Map should not return nil")
+		return
+	}
+	if v, ok := mp["a"]; !ok || v != nil {
+		t.Error("nil ptr map value should map to nil, got:", v)
+	}
+	if mp["b"] == nil {
+		t.Error("non-nil ptr map value should be dereferenced")
 	}
 }

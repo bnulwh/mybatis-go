@@ -157,15 +157,36 @@ func convert2Map(val reflect.Value) map[string]interface{} {
 	switch typ.Kind() {
 	case reflect.Map:
 		for _, key := range val.MapKeys() {
-			nmp[buildKey(fmt.Sprintf("%v", reflect.Indirect(key).Interface()))] = reflect.Indirect(val.MapIndex(key)).Interface()
+			nmp[buildKey(fmt.Sprintf("%v", reflect.Indirect(key).Interface()))] = safeIndirectInterface(val.MapIndex(key))
 		}
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
 			fval := val.Field(i)
-			nmp[buildKey(typ.Field(i).Name)] = reflect.Indirect(fval).Interface()
+			// M-01：nil 指针字段（如 *time.Time 零值）解引用后是零 Value，直接调 Interface() 会 panic；
+			// 统一走 safeIndirectInterface，nil 指针/接口输出 nil（getFormatValue(nil) 渲染 SQL null）
+			nmp[buildKey(typ.Field(i).Name)] = safeIndirectInterface(fval)
 		}
 	}
 	return nmp
+}
+
+// safeIndirectInterface 安全解引用取 Interface：
+// nil 指针 / nil 接口 / 解引用后仍为零 Value 时返回 nil，
+// 避免对零 Value 调 Interface() panic（M-01）。
+func safeIndirectInterface(v reflect.Value) interface{} {
+	if !v.IsValid() {
+		return nil
+	}
+	for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return nil
+		}
+		v = v.Elem()
+		if !v.IsValid() {
+			return nil
+		}
+	}
+	return v.Interface()
 }
 func convert2Slice(val reflect.Value) []interface{} {
 	var ns []interface{}

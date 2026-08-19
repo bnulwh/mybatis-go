@@ -149,7 +149,7 @@
 
 ### 🟡 框架待修复（新增 TODO，M 系列）
 
-- **M-01 convert2Map 对 struct nil 指针字段 panic（P8，崩溃）**：`convert2Map`（`types/common.go`）对 struct 字段执行 `reflect.Indirect(fval).Interface()`，nil 指针字段（如 `*time.Time`）对零值调 `Interface()` → panic（已用测试复现：`reflect: call of reflect.Value.Interface on zero Value`）。应在 `convert2Map` 跳过 nil 指针字段（输出 nil 或忽略）。
+- **M-01 ✅ 已修复 convert2Map 对 struct nil 指针字段 panic（P8，崩溃）**：`convert2Map`（`types/common.go`）对 struct 字段执行 `reflect.Indirect(fval).Interface()`，nil 指针字段（如 `*time.Time`）对零值调 `Interface()` → panic（`reflect: call of reflect.Value.Interface on zero Value`）。新增 `safeIndirectInterface` 统一安全解引用（nil 指针/接口输出 nil，`getFormatValue(nil)` 渲染 SQL null；顺带修复 map 值为 nil 指针的同类 panic，以及接口字段持有指针时不再残留 `*T` 导致格式化丢失）。回归测试 `Test_Convert2Map_NilPtrField` / `Test_Convert2Map_NilPtrMapValue`（`types/sql_param_nil_test.go`）。
 - **M-02 `<if>` 数值比较 `!= 0` / `> 0` 不支持（P10，功能缺失）**：`parseIfConditionsFromText` 只识别 `!= null` / `!= ''` / 裸布尔，`userId != 0` 被静默丢弃 → 恒渲染（0 值也生成 `AND u.user_id = 0`）。需扩展条件解析支持数值比较（`!= 0` / `> 0` / `== 0`），或引入轻量表达式求值（当前仅业务层「零值不入 map」规避）。
 - **M-03 PG/金仓 `LastInsertId()` 不支持 → useGeneratedKeys 回填失效（P4，功能缺失）**：`backfillGeneratedKey` 依赖 `sql.Result.LastInsertId()`，lib/pq 返回 error → 回填跳过（MySQL/SQLite 正常）。建议支持 `RETURNING` 子句（由 `keyProperty`/`keyColumn` 自动追加 `... RETURNING col` 并回读）或序列回读兜底。
 - **M-04 自定义 `resultType` 短类名不解析（P12，功能缺失）**：`parseResultTypeFrom`（`types/common.go`）只认 JDBC 基础类型，未知类型返回 `map[string]interface{}` → 注册校验失败（`'map[string]interface{}' != 'SysNotice'`）。应在已注册 model 中按短类名解析。
@@ -161,7 +161,7 @@
 
 - **P1**：JDBC URL 不支持 query 参数（解析正则 `([\w._-]+)` 不含 `?`）→ 需自定义 DSN 时用 `Config.DSN`（v0.1.7 新增）。
 - **P6/P7**：XML 副本由生成器补 `parameterType`（多参数→`java.util.Map`、List/数组→`java.util.List`、反向删除多余）；`List<SysRoleDept>` 等泛型值需规范化为 `java.util.List`（`<`/`>` 未转义会截断标签）。
-- **P8/P10**：model 字段全部值类型（`time.Time`/`int64`，杜绝 `*T`）；查询参数统一 `map[string]interface{}` + `QueryMap()` 排除零值（规避 M-01/M-02）。
+- **P8/P10**：model 字段全部值类型（`time.Time`/`int64`，杜绝 `*T`）；查询参数统一 `map[string]interface{}` + `QueryMap()` 排除零值（规避 M-02；M-01 已修复，`*T` 字段不再 panic，但值类型仍是更稳妥的约定）。
 - **P9**：Java 泛型映射（`Set<X>`/`X[]`/`Map<String,Object>`）由生成器 j2g 处理。
 - **P11**：嵌套 association/collection 的联表列由生成器补平铺映射（S-06 已修 codegen 类型，运行时平铺靠生成器）。
 - **P13**：select 一律 `([]T, error)`（单对象取 `rs[0]`），insert/update/delete 为 `(int64, error)`。
