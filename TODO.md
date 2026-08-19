@@ -1,6 +1,6 @@
 # 项目待办事项
 
-> 整理时间：2026-08-14（基于 `main` 分支 `b18f360` 之后的当前工作区状态）
+> 整理时间：2026-08-19（基于 `main` 分支当前工作区状态，含 v0.1.7）
 > 验证基线：`go build ./...` ✅ · `go vet ./...` ✅ · `go test -count=1 ./orm/... ./types/... ./utils/...` ✅（全绿）
 
 ---
@@ -129,6 +129,47 @@
 ### 🟢 P2 待修复（健壮性）
 
 （无待修复项 — S-01~S-11 已全部完成）
+
+---
+
+## 📄 实战使用问题（源自 docs/mybatis-go使用问题与解决方案.md）
+
+> **来源**：中国化学分包安全监管数据平台 Go 后端改造（RuoYi + MDM 的 24 个 Mapper XML，金仓 KingbaseES，版本 v0.1.7）
+> **文档**：`docs/mybatis-go使用问题与解决方案.md`（P1~P24 全记录）
+> **整理时间**：2026-08-19
+
+### ✅ 框架已解决（含版本）
+
+- **P2 MySQL DATETIME 丢行（v0.1.7）**：DSN 自动追加 `?parseTime=true&loc=Local`，DATETIME/TIMESTAMP 列可直接 Scan 为 `time.Time`；另 `newInstance`/`resolveConverter` 兼容 `[]uint8` 扫描类型兜底。
+- **P3 金仓连接（0.1.x）**：复用 lib/pq 以 `kingbase/kingbase8/...` 名称注册驱动，`jdbc:kingbase8://` 直接可用；无金仓环境可用 Docker PostgreSQL 模拟。
+- **P5 多参数 `args` tag（0.1.x）**：`func(a int64, b string) ...` + `` `args:"a,b"` `` 对应 Java @Param；tag 长度须等于参数个数（P3-1 修复 `args:name` 未加引号解析失效的 bug）。
+- **P15 非 Mapper XML 排除（S-10，v0.1.6）**：`loadMapper` 校验根标签为 `<mapper>` + namespace 非空，`mybatis-config.xml` 不再误加载（递归目录扫描为预期行为）。
+- **P18 foreach 切片参数（S-05，v0.1.6）**：`parameterType="Long"` + `collection="array"` 批量删除走 SliceSqlParam，不再生成空 `in ()`；`collection="list"/"array"` 均可。
+- **P23 ScanType 回退（P1-3）**：驱动首行前 ScanType 为空时回退 `sql.NullString`。
+
+### 🟡 框架待修复（新增 TODO，M 系列）
+
+- **M-01 convert2Map 对 struct nil 指针字段 panic（P8，崩溃）**：`convert2Map`（`types/common.go`）对 struct 字段执行 `reflect.Indirect(fval).Interface()`，nil 指针字段（如 `*time.Time`）对零值调 `Interface()` → panic（已用测试复现：`reflect: call of reflect.Value.Interface on zero Value`）。应在 `convert2Map` 跳过 nil 指针字段（输出 nil 或忽略）。
+- **M-02 `<if>` 数值比较 `!= 0` / `> 0` 不支持（P10，功能缺失）**：`parseIfConditionsFromText` 只识别 `!= null` / `!= ''` / 裸布尔，`userId != 0` 被静默丢弃 → 恒渲染（0 值也生成 `AND u.user_id = 0`）。需扩展条件解析支持数值比较（`!= 0` / `> 0` / `== 0`），或引入轻量表达式求值（当前仅业务层「零值不入 map」规避）。
+- **M-03 PG/金仓 `LastInsertId()` 不支持 → useGeneratedKeys 回填失效（P4，功能缺失）**：`backfillGeneratedKey` 依赖 `sql.Result.LastInsertId()`，lib/pq 返回 error → 回填跳过（MySQL/SQLite 正常）。建议支持 `RETURNING` 子句（由 `keyProperty`/`keyColumn` 自动追加 `... RETURNING col` 并回读）或序列回读兜底。
+- **M-04 自定义 `resultType` 短类名不解析（P12，功能缺失）**：`parseResultTypeFrom`（`types/common.go`）只认 JDBC 基础类型，未知类型返回 `map[string]interface{}` → 注册校验失败（`'map[string]interface{}' != 'SysNotice'`）。应在已注册 model 中按短类名解析。
+- **M-05 scan error 静默丢行（P14，健壮性）**：`convert2Results` 对转换失败的行 `continue` 丢弃，仅 Warn 日志 → 「0 行但 SQL 有数据」难排查。建议聚合错误（返回跳过行数/错误列表，或按列名提示类型不匹配）。
+- **M-06 XML 无 parameterType 但有入参时注册校验失败（P6，健壮性）**：`methodFieldCheck`（`orm/param_type.go`）在 `ArgsLen > 0 && !Param.Need` 时报 `not need func args`；Java @Param 多参数在 XML 不写 parameterType 时无法注册。GenerateSQL 已支持无 parameterType 走参数渲染（S-04），注册期校验应同步放宽（按方法签名推断 Need）。
+- **M-07 分页支持（P22，功能建议）**：无 PageHelper 等价物，`selectList` 类操作无 limit；现仅内存分页。建议提供分页参数约定或 SQL 层分页助手（与 P4-2 大结果集流式读取相关）。
+
+### 📌 业务侧约定（非框架改动，生成器/业务层处理）
+
+- **P1**：JDBC URL 不支持 query 参数（解析正则 `([\w._-]+)` 不含 `?`）→ 需自定义 DSN 时用 `Config.DSN`（v0.1.7 新增）。
+- **P6/P7**：XML 副本由生成器补 `parameterType`（多参数→`java.util.Map`、List/数组→`java.util.List`、反向删除多余）；`List<SysRoleDept>` 等泛型值需规范化为 `java.util.List`（`<`/`>` 未转义会截断标签）。
+- **P8/P10**：model 字段全部值类型（`time.Time`/`int64`，杜绝 `*T`）；查询参数统一 `map[string]interface{}` + `QueryMap()` 排除零值（规避 M-01/M-02）。
+- **P9**：Java 泛型映射（`Set<X>`/`X[]`/`Map<String,Object>`）由生成器 j2g 处理。
+- **P11**：嵌套 association/collection 的联表列由生成器补平铺映射（S-06 已修 codegen 类型，运行时平铺靠生成器）。
+- **P13**：select 一律 `([]T, error)`（单对象取 `rs[0]`），insert/update/delete 为 `(int64, error)`。
+- **P16**：MyBatis-Plus 内置操作（insertUser/selectUserById 等无 XML）由 `GoExtraMapper` 手写补充（namespace 不同，Java 端不加载）。
+- **P17**：所有 RuoYi 数据权限查询入参带 `params:{"dataScope":""}` 默认值（`${...}` 字符串原样替换，注意 SQL 注入面）。
+- **P19**：if 表达式只支持 null/empty/bool 三类（不期望任意 OGNL：三元/方法调用/数值比较均不支持）。
+- **P20/P21**：MySQL 方言函数（反引号/ifnull/find_in_set/status 比较）由生成器改为 PG/金仓通用语法；本地 PG 模拟可补 `find_in_set(int, text)` 重载。
+- **P24**：定位三步——① `orm.Query("SELECT DATABASE()")` 确认连接 → ② `orm.Query` 执行同 SQL 确认 SQL → ③ 看 scan error 日志。
 
 ---
 
