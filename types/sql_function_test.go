@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 )
-
 // P2-5：无参 SQL 生成结果缓存回归测试。
 // 无参 SQL 的拼接结果静态不变，应只生成一次并在后续调用中复用。
 
@@ -122,5 +121,78 @@ func Test_UpdateUsageConcurrent(t *testing.T) {
 	}
 	if fn.MinDuration > 15 {
 		t.Errorf("min should be <= ~10ms, got %d", fn.MinDuration)
+	}
+}
+
+// Test_parseSqlFunctionFromXmlNode_GeneratedKeys useGeneratedKeys/keyProperty 被解析并暴露（S-11）。
+func Test_parseSqlFunctionFromXmlNode_GeneratedKeys(t *testing.T) {
+	node := xmlNode{
+		Id:   "insertJob",
+		Name: "insert",
+		Attrs: map[string]string{
+			"parameterType":    "SysJob",
+			"useGeneratedKeys": "true",
+			"keyProperty":      "jobId",
+			"keyColumn":        "job_id",
+		},
+	}
+	fn := parseSqlFunctionFromXmlNode(node, nil, nil, "SysJobMapper")
+	if fn == nil {
+		t.Error("parseSqlFunctionFromXmlNode returned nil")
+		return
+	}
+	if !fn.UseGeneratedKeys {
+		t.Error("UseGeneratedKeys should be true")
+	}
+	if fn.KeyProperty != "jobId" {
+		t.Error("KeyProperty =", fn.KeyProperty, "want jobId")
+	}
+	if fn.KeyColumn != "job_id" {
+		t.Error("KeyColumn =", fn.KeyColumn, "want job_id")
+	}
+	// 未设置时默认关闭
+	node2 := xmlNode{Id: "insertX", Name: "insert", Attrs: map[string]string{"parameterType": "SysJob"}}
+	fn2 := parseSqlFunctionFromXmlNode(node2, nil, nil, "SysJobMapper")
+	if fn2.UseGeneratedKeys {
+		t.Error("UseGeneratedKeys should default false")
+	}
+	if fn2.KeyProperty != "" || fn2.KeyColumn != "" {
+		t.Error("KeyProperty/KeyColumn should default empty")
+	}
+}
+
+// Test_GeneratedKeys_Samples 使用 samples/（RuoYi Mapper）真实文件回归：
+// 5 个 useGeneratedKeys insert 的 keyProperty 均被解析（S-11）。
+func Test_GeneratedKeys_Samples(t *testing.T) {
+	mps := NewSqlMappers("../samples")
+	if mps == nil || len(mps.Mappers) == 0 {
+		t.Error("load samples failed")
+		return
+	}
+	expect := map[string]string{
+		"insertJob":            "jobId",
+		"insertPost":           "postId",
+		"insertRole":           "roleId",
+		"insertGenTable":       "tableId",
+		"insertGenTableColumn": "columnId",
+	}
+	found := 0
+	for _, m := range mps.Mappers {
+		for id, keyProp := range expect {
+			fn := m.NamedFunctions[id]
+			if fn == nil {
+				continue
+			}
+			found++
+			if !fn.UseGeneratedKeys {
+				t.Error(id, "UseGeneratedKeys should be true")
+			}
+			if fn.KeyProperty != keyProp {
+				t.Error(id, "KeyProperty =", fn.KeyProperty, "want", keyProp)
+			}
+		}
+	}
+	if found != len(expect) {
+		t.Error("expected", len(expect), "generated-keys functions, found", found)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,9 @@ type SqlFunction struct {
 	Param            SqlParam
 	Result           SqlResult
 	Items            []*sqlFragment
+	UseGeneratedKeys bool   // <insert useGeneratedKeys="true">：自增主键回填开关（S-11）
+	KeyProperty      string // 回填目标属性名（如 jobId）
+	KeyColumn        string // 回填目标列名（如 job_id，可选）
 	TotalUsage       int64
 	FailedUsage      int64
 	TotalDuration    int64
@@ -284,6 +288,9 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		Param:            parseSqlParamFromXmlAttrs(node.Attrs),
 		Result:           parseSqlResultFromXmlAttrs(node.Attrs, rms),
 		Items:            parsesqlFragmentsFromXmlElements(node.Elements, sns),
+		UseGeneratedKeys: strings.EqualFold(node.Attrs["useGeneratedKeys"], "true"),
+		KeyProperty:      node.Attrs["keyProperty"],
+		KeyColumn:        node.Attrs["keyColumn"],
 		TotalDuration:    0,
 		TotalUsage:       0,
 		MinDuration:      0,

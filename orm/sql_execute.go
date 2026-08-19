@@ -15,15 +15,24 @@ func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error)
 	return queryRows(sqlStr, args...)
 }
 func execute(sqlStr string, args ...interface{}) (int64, error) {
+	result, err := executeWithResult(sqlStr, args...)
+	if err != nil {
+		return 0, err
+	}
+	rf, _ := result.RowsAffected()
+	return rf, nil
+}
+
+// executeWithResult 返回原始 sql.Result，供 useGeneratedKeys 回填自增主键使用（S-11）。
+func executeWithResult(sqlStr string, args ...interface{}) (sql.Result, error) {
 	log.Debugf("sql: %v", sqlStr)
 	ctx := context.Background()
 	result, err := gDbConn.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		log.Errorf("execute sql %v failed: %v", sqlStr, err)
-		return 0, err
+		return nil, err
 	}
-	rf, _ := result.RowsAffected()
-	return rf, nil
+	return result, nil
 }
 
 func queryRows(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
