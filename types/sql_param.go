@@ -52,6 +52,10 @@ func (in *SqlParam) validParam(args []interface{}) error {
 		}
 		val := reflect.ValueOf(args[0])
 		typ := reflect.Indirect(val).Type()
+		// 切片/数组由运行时按 Slice 路径渲染（如 parameterType="Long" + collection="array" 批量删除）
+		if typ.Kind() == reflect.Slice || typ.Kind() == reflect.Array {
+			return nil
+		}
 		switch typ.String() {
 		case "string",
 			"bool",
@@ -93,6 +97,7 @@ func parseSqlParamTypeFrom(tn string) SqlParamType {
 	case "STRING", "VARCHAR",
 		"BOOLEAN", "BOOL",
 		"INT", "INTEGER", "INT8", "INT16", "INT32", "INT64",
+		"LONG", "BIGINT",
 		"UINT", "UINT8", "UINT16", "UINT32", "UINT64",
 		"FLOAT", "FLOAT32", "FLOAT64", "DOUBLE",
 		"TIME", "TIMESTAMP":

@@ -81,6 +81,34 @@ func (in *SqlFunction) updateGenerate(start time.Time) {
 	atomic.AddInt64(&in.GenerateDuration, time.Since(start).Milliseconds())
 }
 
+// effectiveParamType 结合静态 parameterType 与实际参数类型决定渲染路径：
+// 实际传入切片/数组时走 Slice 路径（如 parameterType="Long" + collection="array" 批量删除），
+// 标量走 Base，map/struct（time.Time 除外）走 Map；无法判定时回退静态类型。
+func (in *SqlFunction) effectiveParamType(args []interface{}) SqlParamType {
+	if len(args) == 0 {
+		return in.Param.Type
+	}
+	v := reflect.ValueOf(args[0])
+	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
+		return SliceSqlParam
+	}
+	val := reflect.Indirect(v)
+	switch val.Kind() {
+	case reflect.Map, reflect.Struct:
+		if val.Type().String() == "time.Time" {
+			return BaseSqlParam
+		}
+		return MapSqlParam
+	case reflect.String,
+		reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return BaseSqlParam
+	}
+	return in.Param.Type
+}
+
 // GenerateSQL
 func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, error) {
 	log.Debugf("========================================")
@@ -93,19 +121,10 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, 
 		log.Warnf("valid param failed: %v", err)
 		return "", []interface{}{}, err
 	}
-	if !in.Param.Need {
-		if len(args) == 0 {
-			return in.generateSqlWithoutParam(), []interface{}{}, nil
-		}
-		// 无 parameterType 但传入参数：按参数渲染（支持 ${sql} 等原始替换）
-		switch reflect.Indirect(reflect.ValueOf(args[0])).Kind() {
-		case reflect.Map, reflect.Struct:
-			nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
-			return in.generateSqlWithMap(nmp), []interface{}{}, nil
-		}
-		return in.generateSqlWithParam(args[0]), []interface{}{}, nil
+	if !in.Param.Need && len(args) == 0 {
+		return in.generateSqlWithoutParam(), []interface{}{}, nil
 	}
-	switch in.Param.Type {
+	switch in.effectiveParamType(args) {
 	case BaseSqlParam:
 		return in.generateSqlWithParam(args[0]), []interface{}{}, nil
 	case SliceSqlParam:
@@ -124,21 +143,10 @@ func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []string, error)
 		log.Warnf("valid param failed: %v", err)
 		return "", nil, err
 	}
-	if !in.Param.Need {
-		if len(args) == 0 {
-			return in.generateSqlWithoutParam(), []string{}, nil
-		}
-		// 无 parameterType 但传入参数：按参数渲染（支持 ${sql} 等原始替换）
-		switch reflect.Indirect(reflect.ValueOf(args[0])).Kind() {
-		case reflect.Map, reflect.Struct:
-			nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
-			sqlstr, results := in.prepareSqlWithMap(nmp)
-			return sqlstr, results, nil
-		}
-		sqlstr, results := in.prepareSqlWithParam(args[0])
-		return sqlstr, results, nil
+	if !in.Param.Need && len(args) == 0 {
+		return in.generateSqlWithoutParam(), []string{}, nil
 	}
-	switch in.Param.Type {
+	switch in.effectiveParamType(args) {
 	case BaseSqlParam:
 		sqlstr, results := in.prepareSqlWithParam(args[0])
 		return sqlstr, results, nil

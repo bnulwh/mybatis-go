@@ -219,7 +219,7 @@ func toGolangType(tn string) string {
 		return "bool"
 	case "INT", "INTEGER", "INT8", "INT16", "INT32":
 		return "int32"
-	case "INT64":
+	case "INT64", "LONG", "BIGINT":
 		return "int64"
 	case "UINT", "UINT8", "UINT16", "UINT32":
 		return "uint32"

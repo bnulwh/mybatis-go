@@ -206,7 +206,7 @@ func Test_WhereFragment_WithForeach(t *testing.T) {
 	if !strings.Contains(sql, "where config_id in") {
 		t.Error("where+foreach not rendered, sql:", sql)
 	}
-	if !strings.Contains(sql, "'1'") {
+	if !strings.Contains(sql, "1, 2, 3") {
 		t.Error("foreach items missing, sql:", sql)
 	}
 	t.Log("selectConfigs sql:", sql)

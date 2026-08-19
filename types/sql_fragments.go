@@ -124,7 +124,8 @@ func (in *sqlForLoop) buildParams(index int, item interface{}, mp map[string]int
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64:
-		nmp[buildKey(in.Item)] = getFormatValue(item)
+		// 保留原始值，由 simpleSql 渲染统一格式化（避免二次格式化加引号）
+		nmp[buildKey(in.Item)] = item
 	}
 	log.Debugf("build param result: %v", nmp)
 	return nmp

@@ -110,11 +110,12 @@
 - **S-02 `<set>` 标签支持（11 处）**：UPDATE 语句缺失 set 子句 → 语法错误（如 `updateConfig`）。新增 `setSqlFragment`/`sqlSet`（`types/sql_set.go`），子片段非空时输出 `set` 并剥离前导/尾随逗号（`<if>` 片段常见尾部 `,`），空时输出空；`<include>` 内嵌套 `<set>` 亦支持。回归测试 `Test_SetFragment_*`（7 个用例，`types/sql_set_test.go`，含 samples `updateConfig` 真实回归）。
 - **S-03 点号参数 `#{a.b}` 支持（48 处）**：`#{params.beginTime}`、`#{item.deptId}` 等不替换 → SQL 残留 `#{...}` 字面量报错。`parseSqlFragmentParamFromText`/`parseIfConditionsFromText` 参数名正则扩展为 `[\w.]+`，并新增 `lookupParam`（`types/sql_fragments.go`）按 `.` 分段遍历嵌套 map/struct（含指针）；`buildParams` 补 `reflect.Map` 分支并保留 `item` 本身；顺带修复 `SliceSqlParam` 参数双重包裹（`sliceArgsFrom`，`types/common.go`，`GenerateSQL`/`PrepareSQL` 取 `args[0]`）使 foreach 切片参数可用。回归测试 `Test_DotParam_*`（7 个用例，`types/sql_param_dot_test.go`，含 samples `selectConfigList`/`updateDeptChildren` 真实回归）。
 - **S-04 原始替换 `${params.dataScope}`/`${sql}` 支持（6 处）**：dataScope 数据权限逻辑丢失、`createTable` 的 `${sql}` 残留字面量。`sqlFragmentParam` 新增 `Raw` 标记（`parseSqlFragmentParamFromText` 按 `${` 前缀识别），`simpleSql` 渲染（`types/sql_fragments.go`）对 `${}` 直接内联注入 `rawFormatValue`（不加引号、不入占位符参数，Prepare 亦不产生 args）；`GenerateSQL`/`PrepareSQL` 在无 `parameterType` 但传入参数时改走参数渲染，使 `createTable` 可用。回归测试 `Test_RawParam_*`（6 个用例，`types/sql_param_raw_test.go`，含 samples `selectDeptList`/`createTable` 真实回归）。
+- **S-05 `parameterType="Long"` 基础类型映射（55 处）**：`Long` 落入 StructSqlParam → 标量查询 `#{configId}` 残留字面量、`collection="array"` 批量删除生成空 `in ()` 子句。`parseSqlParamTypeFrom` 补充 `LONG`/`BIGINT` → BaseSqlParam，`toGolangType` 补充 `LONG`/`BIGINT` → `int64`（codegen 不再生成 `models.Long`）；`GenerateSQL`/`PrepareSQL` 新增 `effectiveParamType`（`types/sql_function.go`）按实际参数类型分派（切片→Slice、标量→Base、map/struct→Map，time.Time 除外），`validParam` 的 BaseSqlParam 容忍切片；顺带修复 `buildParams` 标量分支二次格式化（`types/sql_fragments.go`，foreach 值不再被重复加引号）。回归测试 `Test_LongParam_*` 等（9 个用例，`types/sql_param_long_test.go`，含 samples `deleteConfigByIds`/`deleteConfigById` 真实回归）。
 - **S-08 `<include>` 内 `#{}`/`${}` 参数不替换（P1）**：`<sql>` 块原来只取纯文本、嵌套标签被忽略，include 复制后参数替换失效。`SqlElement` 新增 `Fragments []*sqlFragment`，嵌套标签（`<where>/<if>/<foreach>` 等）解析为片段；`sqlInclude` 渲染片段并正确收集占位符参数（随 S-01 一并修复）。
 
 ### 🔴 P0 待修复（崩溃 / 错误 SQL）
 
-- **S-05 `parameterType="Long"` 无映射分支（55 处）**：落入 StructSqlParam 走反射结构体路径 → `collection="array"` 批量删除生成空 `in ()` 子句，SQL 非法。`parseSqlParamTypeFrom` 需补充 `LONG`（及 `Integer`/`String` 等）基础类型 → SliceSqlParam/BaseSqlParam 映射。
+（S-01~S-05 已全部修复）
 
 ### 🟡 P1 待修复（功能缺失）
 
