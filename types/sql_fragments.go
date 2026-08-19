@@ -14,6 +14,7 @@ type checkConditionType string
 const (
 	nullCheckCond  checkConditionType = "null"
 	emptyCheckCond checkConditionType = "empty"
+	boolCheckCond  checkConditionType = "bool"
 )
 
 type sqlFragmentParam struct {
@@ -247,6 +248,15 @@ func (in *ifCondition) checkValue(m map[string]interface{}) bool {
 	if val == nil {
 		return false
 	}
+	if in.CheckType == boolCheckCond {
+		// 裸标识符：布尔 false / 缺失 / 非布尔一律不满足，true 才通过（S-07）
+		b, ok := val.(bool)
+		if !ok {
+			log.Warnf("bool condition %v got non-bool value %v (%T)", in.CheckName, val, val)
+			return false
+		}
+		return b
+	}
 	return validValue(val)
 }
 func (in *sqlChoose) prepareSqlWithMap(mp map[string]interface{}, depth int) (string, []string) {
@@ -461,6 +471,7 @@ func parseIfConditionsFromText(text string) []ifCondition {
 	reSplit := regexp.MustCompile("[aA][nN][dD]")
 	reNC := regexp.MustCompile(`[\w.]+[\s]*[!][=][\s]*null`)
 	reEC := regexp.MustCompile(`[\w.]+[\s]*[!][=][\s]*[']{2}`)
+	reBool := regexp.MustCompile(`^[\w.]+$`)
 	reName := regexp.MustCompile(`[\w.]+`)
 	var cs []ifCondition
 	for _, item := range reSplit.Split(text, -1) {
@@ -481,6 +492,13 @@ func parseIfConditionsFromText(text string) []ifCondition {
 			cs = append(cs, ifCondition{
 				CheckName: matches[0],
 				CheckType: emptyCheckCond,
+			})
+		} else if reBool.MatchString(item) {
+			// 裸标识符按布尔求值（如 <if test="deptCheckStrictly">），
+			// 避免恒为 true 导致 false 时也不剔除（S-07）。
+			cs = append(cs, ifCondition{
+				CheckName: matches[0],
+				CheckType: boolCheckCond,
 			})
 		}
 	}
