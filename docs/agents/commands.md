@@ -25,7 +25,7 @@
 ## 入口点
 
 - `cmd/generator/main.go` — 从 XML Mapper 文件生成 Go 模型/Mapper 代码
-- `cmd/schema2code/main.go` — 从数据库表结构生成 Go 模型/Mapper 代码
+- `cmd/schema2code/main.go` — 从数据库表结构生成 Go 模型/Mapper 代码（`-mp` 生成 MyBatis-Plus 内置 CRUD：BaseMapper 标准方法名 insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）
 - `cmd/postgresdemo/main.go` — PostgreSQL 使用示例
 - `cmd/mysqldemo/main.go` — MySQL 使用示例
 - `cmd/kingbasedemo/main.go` — 人大金仓 KingbaseES 使用示例

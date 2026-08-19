@@ -18,6 +18,7 @@ func init() {
 func main() {
 	var dbType, host, user, pwd, dbName, dir, prefix, tables string
 	var port int
+	var mp bool
 	flag.StringVar(&dbType, "type", "mysql", "数据库类型: mysql/postgres/kingbase/sqlite")
 	flag.StringVar(&host, "host", "localhost", "数据库地址: localhost")
 	flag.IntVar(&port, "port", 3306, "数据库端口")
@@ -27,6 +28,7 @@ func main() {
 	flag.StringVar(&dir, "output", "temp", "保存路径")
 	flag.StringVar(&prefix, "prefix", "", "表名前缀")
 	flag.StringVar(&tables, "tables", "", "数据库表,分隔符用英文逗号 ','")
+	flag.BoolVar(&mp, "mp", false, "生成 MyBatis-Plus 内置 CRUD XML（BaseMapper 标准方法名）")
 	flag.Parse()
 	if dbName == "" || (dbType != "sqlite" && dbType != "sqlite3" && (user == "" || pwd == "")) {
 		flag.Usage()
@@ -34,5 +36,9 @@ func main() {
 	}
 	orm.InitializeDatabase(dbType, host, port, user, pwd, dbName)
 	defer orm.Close()
+	if mp {
+		orm.SchemaToCodeMP(dir, prefix, tables)
+		return
+	}
 	orm.SchemaToCode(dir, prefix, tables)
 }

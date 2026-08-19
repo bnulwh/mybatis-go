@@ -12,6 +12,19 @@ import (
 const (
 	DefaultResultMapName = "BaseResultMap"
 	DefaultBCLName       = "base_column_list"
+
+	// MyBatis-Plus 内置方法 ID（BaseMapper 标准方法名），与 MP 生成器产出一致：
+	// 生成的 XML 可直接被 mybatis-go 加载，业务层无需手写 GoExtraMapper（TODO P16）。
+	MPInsertID         = "insert"
+	MPDeleteByIDID     = "deleteById"
+	MPUpdateByIDID     = "updateById"
+	MPSelectByIDID     = "selectById"
+	MPSelectOneID      = "selectOne"
+	MPSelectListID     = "selectList"
+	MPSelectPageID     = "selectPage"
+	MPSelectCountID    = "selectCount"
+	MPSelectBatchIDsID = "selectBatchIds"
+	MPDeleteBatchIDsID = "deleteBatchIds"
 )
 
 func NewTableStruct(table string, res []map[string]interface{}) (*TableStructure, error) {
@@ -52,19 +65,34 @@ type TableStructure struct {
 }
 
 func (ts *TableStructure) SaveToFile(filename, prefix string) error {
+	return ts.saveToFile(filename, prefix, false)
+}
+
+// SaveMPToFile 生成 MyBatis-Plus 风格 XML：内置 CRUD 使用 BaseMapper 标准方法名
+// （insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/
+// selectCount/selectBatchIds/deleteBatchIds），可直接被 mybatis-go 加载。
+func (ts *TableStructure) SaveMPToFile(filename, prefix string) error {
+	return ts.saveToFile(filename, prefix, true)
+}
+
+func (ts *TableStructure) saveToFile(filename, prefix string, mp bool) error {
 	doc := etree.NewDocument()
 	ts.writeHeader(doc)
 	mapper := ts.CreateMapper(doc, prefix)
 	ts.writeResultMap(mapper, prefix)
 	ts.writeBaseColumnList(mapper)
-	ts.writeDeleteFunction(mapper)
-	ts.writeInsertFunction(mapper, prefix)
-	ts.writeUpdateFunction(mapper, prefix)
-	ts.writeUpdateTimeFunction(mapper, prefix)
-	ts.writeSetDeletedFunction(mapper, prefix)
-	ts.writeSelectFunction(mapper)
-	ts.writeSelectAllFunction(mapper)
-	ts.writeCountFunction(mapper)
+	if mp {
+		ts.writeMPFunctions(mapper, prefix)
+	} else {
+		ts.writeDeleteFunction(mapper)
+		ts.writeInsertFunction(mapper, prefix)
+		ts.writeUpdateFunction(mapper, prefix)
+		ts.writeUpdateTimeFunction(mapper, prefix)
+		ts.writeSetDeletedFunction(mapper, prefix)
+		ts.writeSelectFunction(mapper)
+		ts.writeSelectAllFunction(mapper)
+		ts.writeCountFunction(mapper)
+	}
 	doc.IndentTabs()
 	bts, err := doc.WriteToBytes()
 	if err != nil {
@@ -72,6 +100,21 @@ func (ts *TableStructure) SaveToFile(filename, prefix string) error {
 	}
 	//fmt.Println(string(bts))
 	return os.WriteFile(filename, bts, 0640)
+}
+
+// hasColumn 判断表结构是否包含指定列（大小写不敏感）。
+func (ts *TableStructure) hasColumn(name string) bool {
+	if ts.ColumnMap != nil {
+		if _, ok := ts.ColumnMap[name]; ok {
+			return true
+		}
+	}
+	for _, c := range ts.Columns {
+		if strings.EqualFold(c.Name, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (ts *TableStructure) writeHeader(doc *etree.Document) {
@@ -282,4 +325,130 @@ func (ts *TableStructure) writeUpdateTimeFunction(mapper *etree.Element, prefix 
 	up.CreateAttr("id", "updateUpTime")
 	up.CreateAttr("parameterType", ts.getPrimaryJdbcType())
 	up.CreateText(ts.generateUpdateTimeSQL())
+}
+
+// writeMPFunctions 写入 MyBatis-Plus BaseMapper 内置 CRUD 语句
+// （insert/deleteById/updateById/selectById/selectOne/selectList/selectPage/
+// selectCount/selectBatchIds/deleteBatchIds）。
+func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string) {
+	if ts.PrimaryColumn == nil {
+		log.Warnf("skip mybatis-plus functions for table %s: no primary key", ts.Table)
+		return
+	}
+	// insert：与 BaseMapper.insert 一致
+	in := mapper.CreateElement("insert")
+	in.CreateAttr("id", MPInsertID)
+	in.CreateAttr("parameterType", ts.getModelName(prefix))
+	in.CreateText(ts.generateInsertSQL())
+
+	// deleteById：有逻辑删除列则 update 标记删除，否则物理删除
+	de := mapper.CreateElement("delete")
+	de.CreateAttr("id", MPDeleteByIDID)
+	de.CreateAttr("parameterType", ts.getPrimaryJdbcType())
+	de.CreateText(ts.generateMPDeleteByIDSQL())
+
+	// updateById
+	up := mapper.CreateElement("update")
+	up.CreateAttr("id", MPUpdateByIDID)
+	up.CreateAttr("parameterType", ts.getModelName(prefix))
+	up.CreateText(ts.generateUpdateSQL())
+
+	// selectById
+	sf := ts.createMPSelectElement(mapper, MPSelectByIDID, ts.getPrimaryJdbcType())
+	sf.CreateText(ts.whereByPrimarySQL())
+
+	// selectOne / selectList / selectPage：均查全表（分页由 MP 端 IPage 追加 limit）
+	for _, id := range []string{MPSelectOneID, MPSelectListID, MPSelectPageID} {
+		sf := ts.createMPSelectElement(mapper, id, "")
+		sf.CreateText(ts.listTailSQL())
+	}
+
+	// selectCount
+	cf := mapper.CreateElement("select")
+	cf.CreateAttr("id", MPSelectCountID)
+	cf.CreateAttr("resultType", "int")
+	cf.CreateText(ts.countTailSQL())
+
+	// selectBatchIds：select ... where id in (foreach)
+	sb := ts.createMPSelectElement(mapper, MPSelectBatchIDsID, ts.getPrimaryJdbcType())
+	sb.CreateText(fmt.Sprintf("\n\t\tfrom %s where %s in ", ts.Table, ts.PrimaryColumn.Name))
+	ts.writeMPInForeach(sb, "id")
+	if ts.hasColumn("deleted") {
+		sb.CreateText(" and deleted = false")
+	}
+	sb.CreateText("\n\t")
+
+	// deleteBatchIds：逻辑删除优先
+	db := mapper.CreateElement("delete")
+	db.CreateAttr("id", MPDeleteBatchIDsID)
+	db.CreateAttr("parameterType", ts.getPrimaryJdbcType())
+	if ts.hasColumn("deleted") {
+		db.CreateText(fmt.Sprintf("\n\t\tupdate %s set deleted=true,delete_time=now() where %s in ", ts.Table, ts.PrimaryColumn.Name))
+	} else {
+		db.CreateText(fmt.Sprintf("\n\t\tdelete from %s where %s in ", ts.Table, ts.PrimaryColumn.Name))
+	}
+	ts.writeMPInForeach(db, "id")
+	db.CreateText("\n\t")
+}
+
+// createMPSelectElement 创建 select 元素：select <include refid="base_column_list"/>
+func (ts *TableStructure) createMPSelectElement(mapper *etree.Element, id, parameterType string) *etree.Element {
+	sf := mapper.CreateElement("select")
+	sf.CreateAttr("id", id)
+	if len(parameterType) > 0 {
+		sf.CreateAttr("parameterType", parameterType)
+	}
+	sf.CreateAttr("resultMap", DefaultResultMapName)
+	sf.CreateText("\n\t\tselect ")
+	si := sf.CreateElement("include")
+	si.CreateAttr("refid", DefaultBCLName)
+	return sf
+}
+
+// writeMPInForeach 追加 in (foreach item) 片段
+func (ts *TableStructure) writeMPInForeach(parent *etree.Element, item string) *etree.Element {
+	fe := parent.CreateElement("foreach")
+	fe.CreateAttr("item", item)
+	fe.CreateAttr("collection", "collection")
+	fe.CreateAttr("open", "(")
+	fe.CreateAttr("separator", ",")
+	fe.CreateAttr("close", ")")
+	fe.CreateText("#{" + item + "}")
+	return fe
+}
+
+// whereByPrimarySQL 按主键过滤的 from 片段（含逻辑删除过滤）
+func (ts *TableStructure) whereByPrimarySQL() string {
+	sql := fmt.Sprintf("\n\t\tfrom %s where %s=#{%s,jdbcType=%s}",
+		ts.Table, ts.PrimaryColumn.Name, ts.PrimaryColumn.getPropertyName(), ts.PrimaryColumn.getJdbcType())
+	if ts.hasColumn("deleted") {
+		sql += " and deleted = false"
+	}
+	return sql + "\n\t"
+}
+
+// listTailSQL 全表查询的 from 片段（含逻辑删除过滤）
+func (ts *TableStructure) listTailSQL() string {
+	if ts.hasColumn("deleted") {
+		return fmt.Sprintf("\n\t\tfrom %s where deleted = false\n\t", ts.Table)
+	}
+	return fmt.Sprintf("\n\t\tfrom %s\n\t", ts.Table)
+}
+
+// countTailSQL count(*) 语句（含逻辑删除过滤）
+func (ts *TableStructure) countTailSQL() string {
+	if ts.hasColumn("deleted") {
+		return fmt.Sprintf("\n\t\tselect count(*) \n\t\tfrom %s where deleted = false\n\t", ts.Table)
+	}
+	return fmt.Sprintf("\n\t\tselect count(*) \n\t\tfrom %s\n\t", ts.Table)
+}
+
+// generateMPDeleteByIDSQL deleteById：有逻辑删除列则 update 标记删除，否则物理删除
+func (ts *TableStructure) generateMPDeleteByIDSQL() string {
+	if ts.hasColumn("deleted") {
+		return fmt.Sprintf("\n\t\tupdate %s \n\t\tset deleted=true,delete_time=now() \n\t\t where %s=#{%s,jdbcType=%s}\n\t",
+			ts.Table, ts.PrimaryColumn.Name, ts.PrimaryColumn.getPropertyName(), ts.PrimaryColumn.getJdbcType())
+	}
+	return fmt.Sprintf("\n\t\tdelete from %s where %s=#{%s,jdbcType=%s}\n\t",
+		ts.Table, ts.PrimaryColumn.Name, ts.PrimaryColumn.getPropertyName(), ts.PrimaryColumn.getJdbcType())
 }

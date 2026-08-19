@@ -260,7 +260,7 @@ type SysUserMapper struct {
 #### P16. `MyBatis-Plus 内置操作`（insert/update 主键/关联）没有 XML
 
 - **现象**：Java 的 `SysUserServiceImpl` 继承 MyBatis-Plus `ServiceImpl`，`insertUser/updateUser/selectUserById` 走 MP 内置（无 XML）；RuoYi 关联查询 `selectUserRoleGroup` 等也不在 XML。
-- **解决**：Go 端补充 `GoExtraMapper`（`mybatis/mappers/extra/GoExtraMapper.xml` + `mybatis/extra_mapper.go`），手写这些 SQL（insertUser/updateUser/selectUserById/selectUserRoleGroup/selectUserPostGroup/selectRolesByUserName）。Java 端不加载此文件（namespace 不同），互不影响。
+- **解决**：框架已支持 MP 内置 XML 生成（`schema2code -mp` / `TableStructure.SaveMPToFile`）：从表结构直接产出 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）的 XML，mybatis-go 原生加载，生成的 Go Mapper 直接可用（无需手写）。仅当 Java 端存在无 XML 的自定义方法（如 `selectUserRoleGroup`）时，才补充 `GoExtraMapper`（`mybatis/mappers/extra/GoExtraMapper.xml` + `mybatis/extra_mapper.go`），Java 端不加载此文件（namespace 不同），互不影响。
 
 ---
 

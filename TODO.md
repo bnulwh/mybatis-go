@@ -165,7 +165,7 @@
 - **P9**：Java 泛型映射（`Set<X>`/`X[]`/`Map<String,Object>`）由生成器 j2g 处理。
 - **P11**：嵌套 association/collection 的联表列由生成器补平铺映射（S-06 已修 codegen 类型，运行时平铺靠生成器）。
 - **P13**：select 一律 `([]T, error)`（单对象取 `rs[0]`），insert/update/delete 为 `(int64, error)`。
-- **P16**：MyBatis-Plus 内置操作（insertUser/selectUserById 等无 XML）由 `GoExtraMapper` 手写补充（namespace 不同，Java 端不加载）。
+- **P16**：MyBatis-Plus 内置操作（insertUser/selectUserById 等无 XML）由 `GoExtraMapper` 手写补充（namespace 不同，Java 端不加载）。**框架已支持 MP 内置 XML 生成**：`schema2code -mp` / `TableStructure.SaveMPToFile` 直接产出 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）的 XML，mybatis-go 可原生加载，仅当 Java 端存在无 XML 的自定义方法时才需手写 GoExtraMapper。
 - **P17**：所有 RuoYi 数据权限查询入参带 `params:{"dataScope":""}` 默认值（`${...}` 字符串原样替换，注意 SQL 注入面）。
 - **P19**：if 表达式支持 null/empty/bool/数值比较四类（M-02 已加 `!= 0`/`> 0`/`== 0` 及 `x.length > 0` 集合长度；不期望任意 OGNL：三元/方法调用/字符串比较均不支持）。
 - **P20/P21**：MySQL 方言函数（反引号/ifnull/find_in_set/status 比较）由生成器改为 PG/金仓通用语法；本地 PG 模拟可补 `find_in_set(int, text)` 重载。

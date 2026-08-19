@@ -15,6 +15,15 @@ type DatabaseStructure struct {
 }
 
 func (ds *DatabaseStructure) SaveToDir(dir, prefix, tables string) error {
+	return ds.saveToDir(dir, prefix, tables, false)
+}
+
+// SaveToDirMP 生成 MyBatis-Plus 风格内置 CRUD XML（BaseMapper 标准方法名）。
+func (ds *DatabaseStructure) SaveToDirMP(dir, prefix, tables string) error {
+	return ds.saveToDir(dir, prefix, tables, true)
+}
+
+func (ds *DatabaseStructure) saveToDir(dir, prefix, tables string, mp bool) error {
 	err := utils.MakeDirAll(dir)
 	if err != nil {
 		log.Errorf("check dir %s failed.%v", dir, err)
@@ -33,7 +42,11 @@ func (ds *DatabaseStructure) SaveToDir(dir, prefix, tables string) error {
 			continue
 		}
 		filename := filepath.Join(dir, fmt.Sprintf("%s.xml", ts.getMapperName(prefix)))
-		err = ts.SaveToFile(filename, prefix)
+		if mp {
+			err = ts.SaveMPToFile(filename, prefix)
+		} else {
+			err = ts.SaveToFile(filename, prefix)
+		}
 		if err != nil {
 			log.Warnf("save table %s failed. %v", name, err)
 		}
