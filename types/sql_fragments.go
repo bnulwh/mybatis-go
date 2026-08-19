@@ -6,15 +6,17 @@ import (
 	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 type checkConditionType string
 
 const (
-	nullCheckCond  checkConditionType = "null"
-	emptyCheckCond checkConditionType = "empty"
-	boolCheckCond  checkConditionType = "bool"
+	nullCheckCond     checkConditionType = "null"
+	emptyCheckCond    checkConditionType = "empty"
+	boolCheckCond     checkConditionType = "bool"
+	compareCheckCond  checkConditionType = "compare"
 )
 
 type sqlFragmentParam struct {
@@ -33,6 +35,8 @@ type simpleSql struct {
 type ifCondition struct {
 	CheckName string
 	CheckType checkConditionType
+	Operator  string // compareCheckCond：== / != / > / >= / < / <=
+	Literal   string // compareCheckCond：数值字面量（如 0、18、-1）
 }
 
 type sqlIfTest struct {
@@ -246,6 +250,22 @@ func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 }
 func (in *ifCondition) checkValue(m map[string]interface{}) bool {
 	log.Debugf("if condition %v check value: %v", in.CheckName, m)
+	// M-02：集合长度比较（businessTypes.length > 0）——切片没有 length 键，
+	// 普通 lookupParam 对完整点号名必然失败，必须先按 .length 后缀取基础值求长度
+	if in.CheckType == compareCheckCond && strings.HasSuffix(in.CheckName, ".length") {
+		base, ok := lookupParam(m, strings.TrimSuffix(in.CheckName, ".length"))
+		if !ok || base == nil {
+			return false
+		}
+		v := reflect.ValueOf(base)
+		switch v.Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
+			return compareNumeric(float64(v.Len()), in.Operator, in.Literal)
+		default:
+			log.Warnf("compare condition %v base is not a collection/string: %T", in.CheckName, base)
+			return false
+		}
+	}
 	val, ok := lookupParam(m, in.CheckName)
 	if !ok {
 		return false
@@ -262,7 +282,61 @@ func (in *ifCondition) checkValue(m map[string]interface{}) bool {
 		}
 		return b
 	}
+	if in.CheckType == compareCheckCond {
+		// 数值比较（M-02）：!= 0 / > 0 / == 0 等，缺失/nil 一律不满足
+		n, ok := numericValue(val)
+		if !ok {
+			log.Warnf("compare condition %v got non-numeric value %v (%T)", in.CheckName, val, val)
+			return false
+		}
+		return compareNumeric(n, in.Operator, in.Literal)
+	}
 	return validValue(val)
+}
+
+// compareNumeric 数值比较求值（M-02）：f 与字面量按 op 比较。
+func compareNumeric(f float64, op, literal string) bool {
+	lit, err := strconv.ParseFloat(literal, 64)
+	if err != nil {
+		log.Warnf("compare condition bad literal %q: %v", literal, err)
+		return false
+	}
+	switch op {
+	case "==":
+		return f == lit
+	case "!=":
+		return f != lit
+	case ">":
+		return f > lit
+	case ">=":
+		return f >= lit
+	case "<":
+		return f < lit
+	case "<=":
+		return f <= lit
+	}
+	log.Warnf("unsupported compare operator %q", op)
+	return false
+}
+
+// numericValue 将数值（含字符串数字，如 "5"）统一转为 float64。
+func numericValue(val interface{}) (float64, bool) {
+	v := reflect.ValueOf(val)
+	switch v.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return float64(v.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return float64(v.Uint()), true
+	case reflect.Float32, reflect.Float64:
+		return v.Float(), true
+	case reflect.String:
+		f, err := strconv.ParseFloat(strings.TrimSpace(v.String()), 64)
+		if err != nil {
+			return 0, false
+		}
+		return f, true
+	}
+	return 0, false
 }
 func (in *sqlChoose) prepareSqlWithMap(mp map[string]interface{}, depth int) (string, []string) {
 	log.Debugf("sql choose prepare sql with map: %v", mp)
@@ -478,6 +552,9 @@ func parseIfConditionsFromText(text string) []ifCondition {
 	reEC := regexp.MustCompile(`[\w.]+[\s]*[!][=][\s]*[']{2}`)
 	reBool := regexp.MustCompile(`^[\w.]+$`)
 	reName := regexp.MustCompile(`[\w.]+`)
+	// M-02：数值比较（userId != 0 / age > 18 / count >= 1 / x == 0 / y <= -1），
+	// 也覆盖 OGNL 集合长度（businessTypes.length > 0，字面量为数值即可）
+	reCmp := regexp.MustCompile(`([\w.]+)[\s]*(==|!=|>=|<=|>|<)[\s]*([-+]?\d+(?:\.\d+)?)`)
 	var cs []ifCondition
 	for _, item := range reSplit.Split(text, -1) {
 		item = strings.TrimSpace(item)
@@ -497,6 +574,14 @@ func parseIfConditionsFromText(text string) []ifCondition {
 			cs = append(cs, ifCondition{
 				CheckName: matches[0],
 				CheckType: emptyCheckCond,
+			})
+		} else if cm := reCmp.FindStringSubmatch(item); cm != nil {
+			// 数值比较（M-02）：不再静默丢弃，userId != 0 按真实数值求值
+			cs = append(cs, ifCondition{
+				CheckName: cm[1],
+				CheckType: compareCheckCond,
+				Operator:  cm[2],
+				Literal:   cm[3],
 			})
 		} else if reBool.MatchString(item) {
 			// 裸标识符按布尔求值（如 <if test="deptCheckStrictly">），

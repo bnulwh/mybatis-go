@@ -150,7 +150,7 @@
 ### 🟡 框架待修复（新增 TODO，M 系列）
 
 - **M-01 ✅ 已修复 convert2Map 对 struct nil 指针字段 panic（P8，崩溃）**：`convert2Map`（`types/common.go`）对 struct 字段执行 `reflect.Indirect(fval).Interface()`，nil 指针字段（如 `*time.Time`）对零值调 `Interface()` → panic（`reflect: call of reflect.Value.Interface on zero Value`）。新增 `safeIndirectInterface` 统一安全解引用（nil 指针/接口输出 nil，`getFormatValue(nil)` 渲染 SQL null；顺带修复 map 值为 nil 指针的同类 panic，以及接口字段持有指针时不再残留 `*T` 导致格式化丢失）。回归测试 `Test_Convert2Map_NilPtrField` / `Test_Convert2Map_NilPtrMapValue`（`types/sql_param_nil_test.go`）。
-- **M-02 `<if>` 数值比较 `!= 0` / `> 0` 不支持（P10，功能缺失）**：`parseIfConditionsFromText` 只识别 `!= null` / `!= ''` / 裸布尔，`userId != 0` 被静默丢弃 → 恒渲染（0 值也生成 `AND u.user_id = 0`）。需扩展条件解析支持数值比较（`!= 0` / `> 0` / `== 0`），或引入轻量表达式求值（当前仅业务层「零值不入 map」规避）。
+- **M-02 ✅ 已修复 `<if>` 数值比较 `!= 0` / `> 0` 不支持（P10，功能缺失）**：`parseIfConditionsFromText` 只识别 `!= null` / `!= ''` / 裸布尔，`userId != 0` 被静默丢弃 → 恒渲染（0 值也生成 `AND u.user_id = 0`）。新增 `compareCheckCond` 条件类型（`types/sql_fragments.go`）：解析 `==`/`!=`/`>`/`>=`/`<`/`<=` + 数值字面量（含负数/小数、点号参数 `params.userId != 0`）；`checkValue` 按真实数值求值（缺失/nil/非数值一律不满足，字符串数字如 `"5"` 亦可）；顺带支持 OGNL 集合长度 `businessTypes.length > 0`（切片/数组/map/字符串按 len 比较）。回归测试 `Test_parseIfConditionsFromText_Compare` / `Test_IfCondition_CheckCompare` / `Test_IfCompare_Samples`（`types/sql_fragments_test.go`，samples `selectUserList` 真实回归：`userId != null and userId != 0` 在 userId=0 时剔除 `AND u.user_id` 子句、userId=5 保留）。
 - **M-03 PG/金仓 `LastInsertId()` 不支持 → useGeneratedKeys 回填失效（P4，功能缺失）**：`backfillGeneratedKey` 依赖 `sql.Result.LastInsertId()`，lib/pq 返回 error → 回填跳过（MySQL/SQLite 正常）。建议支持 `RETURNING` 子句（由 `keyProperty`/`keyColumn` 自动追加 `... RETURNING col` 并回读）或序列回读兜底。
 - **M-04 自定义 `resultType` 短类名不解析（P12，功能缺失）**：`parseResultTypeFrom`（`types/common.go`）只认 JDBC 基础类型，未知类型返回 `map[string]interface{}` → 注册校验失败（`'map[string]interface{}' != 'SysNotice'`）。应在已注册 model 中按短类名解析。
 - **M-05 scan error 静默丢行（P14，健壮性）**：`convert2Results` 对转换失败的行 `continue` 丢弃，仅 Warn 日志 → 「0 行但 SQL 有数据」难排查。建议聚合错误（返回跳过行数/错误列表，或按列名提示类型不匹配）。
@@ -167,7 +167,7 @@
 - **P13**：select 一律 `([]T, error)`（单对象取 `rs[0]`），insert/update/delete 为 `(int64, error)`。
 - **P16**：MyBatis-Plus 内置操作（insertUser/selectUserById 等无 XML）由 `GoExtraMapper` 手写补充（namespace 不同，Java 端不加载）。
 - **P17**：所有 RuoYi 数据权限查询入参带 `params:{"dataScope":""}` 默认值（`${...}` 字符串原样替换，注意 SQL 注入面）。
-- **P19**：if 表达式只支持 null/empty/bool 三类（不期望任意 OGNL：三元/方法调用/数值比较均不支持）。
+- **P19**：if 表达式支持 null/empty/bool/数值比较四类（M-02 已加 `!= 0`/`> 0`/`== 0` 及 `x.length > 0` 集合长度；不期望任意 OGNL：三元/方法调用/字符串比较均不支持）。
 - **P20/P21**：MySQL 方言函数（反引号/ifnull/find_in_set/status 比较）由生成器改为 PG/金仓通用语法；本地 PG 模拟可补 `find_in_set(int, text)` 重载。
 - **P24**：定位三步——① `orm.Query("SELECT DATABASE()")` 确认连接 → ② `orm.Query` 执行同 SQL 确认 SQL → ③ 看 scan error 日志。
 
