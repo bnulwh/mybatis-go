@@ -1,6 +1,7 @@
 package types
 
 import (
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -194,5 +195,113 @@ func Test_GeneratedKeys_Samples(t *testing.T) {
 	}
 	if found != len(expect) {
 		t.Error("expected", len(expect), "generated-keys functions, found", found)
+	}
+}
+
+// Test_ContainsForEach 递归检测片段树中的 <foreach>（含 if/include/where 嵌套）。
+func Test_ContainsForEach(t *testing.T) {
+	if containsForEach(nil) {
+		t.Error("nil items should not contain foreach")
+	}
+	if containsForEach([]*sqlFragment{{Type: simpleSqlFragment}}) {
+		t.Error("plain sql should not contain foreach")
+	}
+	// 直接 foreach
+	if !containsForEach([]*sqlFragment{{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}}}) {
+		t.Error("direct foreach not detected")
+	}
+	// if 嵌套 foreach
+	if !containsForEach([]*sqlFragment{{
+		Type:   ifTestSqlFragment,
+		IfTest: &sqlIfTest{Sql: []*sqlFragment{{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}}}},
+	}}) {
+		t.Error("foreach inside if not detected")
+	}
+	// include 嵌套 foreach
+	if !containsForEach([]*sqlFragment{{
+		Type:    includeSqlFragment,
+		Include: &sqlInclude{Fragments: []*sqlFragment{{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}}}},
+	}}) {
+		t.Error("foreach inside include not detected")
+	}
+	// where 嵌套 foreach
+	if !containsForEach([]*sqlFragment{{
+		Type:  whereSqlFragment,
+		Where: &sqlWhere{Sql: []*sqlFragment{{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}}}},
+	}}) {
+		t.Error("foreach inside where not detected")
+	}
+	// 无 foreach
+	if containsForEach([]*sqlFragment{{
+		Type:   ifTestSqlFragment,
+		IfTest: &sqlIfTest{Sql: []*sqlFragment{{Type: simpleSqlFragment, Sql: &simpleSql{Sql: "x"}}}},
+	}}) {
+		t.Error("nested plain sql should not contain foreach")
+	}
+}
+
+// Test_GenerateDefine_ForEachSlice 标量参数 + <foreach> 的批量方法生成切片签名（[]int64）。
+func Test_GenerateDefine_ForEachSlice(t *testing.T) {
+	mk := func(id string, withForEach bool) *SqlFunction {
+		items := []*sqlFragment{{Type: simpleSqlFragment, Sql: &simpleSql{Sql: "delete from t where id in "}}}
+		if withForEach {
+			items = append(items, &sqlFragment{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}})
+		}
+		return &SqlFunction{
+			Id:    id,
+			Type:  DeleteFunction,
+			Param: SqlParam{Name: "Long", TypeName: "Long", Type: BaseSqlParam, Need: true},
+			Items: items,
+		}
+	}
+	// 批量方法：含 foreach → []int64
+	def := mk("deleteByIds", true).generateDefine()
+	if !strings.Contains(def, "DeleteByIds \tfunc ([]int64) (int64,error)") {
+		t.Error("foreach batch function should generate []int64 signature, got:", def)
+	}
+	// 标量方法：无 foreach → int64
+	def = mk("deleteById", false).generateDefine()
+	if !strings.Contains(def, "DeleteById \tfunc (int64) (int64,error)") {
+		t.Error("scalar function should keep int64 signature, got:", def)
+	}
+	// map 参数 + foreach：不包切片（保持 map 签名）
+	items := []*sqlFragment{{
+		Type:    forLoopSqlFragment,
+		ForLoop: &sqlForLoop{},
+	}}
+	fn := &SqlFunction{
+		Id:    "deleteByMap",
+		Type:  DeleteFunction,
+		Param: SqlParam{Name: "Map", TypeName: "java.util.Map", Type: MapSqlParam, Need: true},
+		Items: items,
+	}
+	def = fn.generateDefine()
+	if !strings.Contains(def, "DeleteByMap \tfunc (map[string]interface{}) (int64,error)") {
+		t.Error("map param with foreach should keep map signature, got:", def)
+	}
+}
+
+// Test_GenerateDefine_ForEachSlice_Samples samples 真实回归：deleteConfigByIds（parameterType=Long + foreach）
+// 生成 []int64 签名（此前为标量 int64）。
+func Test_GenerateDefine_ForEachSlice_Samples(t *testing.T) {
+	mps := NewSqlMappers("../samples")
+	if mps == nil || len(mps.Mappers) == 0 {
+		t.Error("load samples failed")
+		return
+	}
+	found := false
+	for _, m := range mps.Mappers {
+		fn := m.NamedFunctions["deleteConfigByIds"]
+		if fn == nil {
+			continue
+		}
+		found = true
+		def := fn.generateDefine()
+		if !strings.Contains(def, "DeleteConfigByIds \tfunc ([]int64) (int64,error)") {
+			t.Error("samples deleteConfigByIds should generate []int64 signature, got:", def)
+		}
+	}
+	if !found {
+		t.Error("deleteConfigByIds not found in samples")
 	}
 }

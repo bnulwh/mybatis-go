@@ -180,7 +180,15 @@ func (in *SqlFunction) generateDefine() string {
 	buf.WriteString(UpperFirst(in.Id))
 	buf.WriteString(" \tfunc (")
 	if in.Param.Need {
-		buf.WriteString(toGolangType(in.Param.TypeName))
+		pt := toGolangType(in.Param.TypeName)
+		// 标量参数 + 含 <foreach> 的批量方法（如 deleteConfigByIds/selectBatchIds）：
+		// 参数自动生成为切片签名（[]int64 等），运行时 effectiveParamType 已支持切片分派（S-05）
+		if in.Param.Type == BaseSqlParam && containsForEach(in.Items) {
+			buf.WriteString("[]")
+			buf.WriteString(pt)
+		} else {
+			buf.WriteString(pt)
+		}
 	}
 	buf.WriteString(") (")
 	switch in.Type {
@@ -198,6 +206,44 @@ func (in *SqlFunction) generateDefine() string {
 	}
 	buf.WriteString(")\n")
 	return buf.String()
+}
+
+// containsForEach 递归检查片段树（含 if/include/choose/where/set 嵌套）中是否含 <foreach>。
+func containsForEach(items []*sqlFragment) bool {
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		switch item.Type {
+		case forLoopSqlFragment:
+			return true
+		case ifTestSqlFragment:
+			if item.IfTest != nil && containsForEach(item.IfTest.Sql) {
+				return true
+			}
+		case includeSqlFragment:
+			if item.Include != nil && containsForEach(item.Include.Fragments) {
+				return true
+			}
+		case chooseSqlFragment:
+			if item.Choose != nil {
+				for _, w := range item.Choose.When {
+					if w != nil && containsForEach(w.Sql) {
+						return true
+					}
+				}
+			}
+		case whereSqlFragment:
+			if item.Where != nil && containsForEach(item.Where.Sql) {
+				return true
+			}
+		case setSqlFragment:
+			if item.Set != nil && containsForEach(item.Set.Sql) {
+				return true
+			}
+		}
+	}
+	return false
 }
 func (in *SqlFunction) prepareSqlWithMap(m map[string]interface{}) (string, []string) {
 	log.Debugf("sql function %v generate sql with map: %v", in.Id, m)

@@ -366,11 +366,12 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	// selectCount
 	cf := mapper.CreateElement("select")
 	cf.CreateAttr("id", MPSelectCountID)
-	cf.CreateAttr("resultType", "int")
+	cf.CreateAttr("resultType", "long")
 	cf.CreateText(ts.countTailSQL())
 
-	// selectBatchIds：select ... where id in (foreach)；parameterType=java.util.List 使 codegen 生成切片签名
-	sb := ts.createMPSelectElement(mapper, MPSelectBatchIDsID, "java.util.List")
+	// selectBatchIds：select ... where id in (foreach)；parameterType 为主键类型，
+	// codegen 检测 foreach 后自动生成切片签名（[]int64 等）
+	sb := ts.createMPSelectElement(mapper, MPSelectBatchIDsID, ts.getMPPrimaryJdbcType())
 	sb.CreateText(fmt.Sprintf("\n\t\tfrom %s where %s in ", ts.Table, ts.PrimaryColumn.Name))
 	ts.writeMPInForeach(sb, "id")
 	if ts.hasColumn("deleted") {
@@ -378,10 +379,10 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	}
 	sb.CreateText("\n\t")
 
-	// deleteBatchIds：逻辑删除优先；parameterType=java.util.List 使 codegen 生成切片签名
+	// deleteBatchIds：逻辑删除优先；parameterType 为主键类型，codegen 生成切片签名
 	db := mapper.CreateElement("delete")
 	db.CreateAttr("id", MPDeleteBatchIDsID)
-	db.CreateAttr("parameterType", "java.util.List")
+	db.CreateAttr("parameterType", ts.getMPPrimaryJdbcType())
 	if ts.hasColumn("deleted") {
 		db.CreateText(fmt.Sprintf("\n\t\tupdate %s set deleted=true,delete_time=now() where %s in ", ts.Table, ts.PrimaryColumn.Name))
 	} else {
