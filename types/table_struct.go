@@ -344,7 +344,7 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	// deleteById：有逻辑删除列则 update 标记删除，否则物理删除
 	de := mapper.CreateElement("delete")
 	de.CreateAttr("id", MPDeleteByIDID)
-	de.CreateAttr("parameterType", ts.getPrimaryJdbcType())
+	de.CreateAttr("parameterType", ts.getMPPrimaryJdbcType())
 	de.CreateText(ts.generateMPDeleteByIDSQL())
 
 	// updateById
@@ -354,7 +354,7 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	up.CreateText(ts.generateUpdateSQL())
 
 	// selectById
-	sf := ts.createMPSelectElement(mapper, MPSelectByIDID, ts.getPrimaryJdbcType())
+	sf := ts.createMPSelectElement(mapper, MPSelectByIDID, ts.getMPPrimaryJdbcType())
 	sf.CreateText(ts.whereByPrimarySQL())
 
 	// selectOne / selectList / selectPage：均查全表（分页由 MP 端 IPage 追加 limit）
@@ -369,8 +369,8 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	cf.CreateAttr("resultType", "int")
 	cf.CreateText(ts.countTailSQL())
 
-	// selectBatchIds：select ... where id in (foreach)
-	sb := ts.createMPSelectElement(mapper, MPSelectBatchIDsID, ts.getPrimaryJdbcType())
+	// selectBatchIds：select ... where id in (foreach)；parameterType=java.util.List 使 codegen 生成切片签名
+	sb := ts.createMPSelectElement(mapper, MPSelectBatchIDsID, "java.util.List")
 	sb.CreateText(fmt.Sprintf("\n\t\tfrom %s where %s in ", ts.Table, ts.PrimaryColumn.Name))
 	ts.writeMPInForeach(sb, "id")
 	if ts.hasColumn("deleted") {
@@ -378,10 +378,10 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	}
 	sb.CreateText("\n\t")
 
-	// deleteBatchIds：逻辑删除优先
+	// deleteBatchIds：逻辑删除优先；parameterType=java.util.List 使 codegen 生成切片签名
 	db := mapper.CreateElement("delete")
 	db.CreateAttr("id", MPDeleteBatchIDsID)
-	db.CreateAttr("parameterType", ts.getPrimaryJdbcType())
+	db.CreateAttr("parameterType", "java.util.List")
 	if ts.hasColumn("deleted") {
 		db.CreateText(fmt.Sprintf("\n\t\tupdate %s set deleted=true,delete_time=now() where %s in ", ts.Table, ts.PrimaryColumn.Name))
 	} else {
@@ -389,6 +389,19 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	}
 	ts.writeMPInForeach(db, "id")
 	db.CreateText("\n\t")
+}
+
+// getMPPrimaryJdbcType 主键 JDBC 类型（MP 风格）：int64/uint64 主键 → java.lang.Long（codegen 生成 int64 签名），
+// 其余走 ToJavaType（默认 java.lang.Integer → int32）。
+func (ts *TableStructure) getMPPrimaryJdbcType() string {
+	if ts.PrimaryColumn == nil {
+		return ToJavaType(reflect.TypeOf(""))
+	}
+	switch ts.PrimaryColumn.Type.Kind() {
+	case reflect.Int64, reflect.Uint64:
+		return "java.lang.Long"
+	}
+	return ToJavaType(ts.PrimaryColumn.Type)
 }
 
 // createMPSelectElement 创建 select 元素：select <include refid="base_column_list"/>

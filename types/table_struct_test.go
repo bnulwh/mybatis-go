@@ -128,14 +128,14 @@ func Test_MPGeneratedSQL(t *testing.T) {
 			t.Error("selectCount sql unexpected:", sql)
 		}
 	}
-	// selectBatchIds：in 子句 + 逻辑删除过滤
-	if sql := getSQL(t, MPSelectBatchIDsID, []int64{1, 2}); sql != "" {
+	// selectBatchIds：in 子句 + 逻辑删除过滤（parameterType=java.util.List，传切片）
+	if sql := getSQL(t, MPSelectBatchIDsID, []interface{}{int64(1), int64(2)}); sql != "" {
 		if !strings.Contains(sql, "select id, user_name from sys_user where id in (") || !strings.Contains(sql, "1, 2") || !strings.Contains(sql, "deleted = false") {
 			t.Error("selectBatchIds sql unexpected:", sql)
 		}
 	}
 	// deleteBatchIds：逻辑删除
-	if sql := getSQL(t, MPDeleteBatchIDsID, []int64{1, 2}); sql != "" {
+	if sql := getSQL(t, MPDeleteBatchIDsID, []interface{}{int64(1), int64(2)}); sql != "" {
 		if !strings.Contains(sql, "update sys_user set deleted=true,delete_time=now() where id in (") || !strings.Contains(sql, "1, 2") {
 			t.Error("deleteBatchIds sql unexpected:", sql)
 		}
@@ -185,7 +185,7 @@ func Test_TableStruct_SaveMPToFile_NoDeleted(t *testing.T) {
 	} else if sql = collapseSpace(sql); !strings.Contains(sql, "delete from sys_user where id=1") {
 		t.Error("deleteById without deleted column should hard delete, sql:", sql)
 	}
-	if sql, _, err := m.NamedFunctions[MPDeleteBatchIDsID].GenerateSQL([]int64{1, 2}); err != nil {
+	if sql, _, err := m.NamedFunctions[MPDeleteBatchIDsID].GenerateSQL([]interface{}{int64(1), int64(2)}); err != nil {
 		t.Error("deleteBatchIds GenerateSQL failed:", err)
 	} else if sql = collapseSpace(sql); !strings.Contains(sql, "delete from sys_user where id in (") || !strings.Contains(sql, "1, 2") {
 		t.Error("deleteBatchIds without deleted column should hard delete, sql:", sql)
@@ -217,5 +217,15 @@ func Test_TableStruct_MPCodegen(t *testing.T) {
 		if !strings.Contains(content, name) {
 			t.Errorf("generated mapper missing method %s", name)
 		}
+	}
+	// 签名：bigint 主键 → int64；批量方法 → []interface{}
+	if !strings.Contains(content, "DeleteById \\tfunc (int64)") && !strings.Contains(content, "DeleteById \tfunc (int64)") {
+		t.Error("DeleteById should be func(int64) for bigint pk, content:", content)
+	}
+	if !strings.Contains(content, "SelectBatchIds \\tfunc ([]interface{})") && !strings.Contains(content, "SelectBatchIds \tfunc ([]interface{})") {
+		t.Error("SelectBatchIds should be func([]interface{}), content:", content)
+	}
+	if !strings.Contains(content, "DeleteBatchIds \\tfunc ([]interface{})") && !strings.Contains(content, "DeleteBatchIds \tfunc ([]interface{})") {
+		t.Error("DeleteBatchIds should be func([]interface{}), content:", content)
 	}
 }
