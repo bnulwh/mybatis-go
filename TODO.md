@@ -115,7 +115,7 @@
 
 ### 🔴 P0 待修复（崩溃 / 错误 SQL）
 
-（S-01~S-07 已全部修复）
+（S-01~S-09 已全部修复）
 
 ### 🟡 P1 待修复（功能缺失）
 
@@ -124,7 +124,7 @@
 
 ### 🟢 P2 待修复（健壮性）
 
-- **S-09 `validParam` 对 `nil` 参数反射零值 panic**：`PrepareSQL(nil)`/`GenerateSQL(nil)` 崩溃，需空值防御。
+- **S-09 `validParam` 对 `nil` 参数反射零值 panic**：`PrepareSQL(nil)`/`GenerateSQL(nil)` 崩溃（`reflect.Indirect(reflect.ValueOf(nil)).Type()` / `convert2Map` / `getFormatValue` / `validValue` / foreach nil 元素多处反射零值 panic）。`validParam`（`types/sql_param.go`）Base/Slice/Map/Struct 各分支拒绝 nil 与类型化 nil 指针（返回错误而非 panic）；`GenerateSQL`/`PrepareSQL`（`types/sql_function.go`）对无 parameterType 函数传 nil 也返回错误；`convert2Map`/`validValue`/`getFormatValue`（`types/common.go`）零值与 nil 防御（`getFormatValue(nil)` 按 SQL `null` 渲染）；`buildParams`（`types/sql_fragments.go`）foreach nil 元素直接保留 item 键不反射。回归测试 `Test_ValidParam_Nil`/`Test_GenerateSQL_NilParam`/`Test_ValidValue_Nil`/`Test_Convert2Map_InvalidValue`（`types/sql_param_nil_test.go`，覆盖 Base/Struct/Slice 各类型 nil、类型化 nil 指针、切片含 nil 元素、无 parameterType 函数）。
 - **S-10 `filterMapperFiles` 全目录扫描 `.xml`**：`mybatis-config.xml` 被误加载为 Mapper（空 namespace），需排除非 Mapper XML（按 `mybatis-config` 根标签或 namespace 判定）。
 - **S-11 `useGeneratedKeys`/`keyProperty` 属性被忽略**：自增主键不回填，`parseSqlFunctionFromXmlNode` 需解析并暴露这两个属性。
 

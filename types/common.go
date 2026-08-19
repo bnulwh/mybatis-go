@@ -65,6 +65,10 @@ func getFormatString(ms string) string {
 }
 
 func getFormatValue(m interface{}) string {
+	if m == nil {
+		// S-09：nil 参数反射零值 panic 防御，按 SQL NULL 渲染
+		return "null"
+	}
 	typ := reflect.TypeOf(m)
 	switch typ.String() {
 	case "string":
@@ -145,6 +149,10 @@ func UpperFirst(s string) string {
 
 func convert2Map(val reflect.Value) map[string]interface{} {
 	nmp := map[string]interface{}{}
+	if !val.IsValid() {
+		// S-09：nil 参数反射零值（reflect.Indirect(reflect.ValueOf(nil))）直接返回空 map，避免 Type() panic
+		return nmp
+	}
 	typ := val.Type()
 	switch typ.Kind() {
 	case reflect.Map:
@@ -183,6 +191,10 @@ func sliceArgsFrom(args []interface{}) []interface{} {
 }
 
 func validValue(m interface{}) bool {
+	if m == nil {
+		// S-09：nil 参数 reflect.TypeOf 返回 nil，String() 会 panic
+		return false
+	}
 	typ := reflect.TypeOf(m)
 	switch typ.String() {
 	case "string":

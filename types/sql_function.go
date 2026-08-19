@@ -121,6 +121,11 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, 
 		log.Warnf("valid param failed: %v", err)
 		return "", []interface{}{}, err
 	}
+	if len(args) > 0 && args[0] == nil {
+		// S-09：nil 参数反射零值 panic 防御（无 parameterType 的函数走 validParam 前已放行）
+		log.Warnf("sql function %v got nil param", in.Id)
+		return "", []interface{}{}, fmt.Errorf("sql function %v param is nil", in.Id)
+	}
 	if !in.Param.Need && len(args) == 0 {
 		return in.generateSqlWithoutParam(), []interface{}{}, nil
 	}
@@ -142,6 +147,11 @@ func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []string, error)
 	if err != nil {
 		log.Warnf("valid param failed: %v", err)
 		return "", nil, err
+	}
+	if len(args) > 0 && args[0] == nil {
+		// S-09：nil 参数反射零值 panic 防御（无 parameterType 的函数走 validParam 前已放行）
+		log.Warnf("sql function %v got nil param", in.Id)
+		return "", nil, fmt.Errorf("sql function %v param is nil", in.Id)
 	}
 	if !in.Param.Need && len(args) == 0 {
 		return in.generateSqlWithoutParam(), []string{}, nil

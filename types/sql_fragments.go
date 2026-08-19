@@ -103,6 +103,11 @@ func (in *sqlForLoop) buildParams(index int, item interface{}, mp map[string]int
 		nmp[k] = v
 	}
 	ival := reflect.ValueOf(item)
+	if !ival.IsValid() {
+		// S-09：nil 元素反射零值 panic 防御，直接保留 item 键
+		nmp[buildKey(in.Item)] = item
+		return nmp
+	}
 	ityp := reflect.Indirect(ival).Type()
 	switch ityp.Kind() {
 	case reflect.Struct:

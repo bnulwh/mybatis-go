@@ -51,6 +51,10 @@ func (in *SqlParam) validParam(args []interface{}) error {
 			return fmt.Errorf("need param, type: %v", in.TypeName)
 		}
 		val := reflect.ValueOf(args[0])
+		if args[0] == nil || (val.Kind() == reflect.Ptr && val.IsNil()) {
+			// S-09：nil 参数反射零值会 panic（reflect.Value.Type on zero Value），nil 指针同样非法
+			return fmt.Errorf("need param, type: %v, got nil", in.TypeName)
+		}
 		typ := reflect.Indirect(val).Type()
 		// 切片/数组由运行时按 Slice 路径渲染（如 parameterType="Long" + collection="array" 批量删除）
 		if typ.Kind() == reflect.Slice || typ.Kind() == reflect.Array {
@@ -68,12 +72,19 @@ func (in *SqlParam) validParam(args []interface{}) error {
 		}
 		return fmt.Errorf("not support param type: %v ,need type: %v", typ, in.TypeName)
 	case SliceSqlParam:
+		if len(args) > 0 && args[0] == nil {
+			return fmt.Errorf("need param, type: %v, got nil", in.TypeName)
+		}
 		return nil
 	case MapSqlParam, StructSqlParam:
 		if len(args) == 0 {
 			return fmt.Errorf("need param, type: %v", in.TypeName)
 		}
 		val := reflect.ValueOf(args[0])
+		if args[0] == nil || (val.Kind() == reflect.Ptr && val.IsNil()) {
+			// S-09：nil 参数反射零值会 panic（reflect.Value.Type on zero Value），nil 指针同样非法
+			return fmt.Errorf("need param, type: %v, got nil", in.TypeName)
+		}
 		typ := reflect.Indirect(val).Type()
 		switch typ.String() {
 		case "string",
