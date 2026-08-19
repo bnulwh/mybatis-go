@@ -30,6 +30,6 @@ func BenchmarkConvert2Results(b *testing.B) {
 	resInfo := types.SqlResult{ResultM: rmp}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		convert2Results(rows, resInfo)
+		_, _ = convert2Results(rows, resInfo)
 	}
 }

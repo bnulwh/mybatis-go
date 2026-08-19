@@ -103,7 +103,12 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		if err != nil {
 			return reflect.Value{}, err
 		}
-		results := convert2Results(rows, sqlFunc.Result)
+		results, report := convert2Results(rows, sqlFunc.Result)
+		// M-05：转换失败的行不再静默丢弃，聚合错误（行号/列名）输出，便于排查「0 行但 SQL 有数据」
+		if report.Skipped > 0 || len(report.Errors) > 0 {
+			log.Errorf("result convert report [%v.%v]: total=%d converted=%d skipped=%d errors=%v",
+				in.Namespace, sqlFunc.Id, report.Total, report.Converted, report.Skipped, types.ToJson(report.Errors))
+		}
 		if log.IsDebugEnabled() {
 			log.Debugf("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
 		}
