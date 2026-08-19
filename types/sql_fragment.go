@@ -16,6 +16,7 @@ const (
 	includeSqlFragment sqlFragmentType = "include"
 	chooseSqlFragment  sqlFragmentType = "choose"
 	whereSqlFragment   sqlFragmentType = "where"
+	setSqlFragment     sqlFragmentType = "set"
 )
 
 type sqlFragment struct {
@@ -25,6 +26,7 @@ type sqlFragment struct {
 	ForLoop *sqlForLoop
 	Choose  *sqlChoose
 	Where   *sqlWhere
+	Set     *sqlSet
 	Type    sqlFragmentType
 }
 
@@ -53,6 +55,10 @@ func (in *sqlFragment) prepareSqlWithSlice(m []interface{}, depth int) (string, 
 	case whereSqlFragment:
 		if in.Where != nil {
 			return in.Where.prepareSqlWithSlice(m, depth+1)
+		}
+	case setSqlFragment:
+		if in.Set != nil {
+			return in.Set.prepareSqlWithSlice(m, depth+1)
 		}
 	}
 	return "", []string{}
@@ -83,6 +89,10 @@ func (in *sqlFragment) generateSqlWithSlice(m []interface{}, depth int) string {
 	case whereSqlFragment:
 		if in.Where != nil {
 			return in.Where.generateSqlWithSlice(m, depth+1)
+		}
+	case setSqlFragment:
+		if in.Set != nil {
+			return in.Set.generateSqlWithSlice(m, depth+1)
 		}
 	}
 	return ""
@@ -120,6 +130,10 @@ func (in *sqlFragment) prepareSqlWithMap(m map[string]interface{}, depth int) (s
 	case whereSqlFragment:
 		if in.Where != nil {
 			return in.Where.prepareSqlWithMap(m, depth+1)
+		}
+	case setSqlFragment:
+		if in.Set != nil {
+			return in.Set.prepareSqlWithMap(m, depth+1)
 		}
 	}
 	return "", []string{}
@@ -159,6 +173,10 @@ func (in *sqlFragment) generateSqlWithMap(m map[string]interface{}, depth int) s
 		if in.Where != nil {
 			return in.Where.generateSqlWithMap(m, depth+1)
 		}
+	case setSqlFragment:
+		if in.Set != nil {
+			return in.Set.generateSqlWithMap(m, depth+1)
+		}
 	}
 	return ""
 }
@@ -186,6 +204,10 @@ func (in *sqlFragment) prepareSqlWithParam(m interface{}) (string, []string) {
 	case whereSqlFragment:
 		if in.Where != nil {
 			return in.Where.prepareSqlWithParam(m)
+		}
+	case setSqlFragment:
+		if in.Set != nil {
+			return in.Set.prepareSqlWithParam(m)
 		}
 	}
 	return "", []string{}
@@ -215,6 +237,10 @@ func (in *sqlFragment) generateSqlWithParam(m interface{}) string {
 		if in.Where != nil {
 			return in.Where.generateSqlWithParam(m)
 		}
+	case setSqlFragment:
+		if in.Set != nil {
+			return in.Set.generateSqlWithParam(m)
+		}
 	}
 	return ""
 }
@@ -239,6 +265,10 @@ func (in *sqlFragment) generateSqlWithoutParam() string {
 	case whereSqlFragment:
 		if in.Where != nil {
 			return in.Where.generateSqlWithoutParam()
+		}
+	case setSqlFragment:
+		if in.Set != nil {
+			return in.Set.generateSqlWithoutParam()
 		}
 	}
 	return ""
@@ -277,6 +307,8 @@ func parsesqlFragmentFromXmlNode(node xmlNode, sns map[string]*SqlElement) (*sql
 		return parseSqlChooseFromXmlNode(node.Elements)
 	case "where":
 		return parseSqlWhereFromXmlNode(node.Elements, sns)
+	case "set":
+		return parseSqlSetFromXmlNode(node.Elements, sns)
 	}
 	return nil, fmt.Errorf("not support sql text type %v", node.Name)
 }
