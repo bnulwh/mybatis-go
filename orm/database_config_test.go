@@ -1,6 +1,9 @@
 package orm
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func Test_parseDatabaseType(t *testing.T) {
 	r, err := parseDatabaseType("Mysql")
@@ -69,7 +72,7 @@ func Test_parseAddr_ipv6(t *testing.T) {
 
 func Test_generateConn_ipv6(t *testing.T) {
 	// MySQL：IPv6 地址必须带方括号
-	want := "root:pwd@tcp([2001:db8::1]:3306)/mydb"
+	want := "root:pwd@tcp([2001:db8::1]:3306)/mydb?parseTime=true&loc=Local"
 	if got := newDatabaseConfig("mysql", "2001:db8::1", 3306, "root", "pwd", "mydb").GenerateDSN(); got != want {
 		t.Errorf("mysql ipv6 dsn failed, got: %q want: %q", got, want)
 	}
@@ -83,7 +86,50 @@ func Test_generateConn_ipv6(t *testing.T) {
 		t.Errorf("postgres ipv6 dsn failed, got: %q want: %q", got, want3)
 	}
 	// 域名/IPv4 行为不变
-	if got := newDatabaseConfig("mysql", "a.bc.d.e", 33, "root", "pwd", "mydb").GenerateDSN(); got != "root:pwd@tcp(a.bc.d.e:33)/mydb" {
+	if got := newDatabaseConfig("mysql", "a.bc.d.e", 33, "root", "pwd", "mydb").GenerateDSN(); got != "root:pwd@tcp(a.bc.d.e:33)/mydb?parseTime=true&loc=Local" {
 		t.Errorf("mysql ipv4 dsn failed, got: %q", got)
+	}
+}
+
+// Test_generateConn_MySQLParseTime MySQL DSN 必须带 parseTime=true（DATETIME 列才能 Scan 到 time.Time）
+func Test_generateConn_MySQLParseTime(t *testing.T) {
+	dsn := newDatabaseConfig("mysql", "localhost", 3306, "root", "123456", "testdb").GenerateDSN()
+	want := "root:123456@tcp(localhost:3306)/testdb?parseTime=true&loc=Local"
+	if dsn != want {
+		t.Errorf("mysql dsn failed, got: %q want: %q", dsn, want)
+	}
+	// Name 已带查询参数时用 & 拼接
+	dsn2 := newDatabaseConfig("mysql", "localhost", 3306, "root", "123456", "testdb?charset=utf8mb4").GenerateDSN()
+	if !strings.Contains(dsn2, "/testdb?charset=utf8mb4&parseTime=true&loc=Local") {
+		t.Errorf("mysql dsn with existing params failed, got: %q", dsn2)
+	}
+	// 其他方言 DSN 不受影响
+	pg := newDatabaseConfig("postgres", "localhost", 5432, "root", "123456", "testdb").GenerateDSN()
+	if strings.Contains(pg, "parseTime") {
+		t.Errorf("postgres dsn should not contain parseTime, got: %q", pg)
+	}
+	sqlite := newDatabaseConfig("sqlite", "", 0, "", "", "test.db").GenerateDSN()
+	if sqlite != "test.db?_loc=auto" {
+		t.Errorf("sqlite dsn failed, got: %q", sqlite)
+	}
+}
+
+// Test_Config_CustomDSN 自定义 DSN（cfg.DSN）优先于自动生成，各方言 dialector 均支持
+func Test_Config_CustomDSN(t *testing.T) {
+	cfg := newDatabaseConfig("mysql", "localhost", 3306, "root", "123456", "testdb")
+	cfg.DSN = "root:pwd@tcp(10.0.0.1:3307)/custom?parseTime=true&charset=utf8mb4&loc=Local"
+	d := NewMySqlDialector(cfg)
+	if d.DSN != cfg.DSN {
+		t.Errorf("mysql custom DSN not honored, got: %q", d.DSN)
+	}
+	cfg2 := newDatabaseConfig("postgres", "localhost", 5432, "root", "123456", "testdb")
+	cfg2.DSN = "host=10.0.0.2 port=5433 user=root password=pwd dbname=custom sslmode=disable"
+	if d2 := NewPostgresDialector(cfg2); d2.DSN != cfg2.DSN {
+		t.Errorf("postgres custom DSN not honored, got: %q", d2.DSN)
+	}
+	cfg3 := newDatabaseConfig("sqlite", "", 0, "", "", "test.db")
+	cfg3.DSN = "/abs/custom.db?_loc=auto&_pragma=busy_timeout(5000)"
+	if d3 := NewSqliteDialector(cfg3); d3.DSN != cfg3.DSN {
+		t.Errorf("sqlite custom DSN not honored, got: %q", d3.DSN)
 	}
 }

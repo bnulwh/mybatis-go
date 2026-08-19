@@ -18,11 +18,16 @@ type SqliteDialector struct {
 }
 
 func NewSqliteDialector(cfg *Config) *SqliteDialector {
+	dsn := cfg.DSN
+	if dsn == "" {
+		dsn = cfg.GenerateDSN()
+	}
 	return &SqliteDialector{
 		SqliteConfig: &SqliteConfig{
 			Config:     *cfg,
 			DriverName: cfg.DriverName(),
-			DSN:        cfg.GenerateDSN(),
+			DSN:        dsn,
+			Conn:       cfg.ConnPool, // 注入自定义连接池
 		},
 	}
 }

@@ -42,11 +42,16 @@ type KingbaseDialector struct {
 }
 
 func NewKingbaseDialector(cfg *Config) *KingbaseDialector {
+	dsn := cfg.DSN
+	if dsn == "" {
+		dsn = cfg.GenerateDSN()
+	}
 	return &KingbaseDialector{
 		KingbaseConfig: &KingbaseConfig{
 			Config:     *cfg,
 			DriverName: cfg.DriverName(),
-			DSN:        cfg.GenerateDSN(),
+			DSN:        dsn,
+			Conn:       cfg.ConnPool, // 注入自定义连接池
 		},
 	}
 }

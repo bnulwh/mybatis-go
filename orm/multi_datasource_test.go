@@ -35,7 +35,7 @@ func Test_parseMultiDatabaseConfig(t *testing.T) {
 		t.Errorf("db2 dsn wrong: %q", got)
 	}
 	// db3 MySQL
-	if got := configs["db3"].GenerateDSN(); got != "root:123456@tcp(localhost:3306)/db3" {
+	if got := configs["db3"].GenerateDSN(); got != "root:123456@tcp(localhost:3306)/db3?parseTime=true&loc=Local" {
 		t.Errorf("db3 dsn wrong: %q", got)
 	}
 	// 池参数独立

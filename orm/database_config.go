@@ -47,6 +47,7 @@ type Config struct {
 	SpringConfig bool
 	Dialector
 	ConnPool   ConnPool
+	DSN        string // 自定义 DSN：非空时优先于 GenerateDSN()（注入自定义连接串）
 	cacheStore *sync.Map
 }
 
@@ -95,7 +96,14 @@ func (ds *DatabaseSetting) generateConn() string {
 		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 			ds.Host, ds.Port, ds.Username, ds.Password, ds.Name)
 	case MySqlDb:
-		return fmt.Sprintf("%s:%s@tcp(%s)/%s",
+		// parseTime=true 使 DATETIME/TIMESTAMP 列直接扫描为 time.Time
+		// （否则 go-sql-driver 返回 []byte 原始字节，无法 Scan 到时间字段）；
+		// loc=Local 按本机时区解析，与 SQLite 的 _loc=auto 语义一致。
+		if strings.Contains(ds.Name, "?") {
+			return fmt.Sprintf("%s:%s@tcp(%s)/%s&parseTime=true&loc=Local",
+				ds.Username, ds.Password, joinHostPort(ds.Host, ds.Port), ds.Name)
+		}
+		return fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&loc=Local",
 			ds.Username, ds.Password, joinHostPort(ds.Host, ds.Port), ds.Name)
 	case SqliteDb:
 		// Name 为 sqlite 文件路径；_loc=auto 使 DATETIME 列返回 time.Time

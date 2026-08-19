@@ -242,6 +242,8 @@ URL 类型支持 `jdbc:kingbase8://`、`jdbc:kingbase://` 等（parseDatabaseTyp
 | `spring.datasource.prepared-stmt` | 是否启用预编译语句缓存（`false` 关闭，适合 PgBouncer 等不支持服务端预编译的代理场景） | true |
 | `mybatis.mapper-locations` | XML Mapper 文件目录 | - |
 
+> **MySQL DATETIME 列**：框架自动在 MySQL DSN 追加 `?parseTime=true&loc=Local`（与 SQLite 的 `_loc=auto` 同理），DATETIME/TIMESTAMP 列直接扫描为 `time.Time`；否则 go-sql-driver 返回原始 `[]byte`，时间字段无法赋值。
+
 > **预编译语句缓存**：默认开启。参数化 SQL（Mapper 的 `#{}` 或 `Execute/Query` 带参调用）会按 SQL 文本缓存预编译语句，避免数据库重复解析与生成执行计划；无参数 SQL（DDL、静态查询）直接执行，不进入缓存。PostgreSQL/KingbaseES 的占位符会自动从 `?` 转为 `$1、$2…`（lib/pq 不支持 `?`）。
 
 支持环境变量覆盖：配置值形如 `${ENV_NAME}` 或 `${ENV_NAME:default}` 时会自动替换。
@@ -254,6 +256,25 @@ JDBC URL 支持 IPv6 地址，如 `jdbc:postgresql://[2001:db8::1]:5432/testdb`�
 err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("kingbase", "localhost", 54321, "system", "123456", "testdb")
 ```
+
+## 注入自定义 DB / DSN
+
+框架支持注入自定义连接池（`*sql.DB` 或任意实现 `orm.ConnPool` 接口的对象）与自定义 DSN，适用于连接代理、测试桩、已有连接池复用等场景。
+
+### 注入自定义连接池
+
+通过 `orm.Open(cfg)` 拿到 `*orm.DB` 后自行接入（配合 `orm.InitializeDataSources` 或多数据源管理）：
+
+```go
+cfg := orm.NewConfigFromSettings(cm) // 或 orm.NewConfig("application.properties")
+cfg.ConnPool = myDB   // 注入自定义连接池（*sql.DB 或实现 orm.ConnPool 的对象），跳过 DSN 建连
+cfg.DSN = "root:pwd@tcp(10.0.0.1:3307)/db?parseTime=true&charset=utf8mb4&loc=Local" // 自定义 DSN（可选）
+db, err := orm.Open(cfg)
+```
+
+- `cfg.ConnPool` 非空时优先使用注入的连接池，不再按 DSN 新建连接
+- `cfg.DSN` 非空时优先于自动生成的 DSN（各方言 dialector 均支持）
+- 预编译缓存包装（`PreparedStmtDB`）对注入的连接池同样生效
 
 ## 性能优化
 
@@ -351,6 +372,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-08-19（v0.1.7）**：MySQL DATETIME 修复 + 自定义 DB/DSN 注入 — MySQL DSN 自动追加 `?parseTime=true&loc=Local`（DATETIME/TIMESTAMP 列可直接扫描为 `time.Time`，不再因驱动返回 `[]byte` 导致时间字段丢失/行失败）；`resolveConverter`/`newInstance` 兼容 `[]uint8` 扫描类型兑底（未开 parseTime 时原始字节转字符串，`change2Time` 可再解析）；`Config` 新增 `ConnPool`/`DSN` 注入（`orm.Open(cfg)` 优先使用注入的连接池与自定义 DSN，各方言 dialector 均支持，预编译缓存包装共存）
 - **2026-08-19（v0.1.6）**：RuoYi Mapper 兼容性修复 — `samples/` 目录 11 项兼容性缺陷（S-01~S-11）全部修复：`<where>` / `<set>` 标签支持、点号参数 `#{a.b}`、原始替换 `${...}`、`parameterType="Long"` 基础类型映射、resultMap `<association>` / `<collection>` 真实关联类型（`*SysDept` / `[]SysRole`）、裸标识符布尔 `<if>` 求值、`<include>` 内参数替换、nil 参数反射零值 panic 防御、排除非 Mapper XML（`mybatis-config.xml`）、`useGeneratedKeys` / `keyProperty` 自增主键回填（SQLite 端到端验证）
 - **2026-08-14**：测试与 CI — 补齐核心代理机制单测（`proxyValue`/参数与返回类型校验），顺带修复 `args` tag 文档格式失效的 bug（兼容 `args:name` 与 `args:"name"`）；新增 utils 测试与性能基准；新增 GitHub Actions CI（build + vet + 测试 + 覆盖率）
 - **2026-08-14**：工程化清理 — `ioutil` 弃用替换为 `os.ReadFile/WriteFile`；删除死代码（`convert2Interfaces`、`Rows` 接口）；`.gitignore` 去重

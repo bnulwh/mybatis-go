@@ -18,11 +18,16 @@ type MySqlDialector struct {
 }
 
 func NewMySqlDialector(cfg *Config) *MySqlDialector {
+	dsn := cfg.DSN
+	if dsn == "" {
+		dsn = cfg.GenerateDSN()
+	}
 	return &MySqlDialector{
 		MySqlConfig: &MySqlConfig{
 			Config:     *cfg,
 			DriverName: cfg.DriverName(),
-			DSN:        cfg.GenerateDSN(),
+			DSN:        dsn,
+			Conn:       cfg.ConnPool, // 注入自定义连接池（*sql.DB 或任意 ConnPool 实现）
 		},
 	}
 }

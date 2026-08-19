@@ -19,11 +19,16 @@ type PostgresDialector struct {
 }
 
 func NewPostgresDialector(cfg *Config) *PostgresDialector {
+	dsn := cfg.DSN
+	if dsn == "" {
+		dsn = cfg.GenerateDSN()
+	}
 	return &PostgresDialector{
 		PostgresConfig: &PostgresConfig{
 			Config:     *cfg,
 			DriverName: cfg.DriverName(),
-			DSN:        cfg.GenerateDSN(),
+			DSN:        dsn,
+			Conn:       cfg.ConnPool, // 注入自定义连接池
 		},
 	}
 }

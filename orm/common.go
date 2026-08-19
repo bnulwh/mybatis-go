@@ -30,6 +30,9 @@ func newInstance(typ reflect.Type) interface{} {
 		return new(mysql.NullTime)
 	case "sql.RawBytes":
 		return new(sql.RawBytes)
+	case "[]uint8", "[]byte":
+		// MySQL 未开 parseTime 时 DATETIME/文本列 ScanType 为 []uint8，与 sql.RawBytes 同样按原始字节扫描
+		return new(sql.RawBytes)
 	case "interface {}":
 		return new(sql.NullString)
 	}
@@ -247,6 +250,10 @@ func resolveConverter(colType *sql.ColumnType) convertFn {
 		return convertToConvertFn(convertTimeToTime)
 	case "interface {}":
 		return convertToConvertFn(convertSqlString2String)
+	case "[]uint8", "[]byte":
+		// 部分驱动/配置（如 MySQL 未开 parseTime）对 DATETIME/文本列报告 []uint8，
+		// 按原始字节转字符串兜底（change2Time 可再把时间串解析回 time.Time）
+		return convertToConvertFn(convertRawBytes2String)
 	}
 	log.Warnf("not support convert type: %v", typ)
 	return func(ptr interface{}) (interface{}, error) {
