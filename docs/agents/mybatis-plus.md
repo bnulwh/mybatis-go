@@ -46,6 +46,21 @@ orm.SchemaToCodeMP("./out", "sys_", "sys_user") // 等价于 SchemaToCode + -mp
 
 ### 方式 C：手写 XML（模板见 §3），直接放 `resources/mapper` 下即可被 `NewSqlMappers` 加载。
 
+### 方式 D：内存自动生成（无需落盘 CRUD XML）
+
+**如果 XML 里有 resultMap（含基本类型列 `<id>`/`<result>`）、但没有 MP 内置 CRUD**，框架在 **加载时（`NewSqlMappers`/`orm.Initialize`）于内存中按缺失 ID 补生成** 10 个内置方法，不落盘、不改动 XML。已有方法（手写或 XML 自带）不覆盖。
+
+自动生成规则：
+- **表名**：resultMap `type` 短名去 `Model` 后缀 + camelCase→snake_case（`SysUser` / `SysUserModel` → `sys_user`）；`type` 为 JDK 基础类型（map/int/string…）或 resultMap 无基本列/无 `<id>` 主键时不生成
+- **主键**：`<id>` 项的 column 即为主键列
+- **列类型**：`jdbcType` 缺失时主键默认 `BIGINT`（签名 int64）、普通列默认 `VARCHAR`
+- **逻辑删除**：支持两种约定——`deleted`/`delete_time`（`deleted=true` + 过滤 `deleted = false`）与 RuoYi `del_flag`（`del_flag='2'` 软删 + 过滤 `del_flag = '0'`）
+- **resultMap 引用**：生成的 select 直接引用原 XML 的 resultMap（含 `<association>`/`<collection>` 时模型类型随之生成）
+
+示例：RuoYi `SysUserMapper.xml`（有 `SysUserResult`、无 CRUD）加载后自动具备 `SelectById` 等 10 个方法，`SelectById(1)` 生成 `select ... from sys_user where user_id=1 and del_flag = '0'`。
+
+> 适用场景：RuoYi 等「XML 只有自定义查询、无内置 CRUD」的项目——无需 schema2code 预生成，也无需 GoExtraMapper。
+
 ## 3. 生成的 XML（真实产物，表 `sys_user`：id bigint PK / user_name / deleted / delete_time）
 
 ```xml
@@ -165,6 +180,7 @@ rows2, _ := mp.SelectBatchIds([]int64{1, 2})
 ## 7. 限制与后续（已知边界）
 
 - 仅生成「全表 / 按主键」的内置 CRUD；**Wrapper（`ew.customSqlSegment`）动态条件暂不支持**——条件查询仍用 RuoYi 传统 XML `<if>` 写法。
+- 内存自动生成要求 XML 含可推导的 resultMap：type 为业务模型 + 至少一个 `<id>`/`<result>` 基本列 + 一个 `<id>` 主键；不满足则不生成（编译器/加载器不报错）。
 - 若 Java 端存在**无 XML 的自定义方法**（如 `selectUserRoleGroup` 关联查询），仍需 GoExtraMapper 或手写 XML 补充。
 - codegen 的 foreach→切片仅对**标量参数**生效；`map`/`struct`/`Slice` 参数不包切片（避免生成 `[]map` 等错误签名）。
 
@@ -172,5 +188,6 @@ rows2, _ := mp.SelectBatchIds([]int64{1, 2})
 
 ```bash
 go test -count=1 -run 'Test_TableStruct|Test_MPGeneratedSQL|Test_ContainsForEach|Test_GenerateDefine_ForEachSlice' ./types/
+go test -count=1 -run 'Test_MPBuiltin' ./types/   # 内存自动生成回归（含 samples RuoYi 真实回归）
 go run ./cmd/sqlitedemo   # 端到端冒烟
 ```

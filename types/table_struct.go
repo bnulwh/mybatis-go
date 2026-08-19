@@ -62,6 +62,7 @@ type TableStructure struct {
 	ColumnMap     map[string]*ColumnStructure
 	Table         string
 	PrimaryColumn *ColumnStructure
+	ModelName     string // 显式模型名（内存生成 CRUD 时取 resultMap type 原值，空则按表名推导）
 }
 
 func (ts *TableStructure) SaveToFile(filename, prefix string) error {
@@ -117,6 +118,33 @@ func (ts *TableStructure) hasColumn(name string) bool {
 	return false
 }
 
+// hasLogicalDelete 是否含逻辑删除列：deleted（bool）或 del_flag（varchar，RuoYi 约定）
+func (ts *TableStructure) hasLogicalDelete() bool {
+	return ts.hasColumn("deleted") || ts.hasColumn("del_flag")
+}
+
+// deleteFlagSetSQL 逻辑删除的 update set 片段（按列约定取 deleted / del_flag）
+func (ts *TableStructure) deleteFlagSetSQL() string {
+	if ts.hasColumn("deleted") {
+		return "deleted=true,delete_time=now()"
+	}
+	if ts.hasColumn("del_flag") {
+		return "del_flag='2'"
+	}
+	return ""
+}
+
+// deleteFlagFilterSQL 逻辑删除的 where 过滤片段（deleted=false / del_flag='0'）
+func (ts *TableStructure) deleteFlagFilterSQL() string {
+	if ts.hasColumn("deleted") {
+		return "deleted = false"
+	}
+	if ts.hasColumn("del_flag") {
+		return "del_flag = '0'"
+	}
+	return ""
+}
+
 func (ts *TableStructure) writeHeader(doc *etree.Document) {
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8"`)
 	doc.CreateDirective(`DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd"`)
@@ -136,6 +164,9 @@ func (ts *TableStructure) getMapperName(prefix string) string {
 	return strings.Join(res, "")
 }
 func (ts *TableStructure) getModelName(prefix string) string {
+	if ts.ModelName != "" {
+		return ts.ModelName
+	}
 	tname := ts.Table
 	if len(prefix) > 0 && strings.HasPrefix(ts.Table, prefix) {
 		tname = tname[len(prefix):]
@@ -374,8 +405,8 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	sb := ts.createMPSelectElement(mapper, MPSelectBatchIDsID, ts.getMPPrimaryJdbcType())
 	sb.CreateText(fmt.Sprintf("\n\t\tfrom %s where %s in ", ts.Table, ts.PrimaryColumn.Name))
 	ts.writeMPInForeach(sb, "id")
-	if ts.hasColumn("deleted") {
-		sb.CreateText(" and deleted = false")
+	if filter := ts.deleteFlagFilterSQL(); filter != "" {
+		sb.CreateText(" and " + filter)
 	}
 	sb.CreateText("\n\t")
 
@@ -383,8 +414,8 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	db := mapper.CreateElement("delete")
 	db.CreateAttr("id", MPDeleteBatchIDsID)
 	db.CreateAttr("parameterType", ts.getMPPrimaryJdbcType())
-	if ts.hasColumn("deleted") {
-		db.CreateText(fmt.Sprintf("\n\t\tupdate %s set deleted=true,delete_time=now() where %s in ", ts.Table, ts.PrimaryColumn.Name))
+	if set := ts.deleteFlagSetSQL(); set != "" {
+		db.CreateText(fmt.Sprintf("\n\t\tupdate %s set %s where %s in ", ts.Table, set, ts.PrimaryColumn.Name))
 	} else {
 		db.CreateText(fmt.Sprintf("\n\t\tdelete from %s where %s in ", ts.Table, ts.PrimaryColumn.Name))
 	}
@@ -435,33 +466,33 @@ func (ts *TableStructure) writeMPInForeach(parent *etree.Element, item string) *
 func (ts *TableStructure) whereByPrimarySQL() string {
 	sql := fmt.Sprintf("\n\t\tfrom %s where %s=#{%s,jdbcType=%s}",
 		ts.Table, ts.PrimaryColumn.Name, ts.PrimaryColumn.getPropertyName(), ts.PrimaryColumn.getJdbcType())
-	if ts.hasColumn("deleted") {
-		sql += " and deleted = false"
+	if filter := ts.deleteFlagFilterSQL(); filter != "" {
+		sql += " and " + filter
 	}
 	return sql + "\n\t"
 }
 
 // listTailSQL 全表查询的 from 片段（含逻辑删除过滤）
 func (ts *TableStructure) listTailSQL() string {
-	if ts.hasColumn("deleted") {
-		return fmt.Sprintf("\n\t\tfrom %s where deleted = false\n\t", ts.Table)
+	if filter := ts.deleteFlagFilterSQL(); filter != "" {
+		return fmt.Sprintf("\n\t\tfrom %s where %s\n\t", ts.Table, filter)
 	}
 	return fmt.Sprintf("\n\t\tfrom %s\n\t", ts.Table)
 }
 
 // countTailSQL count(*) 语句（含逻辑删除过滤）
 func (ts *TableStructure) countTailSQL() string {
-	if ts.hasColumn("deleted") {
-		return fmt.Sprintf("\n\t\tselect count(*) \n\t\tfrom %s where deleted = false\n\t", ts.Table)
+	if filter := ts.deleteFlagFilterSQL(); filter != "" {
+		return fmt.Sprintf("\n\t\tselect count(*) \n\t\tfrom %s where %s\n\t", ts.Table, filter)
 	}
 	return fmt.Sprintf("\n\t\tselect count(*) \n\t\tfrom %s\n\t", ts.Table)
 }
 
 // generateMPDeleteByIDSQL deleteById：有逻辑删除列则 update 标记删除，否则物理删除
 func (ts *TableStructure) generateMPDeleteByIDSQL() string {
-	if ts.hasColumn("deleted") {
-		return fmt.Sprintf("\n\t\tupdate %s \n\t\tset deleted=true,delete_time=now() \n\t\t where %s=#{%s,jdbcType=%s}\n\t",
-			ts.Table, ts.PrimaryColumn.Name, ts.PrimaryColumn.getPropertyName(), ts.PrimaryColumn.getJdbcType())
+	if set := ts.deleteFlagSetSQL(); set != "" {
+		return fmt.Sprintf("\n\t\tupdate %s \n\t\tset %s \n\t\t where %s=#{%s,jdbcType=%s}\n\t",
+			ts.Table, set, ts.PrimaryColumn.Name, ts.PrimaryColumn.getPropertyName(), ts.PrimaryColumn.getJdbcType())
 	}
 	return fmt.Sprintf("\n\t\tdelete from %s where %s=#{%s,jdbcType=%s}\n\t",
 		ts.Table, ts.PrimaryColumn.Name, ts.PrimaryColumn.getPropertyName(), ts.PrimaryColumn.getJdbcType())

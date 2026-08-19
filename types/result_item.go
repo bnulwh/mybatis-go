@@ -24,6 +24,7 @@ type ResultItem struct {
 	JavaType   string // association/collection 的 javaType 属性
 	OfType     string // collection 元素类型（ofType 属性）
 	ResultMap  string // 引用的嵌套 resultMap id
+	JdbcType   string // 原始 jdbcType 属性（可能为空，供内存生成 CRUD 时推导列类型）
 }
 
 // <id column="id" jdbcType="INTEGER" property="id" />
@@ -43,6 +44,7 @@ func parseResultItemFromXmlNode(elem xmlElement) *ResultItem {
 			Property:   pro,
 			PrimaryKey: true,
 			Kind:       ResultItemKindId,
+			JdbcType:   xn.Attrs["jdbcType"],
 		}
 	case "result":
 		return &ResultItem{
@@ -50,6 +52,7 @@ func parseResultItemFromXmlNode(elem xmlElement) *ResultItem {
 			Type:     ParseJdbcTypeFrom(xn.Attrs["jdbcType"]),
 			Property: pro,
 			Kind:     ResultItemKindResult,
+			JdbcType: xn.Attrs["jdbcType"],
 		}
 	case "association":
 		return &ResultItem{

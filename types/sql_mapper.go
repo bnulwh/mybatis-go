@@ -110,7 +110,7 @@ func loadMapper(filename string) *SqlMapper {
 	nss := makeNamedSql(sns)
 	items := filterSqlFunction(node.Elements, nms, nss, namespace)
 	nis := makeNamedFuntion(items)
-	return &SqlMapper{
+	mp := &SqlMapper{
 		Filename:       filename,
 		Namespace:      namespace,
 		Maps:           mps,
@@ -120,6 +120,9 @@ func loadMapper(filename string) *SqlMapper {
 		NamedSqls:      nss,
 		NamedFunctions: nis,
 	}
+	// M 系列：XML 有 resultMap（含基本类型列）但缺 MP 内置 CRUD 时，在内存中补生成（不落盘）
+	mp.ensureMPBuiltinCRUD()
+	return mp
 }
 
 func filterResultMap(elems []xmlElement) []*ResultMap {
