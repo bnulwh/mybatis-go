@@ -376,6 +376,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-08-19（v0.1.10）**：全局查询行数上限（P4-3）— `fetchRows` 默认最多返回 10000 行，防止大结果集 OOM/拖垮连接；新增 `orm.SetDefaultRowLimit(n)` / `orm.DefaultRowLimit()` 全局系统设置（负数不限制返回全部、0 不返回任何行），达到上限停止读取并 Warn 提示；`Query` / `QueryContext` / Mapper 代理所有查询路径共用 `fetchRows` 自动生效
 - **2026-08-19（v0.1.9）**：超时/上下文执行 API（P4-1）— 新增 `ExecuteContext(ctx, sql, args...)` / `QueryContext(ctx, sql, args...)`；新增 `orm.SetDefaultTimeout(d)` / `orm.DefaultTimeout()` 全局系统设置（默认 5 分钟，防止慢 SQL 无限挂起占住连接）；`executeWithResult` / `queryRows` 及 Mapper 代理执行路径通过 `withExecTimeout` 在 ctx 无 deadline 时自动叠加全局超时（有 deadline 时不叠加，避免误覆盖调用方显式控制）；`context.Background()` 的 `Execute` / `Query` 传统调用同样受全局超时保护
 - **2026-08-19**：MP 内置 CRUD 内存自动生成 — XML 含 resultMap（基本类型列 + `<id>` 主键）但缺 MP 内置方法时，加载期按缺失 ID 在内存补生成 10 个 CRUD（不落盘、不覆盖手写）；表名由 resultMap type 推导（SysUser→sys_user），jdbcType 缺失时主键默认 BIGINT/普通列默认 VARCHAR，逻辑删除支持 `deleted` 与 RuoYi `del_flag` 双约定；samples（RuoYi）真实回归验证（`SysUserMapper` 自动具备 SelectById 等，`del_flag='0'` 过滤生效）
 - **2026-08-19（v0.1.8）**：MyBatis-Plus 内置 CRUD + codegen 增强 — `schema2code -mp` / `orm.SchemaToCodeMP` / `TableStructure.SaveMPToFile` 从表结构生成 BaseMapper 标准方法名 XML（insert/deleteById/updateById/selectById/selectOne/selectList/selectPage/selectCount/selectBatchIds/deleteBatchIds，逻辑删除自动适配）；codegen 检测 `<foreach>` 自动为批量方法生成切片签名（`deleteConfigByIds` → `func([]int64)`，对所有 Mapper 生效）；`SelectCount` 返回 `[]int64`；`<if>` 数值比较支持（M-02：`!= 0`/`> 0`/`== 0` 及 `x.length > 0`）；`convert2Map` nil 指针字段不再 panic（M-01）；使用说明见 docs/agents/mybatis-plus.md

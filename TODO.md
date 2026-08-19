@@ -94,7 +94,8 @@
 ## 🟣 P4 — 功能建议
 
 - [x] **P4-1 ✅ 已实现 带超时/上下文的执行 API**：`Execute`/`Query` 内部原来固定 `context.Background()`，慢 SQL 会无限挂起占住连接。现在（`orm/sql_execute.go`）：① 新增 `DefaultTimeout()`/`SetDefaultTimeout(d)` 全局超时设置（默认 5 分钟，`Config.MaxTimeout` 已有同值常量，但两者独立——`MaxTimeout` 控制连接池生命周期，`DefaultTimeout` 控制语句执行超时）；② 新增 `ExecuteContext(ctx, sql, args...)` / `QueryContext(ctx, sql, args...)` 支持调用方 context；③ 内部 `executeWithResult`/`queryRows` 通过 `withExecTimeout` 在 ctx 无 deadline 时自动叠加全局默认超时（有 deadline 时保持调用方原样，防止误叠加）；④ Mapper 代理执行路径（`base_mapper.go executeMethod`）同步通过 `context.Background()` 接入，慢 SQL 同样受全局超时保护。回归测试：`Test_DefaultTimeout` / `Test_withExecTimeout` / `Test_ExecuteQueryContext` / `Test_ExecuteContextCanceled` / `Test_ExecuteContextShortTimeout` / `Test_ExecuteNoTimeout`（`orm/sql_execute_test.go`）。
-- [ ] **P4-2 大结果集流式读取**：`fetchRows` 全量进内存，10 万行以上内存压力明显；建议提供流式回调或分页选项
+- [ ] **P4-2 大结果集流式读取**：`fetchRows` 全量进内存，10 万行以上内存压力明显；建议提供流式回调或分页选项（全局行数上限 P4-3 已提供兜底截断，流式/分页仍待实现）
+- [x] **P4-3 ✅ 已实现 全局查询行数上限**：`fetchRows`（`orm/sql_execute.go`）默认最多返回 10000 行，防止大结果集 OOM/拖垮连接；新增 `DefaultRowLimit()`/`SetDefaultRowLimit(n)` 全局系统设置——负数不限制（返回全部）、0 不返回任何行；达到上限停止读取并 Warn 日志提示（`SetDefaultRowLimit(-1)` 可恢复全部返回）。所有查询路径（`Query`/`QueryContext`/Mapper 代理）共用同一 `fetchRows`，自动生效。回归测试：`Test_DefaultRowLimit` / `Test_QueryRowLimit`（上限截断/0 不返回/负数全量/上限大于总行数）（`orm/sql_execute_test.go`）。
 
 ---
 

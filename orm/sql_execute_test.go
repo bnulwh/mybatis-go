@@ -193,3 +193,92 @@ func Test_ExecuteNoTimeout(t *testing.T) {
 		t.Errorf("create table failed: %v", err)
 	}
 }
+
+// 全局查询行数上限：设置与取值（默认 1 万，负数不限制，0 不返回行）
+func Test_DefaultRowLimit(t *testing.T) {
+	old := DefaultRowLimit()
+	defer SetDefaultRowLimit(old)
+
+	if DefaultRowLimit() != 10000 {
+		t.Errorf("expected default row limit 10000, got %d", DefaultRowLimit())
+	}
+	SetDefaultRowLimit(5)
+	if DefaultRowLimit() != 5 {
+		t.Errorf("expected 5 after SetDefaultRowLimit, got %d", DefaultRowLimit())
+	}
+	SetDefaultRowLimit(-1)
+	if DefaultRowLimit() != -1 {
+		t.Errorf("expected -1 after negative set, got %d", DefaultRowLimit())
+	}
+	SetDefaultRowLimit(0)
+	if DefaultRowLimit() != 0 {
+		t.Errorf("expected 0 after zero set, got %d", DefaultRowLimit())
+	}
+}
+
+// 全局行数上限：达到上限截断结果集；负数返回全部
+func Test_QueryRowLimit(t *testing.T) {
+	dir := initSqliteTest(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+
+	old := DefaultRowLimit()
+	defer SetDefaultRowLimit(old)
+
+	if _, err := Execute(`CREATE TABLE t_rowlimit (id INTEGER PRIMARY KEY AUTOINCREMENT, val TEXT)`); err != nil {
+		t.Errorf("create table failed: %v", err)
+		return
+	}
+	for i := 0; i < 25; i++ {
+		if _, err := Execute(`INSERT INTO t_rowlimit (val) VALUES (?)`, "x"); err != nil {
+			t.Errorf("insert failed: %v", err)
+			return
+		}
+	}
+
+	// 上限 10 → 只返回 10 行
+	SetDefaultRowLimit(10)
+	res, err := Query(`SELECT id, val FROM t_rowlimit`)
+	if err != nil {
+		t.Errorf("query failed: %v", err)
+		return
+	}
+	if len(res) != 10 {
+		t.Errorf("expected 10 rows with limit 10, got %d", len(res))
+	}
+
+	// 上限 0 → 不返回任何行
+	SetDefaultRowLimit(0)
+	res, err = Query(`SELECT id, val FROM t_rowlimit`)
+	if err != nil {
+		t.Errorf("query failed: %v", err)
+		return
+	}
+	if len(res) != 0 {
+		t.Errorf("expected 0 rows with limit 0, got %d", len(res))
+	}
+
+	// 负数 → 返回全部 25 行
+	SetDefaultRowLimit(-1)
+	res, err = Query(`SELECT id, val FROM t_rowlimit`)
+	if err != nil {
+		t.Errorf("query failed: %v", err)
+		return
+	}
+	if len(res) != 25 {
+		t.Errorf("expected 25 rows with negative limit, got %d", len(res))
+	}
+
+	// 上限 >= 总行数 → 全部返回
+	SetDefaultRowLimit(100)
+	res, err = Query(`SELECT id, val FROM t_rowlimit`)
+	if err != nil {
+		t.Errorf("query failed: %v", err)
+		return
+	}
+	if len(res) != 25 {
+		t.Errorf("expected 25 rows with limit 100, got %d", len(res))
+	}
+}

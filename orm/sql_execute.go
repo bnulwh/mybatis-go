@@ -14,6 +14,11 @@ var (
 	// Execute/Query 及无 deadline 的 Context 变体均叠加该超时；0 或负数表示不设限。
 	defaultExecTimeout = 5 * time.Minute
 	execTimeoutMu      sync.RWMutex
+
+	// 全局查询行数上限：防止大结果集 OOM（P4-2 相关）。
+	// 0 表示不返回任何行，负数表示不限制（返回全部）。
+	defaultRowLimit = 10000
+	rowLimitMu      sync.RWMutex
 )
 
 // DefaultTimeout 返回当前全局默认执行超时。
@@ -30,6 +35,22 @@ func SetDefaultTimeout(d time.Duration) {
 	defer execTimeoutMu.Unlock()
 	defaultExecTimeout = d
 	log.Infof("set default exec timeout: %v", d)
+}
+
+// DefaultRowLimit 返回全局查询行数上限（默认 10000）。
+func DefaultRowLimit() int {
+	rowLimitMu.RLock()
+	defer rowLimitMu.RUnlock()
+	return defaultRowLimit
+}
+
+// SetDefaultRowLimit 全局调整查询返回行数上限（系统设置，默认 10000 行）。
+// 负数不限制（返回全部），0 表示不返回任何行。
+func SetDefaultRowLimit(n int) {
+	rowLimitMu.Lock()
+	defer rowLimitMu.Unlock()
+	defaultRowLimit = n
+	log.Infof("set default row limit: %d", n)
 }
 
 // withExecTimeout 为 ctx 附加全局默认超时作为安全网（P4-1）：
@@ -124,7 +145,14 @@ func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType) []map[string]interfac
 	// 因此延迟到首次进入循环后再构建，与旧实现的行为保持一致。
 	var tempItems []interface{}
 	var converters []convertFn
+	limit := DefaultRowLimit()
 	for rows.Next() {
+		// 全局行数上限（默认 1 万，负数不限制）：
+		// 达到上限即停止读取，避免大结果集拖垮内存/连接（调用方 rows.Close 负责清理游标）
+		if limit >= 0 && len(results) >= limit {
+			log.Warnf("row limit reached: %d, truncate result set (SetDefaultRowLimit(-1) to return all)", limit)
+			break
+		}
 		if tempItems == nil {
 			tempItems = prepareColumns(colTypes)
 			converters = buildConverters(colTypes)
