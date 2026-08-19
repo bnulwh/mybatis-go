@@ -64,7 +64,11 @@ func (in *SqlMappers) GenerateFiles(dir, pkg string) {
 func filterMapperFiles(dir string) []string {
 	var files []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if strings.Compare(strings.ToLower(path[len(path)-4:]), ".xml") == 0 {
+		if err != nil {
+			// 跳过无法访问的目录/文件（如权限问题）
+			return nil
+		}
+		if info != nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".xml") {
 			files = append(files, path)
 		}
 		return nil

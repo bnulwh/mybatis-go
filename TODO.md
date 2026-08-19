@@ -115,6 +115,7 @@
 - **S-07 `<if test="deptCheckStrictly">` 裸标识符恒为 true**：无 `null`/`''` 比较的裸标识符（`deptCheckStrictly`/`menuCheckStrictly`）解析不出任何条件 → `<if>` 恒 true，布尔 false 时也不剔除（MyBatis 语义丢失）。`parseIfConditionsFromText`（`types/sql_fragments.go`）新增 `boolCheckCond` 分支：`^[\w.]+$` 裸标识符按布尔条件解析；`ifCondition.checkValue` 对 `boolCheckCond` 取真实布尔值（false/缺失/nil/非布尔一律不通过），不再无条件通过。回归测试 `Test_parseIfConditionsFromText_Bool`/`Test_IfCondition_CheckBool`/`Test_IfBool_Samples`（`types/sql_fragments_test.go`，samples `selectDeptListByRoleId` 真实回归：`deptCheckStrictly=true` 含 `not in` 子句、false/缺失剔除）。
 - **S-08 `<include>` 内 `#{}`/`${}` 参数不替换（P1）**：`<sql>` 块原来只取纯文本、嵌套标签被忽略，include 复制后参数替换失效。`SqlElement` 新增 `Fragments []*sqlFragment`，嵌套标签（`<where>/<if>/<foreach>` 等）解析为片段；`sqlInclude` 渲染片段并正确收集占位符参数（随 S-01 一并修复）。
 - **S-09 `validParam` 对 `nil` 参数反射零值 panic**：`PrepareSQL(nil)`/`GenerateSQL(nil)` 崩溃（`reflect.Indirect(reflect.ValueOf(nil)).Type()` / `convert2Map` / `getFormatValue` / `validValue` / foreach nil 元素多处反射零值 panic）。`validParam`（`types/sql_param.go`）Base/Slice/Map/Struct 各分支拒绝 nil 与类型化 nil 指针（返回错误而非 panic）；`GenerateSQL`/`PrepareSQL`（`types/sql_function.go`）对无 parameterType 函数传 nil 也返回错误；`convert2Map`/`validValue`/`getFormatValue`（`types/common.go`）零值与 nil 防御（`getFormatValue(nil)` 按 SQL `null` 渲染）；`buildParams`（`types/sql_fragments.go`）foreach nil 元素直接保留 item 键不反射。回归测试 `Test_ValidParam_Nil`/`Test_GenerateSQL_NilParam`/`Test_ValidValue_Nil`/`Test_Convert2Map_InvalidValue`（`types/sql_param_nil_test.go`，覆盖 Base/Struct/Slice 各类型 nil、类型化 nil 指针、切片含 nil 元素、无 parameterType 函数）。
+- **S-10 `filterMapperFiles` 全目录扫描 `.xml`**：`mybatis-config.xml`（根标签 `<configuration>`、无 namespace）被误加载为 Mapper → 空 namespace 污染 `NamedMappers[""]`、codegen 生成空 `.go` 文件。`loadMapper`（`types/sql_mapper.go`）新增根标签校验（非 `<mapper>` 一律跳过）+ namespace 非空校验；`filterMapperFiles`（`types/sql_mappers.go`）改用 `strings.HasSuffix` 判定 `.xml` 并跳过目录（顺带修复短文件名 `path[len-4:]` 越界 panic）。回归测试 `Test_filterMapperFiles_Suffix`/`Test_LoadMapper_SkipNonMapper`/`Test_NewSqlMappers_SkipConfig`（`types/sql_mappers_test.go`，samples 真实回归：`mybatis-config.xml` 不再作为 Mapper 加载，`NamedMappers` 无空键）。
 
 ### 🔴 P0 待修复（崩溃 / 错误 SQL）
 
@@ -126,7 +127,6 @@
 
 ### 🟢 P2 待修复（健壮性）
 
-- **S-10 `filterMapperFiles` 全目录扫描 `.xml`**：`mybatis-config.xml` 被误加载为 Mapper（空 namespace），需排除非 Mapper XML（按 `mybatis-config` 根标签或 namespace 判定）。
 - **S-11 `useGeneratedKeys`/`keyProperty` 属性被忽略**：自增主键不回填，`parseSqlFunctionFromXmlNode` 需解析并暴露这两个属性。
 
 ---

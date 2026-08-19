@@ -95,6 +95,15 @@ func loadMapper(filename string) *SqlMapper {
 		return nil
 	}
 	namespace := node.Attrs["namespace"]
+	// S-10：排除非 Mapper XML（mybatis-config.xml 根标签为 configuration、无 namespace）
+	if !strings.EqualFold(node.Name, "mapper") {
+		log.Debugf("skip non-mapper xml file %v (root tag: %v)", filename, node.Name)
+		return nil
+	}
+	if strings.TrimSpace(namespace) == "" {
+		log.Warnf("skip mapper xml file %v without namespace", filename)
+		return nil
+	}
 	mps := filterResultMap(node.Elements)
 	nms := makeNamedMap(mps)
 	sns := filterSqlElement(node.Elements)
