@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
@@ -88,7 +89,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	log.Debugf("sql: %v", sqlStr)
 	switch sqlFunc.Type {
 	case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
-		result, err := executeWithResult(sqlStr, sqlargs...)
+		result, err := executeWithResult(context.Background(), sqlStr, sqlargs...)
 		if err != nil {
 			return reflect.Value{}, err
 		}
@@ -99,7 +100,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		}
 		return reflect.ValueOf(int64(rf)), nil
 	case types.SelectFunction:
-		rows, err := queryRows(sqlStr, sqlargs...)
+		rows, err := queryRows(context.Background(), sqlStr, sqlargs...)
 		if err != nil {
 			return reflect.Value{}, err
 		}
