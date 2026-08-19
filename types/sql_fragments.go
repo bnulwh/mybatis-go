@@ -21,6 +21,7 @@ type sqlFragmentParam struct {
 	TypeName string
 	Type     reflect.Type
 	Origin   string
+	Raw      bool // ${...} 原始替换：不入占位符参数、不加引号
 }
 
 type simpleSql struct {
@@ -276,6 +277,11 @@ func (in *simpleSql) prepareSqlWithMap(mp map[string]interface{}, depth int) (st
 			log.Warnf("not found %v in map", param.Name)
 			continue
 		}
+		if param.Raw {
+			// ${...} 原始注入：直接拼接值，不入占位符参数
+			sqlstr = strings.ReplaceAll(sqlstr, param.Origin, rawFormatValue(val))
+			continue
+		}
 		sqlstr = strings.ReplaceAll(sqlstr, param.Origin, "?")
 		results = append(results, getFormatValue(val))
 	}
@@ -291,7 +297,13 @@ func (in *simpleSql) generateSqlWithMap(mp map[string]interface{}, depth int) st
 			log.Warnf("not found %v in map", param.Name)
 			continue
 		}
-		valstr := getFormatValue(val)
+		var valstr string
+		if param.Raw {
+			// ${...} 原始注入：不加引号
+			valstr = rawFormatValue(val)
+		} else {
+			valstr = getFormatValue(val)
+		}
 		sqlstr = strings.ReplaceAll(sqlstr, param.Origin, valstr)
 	}
 	return sqlstr
@@ -301,6 +313,10 @@ func (in *simpleSql) prepareSqlWithParam(m interface{}) (string, []string) {
 	sqlstr := in.Sql
 	var results []string
 	for _, param := range in.Params {
+		if param.Raw {
+			sqlstr = strings.ReplaceAll(sqlstr, param.Origin, rawFormatValue(m))
+			continue
+		}
 		sqlstr = strings.ReplaceAll(sqlstr, param.Origin, "?")
 		results = append(results, getFormatValue(m))
 	}
@@ -309,8 +325,13 @@ func (in *simpleSql) prepareSqlWithParam(m interface{}) (string, []string) {
 func (in *simpleSql) generateSqlWithParam(m interface{}) string {
 	log.Debugf("sql if test generate sql with param: %v", m)
 	sqlstr := in.Sql
-	valstr := getFormatValue(m)
 	for _, param := range in.Params {
+		var valstr string
+		if param.Raw {
+			valstr = rawFormatValue(m)
+		} else {
+			valstr = getFormatValue(m)
+		}
 		sqlstr = strings.ReplaceAll(sqlstr, param.Origin, valstr)
 	}
 	return sqlstr
@@ -477,11 +498,13 @@ func parseSqlFragmentParamFromText(text string) []sqlFragmentParam {
 	matches := re.FindAllStringSubmatch(text, -1)
 	var stps []sqlFragmentParam
 	for _, match := range matches {
+		raw := strings.HasPrefix(match[0], "${")
 		if len(match) == 2 {
 			stps = append(stps, sqlFragmentParam{
 				Origin:   match[0],
 				Name:     match[1],
 				TypeName: "",
+				Raw:      raw,
 			})
 		} else if len(match) == 5 {
 			if len(match[4]) > 0 {
@@ -490,17 +513,27 @@ func parseSqlFragmentParamFromText(text string) []sqlFragmentParam {
 					Name:     match[1],
 					TypeName: match[4],
 					Type:     ParseJdbcTypeFrom(match[4]),
+					Raw:      raw,
 				})
 			} else {
 				stps = append(stps, sqlFragmentParam{
 					Origin:   match[0],
 					Name:     match[1],
 					TypeName: "",
+					Raw:      raw,
 				})
 			}
 		}
 	}
 	return stps
+}
+
+// rawFormatValue 返回 ${...} 原始替换值：字符串原样注入（不加引号），其余按 %v。
+func rawFormatValue(m interface{}) string {
+	if s, ok := m.(string); ok {
+		return s
+	}
+	return fmt.Sprintf("%v", m)
 }
 
 // lookupParam 按 buildKey 扁平键查找参数；未命中且名称含 "." 时，

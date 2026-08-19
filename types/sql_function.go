@@ -94,7 +94,16 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, 
 		return "", []interface{}{}, err
 	}
 	if !in.Param.Need {
-		return in.generateSqlWithoutParam(), []interface{}{}, nil
+		if len(args) == 0 {
+			return in.generateSqlWithoutParam(), []interface{}{}, nil
+		}
+		// 无 parameterType 但传入参数：按参数渲染（支持 ${sql} 等原始替换）
+		switch reflect.Indirect(reflect.ValueOf(args[0])).Kind() {
+		case reflect.Map, reflect.Struct:
+			nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
+			return in.generateSqlWithMap(nmp), []interface{}{}, nil
+		}
+		return in.generateSqlWithParam(args[0]), []interface{}{}, nil
 	}
 	switch in.Param.Type {
 	case BaseSqlParam:
@@ -116,7 +125,18 @@ func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []string, error)
 		return "", nil, err
 	}
 	if !in.Param.Need {
-		return in.generateSqlWithoutParam(), []string{}, nil
+		if len(args) == 0 {
+			return in.generateSqlWithoutParam(), []string{}, nil
+		}
+		// 无 parameterType 但传入参数：按参数渲染（支持 ${sql} 等原始替换）
+		switch reflect.Indirect(reflect.ValueOf(args[0])).Kind() {
+		case reflect.Map, reflect.Struct:
+			nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
+			sqlstr, results := in.prepareSqlWithMap(nmp)
+			return sqlstr, results, nil
+		}
+		sqlstr, results := in.prepareSqlWithParam(args[0])
+		return sqlstr, results, nil
 	}
 	switch in.Param.Type {
 	case BaseSqlParam:
