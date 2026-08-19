@@ -4,9 +4,10 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 
 ## 特性
 
-- **MyBatis 风格**：XML Mapper 定义 SQL，`#{}` / `${}` 参数绑定，`<if>` / `<where>` 等动态 SQL
+- **MyBatis 风格**：XML Mapper 定义 SQL，`#{}` / `${}` 参数绑定，完整动态 SQL（`<if>` / `<where>` / `<set>` / `<foreach>` / `<choose>` / `<include>`）
 - **反射代理**：Mapper struct 的函数字段在运行时自动注入代理，无需手动实现
-- **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap` 配置
+- **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap`（含 `<association>` / `<collection>` 嵌套关联类型生成）
+- **自增主键回填**：`useGeneratedKeys` / `keyProperty` 支持，Insert 后自动回填自增主键到入参 struct 指针
 - **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES
 - **代码生成**：内置 `generator`（XML → Go）和 `schema2code`（数据库表 → Go）工具
 - **预编译缓存**：Prepared Statement 自动缓存和复用
@@ -309,6 +310,7 @@ go run ./cmd/kingbasedemo    # KingbaseES
 - `orm.NewMapper("MapperName")` 创建的对象必须先通过 `orm.RegisterMapper` 注册
 - `orm.RegisterModel` 用于注册模型类，注册后的类在调用 Mapper 函数时可以自动创建并填充值
 - 函数字段的 tag（如 `` `args:id` ``）可用于指定输入参数名称映射
+- `useGeneratedKeys` 回填需向 Insert 方法传 **struct 指针**（值传递无法写回调用方）；入参为 map 时同样支持
 - SELECT 方法的返回值类型为 `([]Model, error)`，INSERT/UPDATE/DELETE 为 `(int64, error)`
 - KingbaseES 驱动由框架自动注册（`sql.Register("kingbase", &pq.Driver{})`），无需也不应重复引入驱动
 - 日志通过 `orm.SetLogger` 替换，实现 `log.Logger` 接口即可
@@ -335,7 +337,8 @@ go run ./cmd/kingbasedemo    # KingbaseES
 ├── utils/               # 工具函数
 ├── log/                 # 日志接口
 ├── mapper/              # 生成的 Mapper 示例
-└── resources/mapper/    # XML Mapper 文件
+├── resources/mapper/    # XML Mapper 文件
+└── samples/             # RuoYi Mapper 兼容性回归样本（KingbaseES 方言，S-01~S-11 已全部修复）
 ```
 
 ## 测试
@@ -348,6 +351,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-08-19（v0.1.6）**：RuoYi Mapper 兼容性修复 — `samples/` 目录 11 项兼容性缺陷（S-01~S-11）全部修复：`<where>` / `<set>` 标签支持、点号参数 `#{a.b}`、原始替换 `${...}`、`parameterType="Long"` 基础类型映射、resultMap `<association>` / `<collection>` 真实关联类型（`*SysDept` / `[]SysRole`）、裸标识符布尔 `<if>` 求值、`<include>` 内参数替换、nil 参数反射零值 panic 防御、排除非 Mapper XML（`mybatis-config.xml`）、`useGeneratedKeys` / `keyProperty` 自增主键回填（SQLite 端到端验证）
 - **2026-08-14**：测试与 CI — 补齐核心代理机制单测（`proxyValue`/参数与返回类型校验），顺带修复 `args` tag 文档格式失效的 bug（兼容 `args:name` 与 `args:"name"`）；新增 utils 测试与性能基准；新增 GitHub Actions CI（build + vet + 测试 + 覆盖率）
 - **2026-08-14**：工程化清理 — `ioutil` 弃用替换为 `os.ReadFile/WriteFile`；删除死代码（`convert2Interfaces`、`Rows` 接口）；`.gitignore` 去重
 - **2026-08-14**：调试日志零开销 — 日志级别关闭时不再对整结果集做 `ToJson` 序列化（`log.IsDebugEnabled()` + 可选 `debugEnabler` 接口，未实现者保守返回 true 不丢日志）
