@@ -100,7 +100,7 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, 
 	case BaseSqlParam:
 		return in.generateSqlWithParam(args[0]), []interface{}{}, nil
 	case SliceSqlParam:
-		smp := convert2Slice(reflect.Indirect(reflect.ValueOf(args)))
+		smp := sliceArgsFrom(args)
 		return in.generateSqlWithSlice(smp), []interface{}{}, nil
 	}
 	nmp := convert2Map(reflect.Indirect(reflect.ValueOf(args[0])))
@@ -123,7 +123,7 @@ func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []string, error)
 		sqlstr, results := in.prepareSqlWithParam(args[0])
 		return sqlstr, results, nil
 	case SliceSqlParam:
-		smp := convert2Slice(reflect.Indirect(reflect.ValueOf(args)))
+		smp := sliceArgsFrom(args)
 		sqlstr, results := in.prepareSqlWithSlice(smp)
 		return sqlstr, results, nil
 	}

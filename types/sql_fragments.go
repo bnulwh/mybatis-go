@@ -112,7 +112,12 @@ func (in *sqlForLoop) buildParams(index int, item interface{}, mp map[string]int
 				key := buildKey(fmt.Sprintf("%s.%s", in.Item, field.Name))
 				nmp[key] = ival.Field(i).Interface()
 			}
+			// 同时保留 item 本身，支持 #{item.xxx} 按点号分段遍历
+			nmp[buildKey(in.Item)] = item
 		}
+	case reflect.Map:
+		// 保留 item 本身，支持 #{item.xxx} 按点号分段遍历 map 键
+		nmp[buildKey(in.Item)] = item
 	case reflect.String,
 		reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -136,10 +141,10 @@ func (in *sqlIfTest) prepareSqlWithSlice(m []interface{}, depth int) (string, []
 		case simpleSqlFragment:
 			buf.WriteString(item.Sql.Sql)
 		case includeSqlFragment:
-		sqlstr, items := item.Include.prepareSqlWithSlice(m, depth+1)
-		buf.WriteString(sqlstr)
-		results = append(results, items...)
-	case forLoopSqlFragment:
+			sqlstr, items := item.Include.prepareSqlWithSlice(m, depth+1)
+			buf.WriteString(sqlstr)
+			results = append(results, items...)
+		case forLoopSqlFragment:
 			sqlstr, items := item.ForLoop.prepareSql(map[string]interface{}{}, m, depth+1)
 			buf.WriteString(sqlstr)
 			results = append(results, items...)
@@ -233,7 +238,7 @@ func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 }
 func (in *ifCondition) checkValue(m map[string]interface{}) bool {
 	log.Debugf("if condition %v check value: %v", in.CheckName, m)
-	val, ok := m[buildKey(in.CheckName)]
+	val, ok := lookupParam(m, in.CheckName)
 	if !ok {
 		return false
 	}
@@ -266,10 +271,9 @@ func (in *simpleSql) prepareSqlWithMap(mp map[string]interface{}, depth int) (st
 	sqlstr := in.Sql
 	var results []string
 	for _, param := range in.Params {
-		key := buildKey(param.Name)
-		val, ok := mp[key]
+		val, ok := lookupParam(mp, param.Name)
 		if !ok {
-			log.Warnf("not found %v in map", key)
+			log.Warnf("not found %v in map", param.Name)
 			continue
 		}
 		sqlstr = strings.ReplaceAll(sqlstr, param.Origin, "?")
@@ -282,10 +286,9 @@ func (in *simpleSql) generateSqlWithMap(mp map[string]interface{}, depth int) st
 	log.Debugf("simple sql generate sql with map: %v", mp)
 	sqlstr := in.Sql
 	for _, param := range in.Params {
-		key := buildKey(param.Name)
-		val, ok := mp[key]
+		val, ok := lookupParam(mp, param.Name)
 		if !ok {
-			log.Warnf("not found %v in map", key)
+			log.Warnf("not found %v in map", param.Name)
 			continue
 		}
 		valstr := getFormatValue(val)
@@ -434,9 +437,9 @@ func parseSqlChooseFromXmlNode(elems []xmlElement) (*sqlFragment, error) {
 
 func parseIfConditionsFromText(text string) []ifCondition {
 	reSplit := regexp.MustCompile("[aA][nN][dD]")
-	reNC := regexp.MustCompile(`[\w]+[\s]*[!][=][\s]*null`)
-	reEC := regexp.MustCompile(`[\w]+[\s]*[!][=][\s]*[']{2}`)
-	reName := regexp.MustCompile(`[\w]+`)
+	reNC := regexp.MustCompile(`[\w.]+[\s]*[!][=][\s]*null`)
+	reEC := regexp.MustCompile(`[\w.]+[\s]*[!][=][\s]*[']{2}`)
+	reName := regexp.MustCompile(`[\w.]+`)
 	var cs []ifCondition
 	for _, item := range reSplit.Split(text, -1) {
 		item = strings.TrimSpace(item)
@@ -470,7 +473,7 @@ func parseSimpleSqlFromText(text string) *simpleSql {
 }
 
 func parseSqlFragmentParamFromText(text string) []sqlFragmentParam {
-	re := regexp.MustCompile(`[#$][{][\s]*([\w]+)[\s]*(,[\s]*([\w]+)[\s]*=[\s]*([\w]+)[\s]*)*[}]`)
+	re := regexp.MustCompile(`[#$][{][\s]*([\w.]+)[\s]*(,[\s]*([\w.]+)[\s]*=[\s]*([\w.]+)[\s]*)*[}]`)
 	matches := re.FindAllStringSubmatch(text, -1)
 	var stps []sqlFragmentParam
 	for _, match := range matches {
@@ -498,4 +501,67 @@ func parseSqlFragmentParamFromText(text string) []sqlFragmentParam {
 		}
 	}
 	return stps
+}
+
+// lookupParam 按 buildKey 扁平键查找参数；未命中且名称含 "." 时，
+// 按点号分段遍历嵌套 map / struct（含指针），支持 #{params.beginTime}、#{item.deptId} 等。
+func lookupParam(m map[string]interface{}, name string) (interface{}, bool) {
+	if val, ok := m[buildKey(name)]; ok {
+		return val, true
+	}
+	parts := strings.Split(name, ".")
+	if len(parts) < 2 {
+		return nil, false
+	}
+	cur, ok := m[buildKey(parts[0])]
+	if !ok {
+		return nil, false
+	}
+	for _, part := range parts[1:] {
+		v := reflect.ValueOf(cur)
+		if v.Kind() == reflect.Ptr {
+			if v.IsNil() {
+				return nil, false
+			}
+			v = v.Elem()
+		}
+		switch v.Kind() {
+		case reflect.Map:
+			if v.Type().Key().Kind() != reflect.String {
+				return nil, false
+			}
+			if mv := v.MapIndex(reflect.ValueOf(part)); mv.IsValid() {
+				cur = mv.Interface()
+				continue
+			}
+			if mv := v.MapIndex(reflect.ValueOf(buildKey(part))); mv.IsValid() {
+				cur = mv.Interface()
+				continue
+			}
+			found := false
+			for _, k := range v.MapKeys() {
+				if buildKey(k.String()) == buildKey(part) {
+					cur = v.MapIndex(k).Interface()
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, false
+			}
+		case reflect.Struct:
+			if fv := v.FieldByName(part); fv.IsValid() {
+				cur = fv.Interface()
+				continue
+			}
+			fv := v.FieldByNameFunc(func(s string) bool { return buildKey(s) == buildKey(part) })
+			if !fv.IsValid() {
+				return nil, false
+			}
+			cur = fv.Interface()
+		default:
+			return nil, false
+		}
+	}
+	return cur, true
 }

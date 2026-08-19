@@ -168,6 +168,20 @@ func convert2Slice(val reflect.Value) []interface{} {
 	return ns
 }
 
+// sliceArgsFrom 提取 SliceSqlParam 的参数切片：
+// 优先取 args[0]（代理调用传入单个切片参数，如 mapper.UpdateDeptChildren(depts)），
+// 否则回退整个 args（调用方展开传入多个元素）。
+func sliceArgsFrom(args []interface{}) []interface{} {
+	if len(args) == 0 {
+		return nil
+	}
+	v := reflect.ValueOf(args[0])
+	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
+		return convert2Slice(reflect.Indirect(v))
+	}
+	return args
+}
+
 func validValue(m interface{}) bool {
 	typ := reflect.TypeOf(m)
 	switch typ.String() {
