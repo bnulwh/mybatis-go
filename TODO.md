@@ -115,11 +115,11 @@
 
 ### 🔴 P0 待修复（崩溃 / 错误 SQL）
 
-（S-01~S-05 已全部修复）
+（S-01~S-06 已全部修复）
 
 ### 🟡 P1 待修复（功能缺失）
 
-- **S-06 resultMap 的 `<association>`/`<collection>` 被当普通 `<result>`**：生成模型出现 `Dept string`/`Roles string` 假字段，嵌套映射丢失。应在 `parseResultItemFromXmlNode` 区分 association/collection 并建立真实关联。
+- **S-06 resultMap 的 `<association>`/`<collection>` 被当普通 `<result>`**：生成模型出现 `Dept string`/`Roles string` 假字段，嵌套映射丢失。`ResultItem` 新增 `Kind`（id/result/association/collection）+ `JavaType`/`OfType`/`ResultMap` 引用（`types/result_item.go`），`parseResultItemFromXmlNode` 按节点名分发解析；`golangType` 依据 javaType/ofType/嵌套 resultMap（`SysUserResult` 的 `dept`→`*SysDept`、`roles`→`[]SysRole`，`GenTableResult` 的 `columns`→`[]GenTableColumn`）建立真实关联类型，不再生成 `Dept string`/`Roles string` 假字段；`makeColumnMap` 跳过无 column 的关联项（避免 `mp[""]` 污染），`hasTimeItem` 跳过关联项防 nil Type panic。回归测试 `Test_ResultItemGolangType_Samples`/`Test_ResultMapGenerateContent_Samples`（`types/result_item_test.go`，samples `SysUserMapper` 真实回归）。
 - **S-07 `<if test="deptCheckStrictly">` 裸标识符恒为 true**：无 `null`/`''` 比较的裸标识符无条件可解析，布尔 false 时也不剔除（MyBatis 语义丢失）。`parseIfConditionsFromText` 需支持布尔裸标识符求值。
 
 ### 🟢 P2 待修复（健壮性）

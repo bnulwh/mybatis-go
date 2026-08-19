@@ -17,15 +17,15 @@ type ResultMap struct {
 	PropertyMap map[string]*ResultItem
 }
 
-func (in *ResultMap) GenerateFile(dir, pkg string) error {
+func (in *ResultMap) GenerateFile(dir, pkg string, namedMaps map[string]*ResultMap) error {
 	sname := GetShortName(in.TypeName)
 	filename := filepath.Join(dir, fmt.Sprintf("%s.go", sname))
 	log.Debugf("generate file %v", filename)
-	bts := in.generateContent(pkg)
+	bts := in.generateContent(pkg, namedMaps)
 	return os.WriteFile(filename, bts, 0640)
 }
 
-func (in *ResultMap) generateContent(pkg string) []byte {
+func (in *ResultMap) generateContent(pkg string, namedMaps map[string]*ResultMap) []byte {
 	var buf bytes.Buffer
 	sname := GetShortName(in.TypeName)
 	//buf.WriteString(fmt.Sprintf("package %s\n\n", pkg))
@@ -44,7 +44,7 @@ func (in *ResultMap) generateContent(pkg string) []byte {
 		if strings.Compare(strings.ToLower(item.Property), "delete_time") == 0 {
 			continue
 		}
-		buf.WriteString(fmt.Sprintf("\t%s \t%s\t`json:\"%s\"`\n", UpperFirst(item.Property), item.Type.String(), item.Property))
+		buf.WriteString(fmt.Sprintf("\t%s \t%s\t`json:\"%s\"`\n", UpperFirst(item.Property), item.golangType(namedMaps), item.Property))
 	}
 	buf.WriteString("}\n\n")
 	//buf.WriteString("func init(){\n")
@@ -54,6 +54,9 @@ func (in *ResultMap) generateContent(pkg string) []byte {
 }
 func (in *ResultMap) hasTimeItem() bool {
 	for _, item := range in.Results {
+		if item.Kind == ResultItemKindAssociation || item.Kind == ResultItemKindCollection {
+			continue
+		}
 		switch item.Type.String() {
 		case "time.Time":
 			return true
@@ -84,6 +87,9 @@ func parseResultMapFromXmlNode(node xmlNode) *ResultMap {
 func makeColumnMap(items []*ResultItem) map[string]*ResultItem {
 	mp := map[string]*ResultItem{}
 	for _, item := range items {
+		if item.Column == "" {
+			continue // association/collection 无 column 映射，不参与行列转换
+		}
 		mp[item.Column] = item
 		mp[strings.ToLower(item.Column)] = item
 	}

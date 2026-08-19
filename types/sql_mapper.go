@@ -22,7 +22,7 @@ type SqlMapper struct {
 
 func (in *SqlMapper) GenerateFiles(dir, pkg string) {
 	for _, mp := range in.Maps {
-		err := mp.GenerateFile(filepath.Join(dir, "models"), pkg)
+		err := mp.GenerateFile(filepath.Join(dir, "models"), pkg, in.NamedMaps)
 		if err != nil {
 			log.Warnf("result map %v generate file failed: %v", mp.TypeName, err)
 		}
