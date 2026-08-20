@@ -117,6 +117,11 @@ func bindMapper(name string, mapper reflect.Value) {
 		methodFieldCheck(&outTyp, &funcField, true)
 		//执行期
 		var proxyFunc = func(arg ProxyArg) []reflect.Value {
+			// P4-2：流式 select —— 方法返回 *RowStream，逐行消费，不整表进内存
+			if returnType.ReturnOutType != nil && *returnType.ReturnOutType == rowStreamType {
+				rv, e := bm.executeStream(sqlFunc, arg)
+				return buildReturnValues(returnType, rv, e)
+			}
 			//exe sql
 			rv, e := bm.executeMethod(sqlFunc, arg)
 			switch sqlFunc.Type {

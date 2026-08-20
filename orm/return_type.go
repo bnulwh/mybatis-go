@@ -17,6 +17,13 @@ type ReturnType struct {
 
 func (in *ReturnType) checkSql(f *types.SqlFunction, name string) error {
 	typ := *in.ReturnOutType
+	if typ == rowStreamType {
+		// P4-2：流式 select 的返回类型与 XML resultType 解耦（逐行 map / Scan 由调用方决定）
+		if f.Type != types.SelectFunction {
+			return fmt.Errorf("%v check sql function %v failed, stream return type (*RowStream) only support select", name, f.Id)
+		}
+		return nil
+	}
 	if typ.Kind() == reflect.Slice {
 		typ = typ.Elem()
 	}
@@ -52,7 +59,11 @@ func makeReturnType(funcName string, funcType reflect.Type) *ReturnType {
 		var outType = funcType.Out(f)
 		//过滤NewSession方法
 		if outType.Kind() == reflect.Ptr || (outType.Kind() == reflect.Interface && outType.String() != "error") {
-			panic("[mybatis-go] func '" + funcName + "()' return '" + outType.String() + "' can not be a 'ptr' or 'interface'!")
+			if outType == rowStreamType {
+				// P4-2：允许 select 方法返回 *RowStream 流式读取大结果集
+			} else {
+				panic("[mybatis-go] func '" + funcName + "()' return '" + outType.String() + "' can not be a 'ptr' or 'interface'!")
+			}
 		}
 		if outType.String() != "error" {
 			returnType.ReturnIndex = f

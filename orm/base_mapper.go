@@ -25,6 +25,37 @@ func (in *BaseMapper) fetchSqlFunction(name string) (*types.SqlFunction, error) 
 	return item, nil
 }
 
+// normalizeSQL 把生成 SQL 里的换行/制表符规整为空格，便于日志与调试。
+func normalizeSQL(sqlStr string) string {
+	sqlStr = strings.ReplaceAll(sqlStr, "\n", " ")
+	sqlStr = strings.ReplaceAll(sqlStr, "\t", " ")
+	sqlStr = strings.ReplaceAll(sqlStr, "\r", " ")
+	return sqlStr
+}
+
+// executeStream 以流式方式执行 select（P4-2）：返回 *RowStream，
+// 由调用方逐行 Next() 消费并负责 Close()，不把整个结果集读进内存。
+func (in *BaseMapper) executeStream(sqlFunc *types.SqlFunction, arg ProxyArg) (val reflect.Value, err error) {
+	if sqlFunc.Type != types.SelectFunction {
+		return reflect.Value{}, fmt.Errorf("%v.%v is not select, cannot stream", in.Namespace, sqlFunc.Id)
+	}
+	start := time.Now()
+	defer sqlFunc.UpdateUsage(start, err == nil)
+	args := arg.buildArgs()
+	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
+	sqlStr = normalizeSQL(sqlStr)
+	if err != nil {
+		log.Warnf("generate sql failed: %v", err)
+		return reflect.Value{}, err
+	}
+	log.Debugf("sql: %v", sqlStr)
+	stream, err := QueryStream(context.Background(), sqlStr, sqlargs...)
+	if err != nil {
+		return reflect.Value{}, err
+	}
+	return reflect.ValueOf(stream), nil
+}
+
 // backfillGeneratedKey 把 sql.Result.LastInsertId 回填到入参的 keyProperty 字段（S-11）。
 // 入参为 struct 指针或 map 时回填生效；值传递的 struct 无法写回（Go 语义限制）。
 func backfillGeneratedKey(arg ProxyArg, keyProperty string, result sql.Result) {
@@ -79,9 +110,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	//log.Debugf("state: %v", gDbConn.Statement)
 	args := arg.buildArgs()
 	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
-	sqlStr = strings.ReplaceAll(sqlStr, "\n", " ")
-	sqlStr = strings.ReplaceAll(sqlStr, "\t", " ")
-	sqlStr = strings.ReplaceAll(sqlStr, "\r", " ")
+	sqlStr = normalizeSQL(sqlStr)
 	if err != nil {
 		log.Warnf("generate sql failed: %v", err)
 		return reflect.Value{}, err

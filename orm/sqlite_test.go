@@ -21,6 +21,7 @@ type SqliteTestMapper struct {
 	BaseMapper
 	Insert    func(model SqliteTestModel) (int64, error)
 	SelectAll func() ([]SqliteTestModel, error)
+	StreamAll func() (*RowStream, error)
 }
 
 func Test_parseAddr_sqlite(t *testing.T) {
@@ -68,6 +69,9 @@ func initSqliteTest(t *testing.T) string {
   </insert>
   <select id="selectAll" resultMap="BaseResultMap">
     select id, name, create_time from t_sqlite
+  </select>
+  <select id="streamAll" resultMap="BaseResultMap">
+    select id, name, create_time from t_sqlite order by id
   </select>
 </mapper>`
 	if err := os.WriteFile(filepath.Join(xmlDir, "SqliteTestMapper.xml"), []byte(xml), 0644); err != nil {
@@ -164,6 +168,69 @@ func Test_SqliteMapper(t *testing.T) {
 	}
 	if !rs[0].CreateTime.Equal(tm) {
 		t.Errorf("mapper select create_time failed, got %v want %v", rs[0].CreateTime, tm)
+	}
+}
+
+func Test_SqliteStreamMapper(t *testing.T) {
+	dir := initSqliteTest(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+
+	if _, err := Execute(`CREATE TABLE t_sqlite (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT,
+		create_time DATETIME)`); err != nil {
+		t.Errorf("create table failed: %v", err)
+		return
+	}
+	RegisterModel(new(SqliteTestModel))
+	if err := RegisterMapper(new(SqliteTestMapper)); err != nil {
+		t.Errorf("register mapper failed: %v", err)
+		return
+	}
+	mp := NewMapper("SqliteTestMapper").(SqliteTestMapper)
+	tm := time.Date(2026, 8, 13, 17, 0, 0, 0, time.UTC)
+	for _, n := range []string{"stream_1", "stream_2", "stream_3"} {
+		if _, err := mp.Insert(SqliteTestModel{Name: n, CreateTime: tm}); err != nil {
+			t.Errorf("mapper insert failed: %v", err)
+			return
+		}
+	}
+
+	// P4-2：Mapper 流式 select —— 返回 *RowStream，逐行 Scan，不整表进内存
+	st, err := mp.StreamAll()
+	if err != nil {
+		t.Errorf("mapper stream failed: %v", err)
+		return
+	}
+	defer st.Close()
+	var got []SqliteTestModel
+	for st.Next() {
+		var m SqliteTestModel
+		if err := st.Scan(&m); err != nil {
+			t.Errorf("stream scan failed: %v", err)
+			return
+		}
+		got = append(got, m)
+	}
+	if err := st.Err(); err != nil {
+		t.Errorf("stream err failed: %v", err)
+		return
+	}
+	if len(got) != 3 {
+		t.Errorf("stream count failed, got %d want 3", len(got))
+		return
+	}
+	if got[0].Name != "stream_1" || got[1].Name != "stream_2" || got[2].Name != "stream_3" {
+		t.Errorf("stream names failed, got %v", got)
+	}
+	if !got[0].CreateTime.Equal(tm) {
+		t.Errorf("stream create_time failed, got %v want %v", got[0].CreateTime, tm)
+	}
+	if st.Count() != 3 {
+		t.Errorf("stream Count() failed, got %d want 3", st.Count())
 	}
 }
 
