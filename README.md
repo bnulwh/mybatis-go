@@ -13,6 +13,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **代码生成**：内置 `generator`（XML → Go）和 `schema2code`（数据库表 → Go）工具
 - **预编译缓存**：Prepared Statement 自动缓存和复用
 - **事务支持**：`orm.Begin()` / `Commit()` / `Rollback()`，事务开启后 Mapper 方法与 SQL 自动参与
+- **大结果集流式读取**：`orm.QueryStream` / Mapper 流式 select 方法返回 `*orm.RowStream`，`Next()` 逐行消费、内存 O(1)，百万行结果集也不会 OOM（配合全局行数上限 `orm.SetDefaultRowLimit` 兜底）
 
 ## 路线图
 
@@ -121,6 +122,56 @@ func main() {
 ```
 
 完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go` 和 `cmd/kingbasedemo/main.go`。
+
+## 大结果集流式查询
+
+大结果集（如 10 万行以上）用 `Query` 会一次性全部读进内存。改用流式读取：游标保持打开、任意时刻内存只保留当前一行，逐行处理后由调用方 `Close()` 释放连接。
+
+### 顶层 API
+
+```go
+st, err := orm.QueryStream(context.Background(), `SELECT * FROM t_user`)
+if err != nil {
+    return err
+}
+defer st.Close() // 无论是否读完都必须 Close，否则连接被占住
+
+for st.Next() {
+    row := st.Row() // 当前行 map（与 Query 的行结构一致）
+    // 或 st.Scan(&user) 填充到结构体（列名自动匹配字段）
+    process(row)
+}
+if err := st.Err(); err != nil {
+    return err // 扫描/游标错误（流式场景不静默丢行）
+}
+```
+
+### Mapper 流式 select
+
+Mapper 方法返回 `(*orm.RowStream, error)` 即自动走流式路径（XML 仍是普通 `<select>`，无需特殊声明）：
+
+```go
+type UserInfoModelMapper struct {
+    orm.BaseMapper
+    StreamAll func() (*orm.RowStream, error)
+    // ...
+}
+
+st, err := mp.StreamAll()
+if err != nil {
+    return err
+}
+defer st.Close()
+for st.Next() {
+    var u UserInfoModel
+    if err := st.Scan(&u); err != nil {
+        return err
+    }
+    log.Infof("row: %+v", u)
+}
+```
+
+> 说明：流式方法的结果类型与 XML `resultType` / `resultMap` 解耦，逐行 `Row()` / `Scan()` 由调用方决定；行数上限仍遵循全局 `orm.SetDefaultRowLimit`（默认 10000，负数不限制返回全部）。
 
 ## 事务
 
@@ -286,6 +337,7 @@ db, err := orm.Open(cfg)
 - **扫描目标复用**：结果集扫描目标（`sql.NullXxx` 指针）每次查询只分配一次、跨行复用，替代逐行分配
 - **反射预编译**：列值转换函数表（`convertFn`）与 resultMap 的 property→字段索引映射在查询开始时预编译一次，行循环内直接调用，避免每行每列 `ScanType` switch 分派与 `FieldByName` O(N) 名称匹配
 - **无参 SQL 生成缓存**：无参 SQL 的拼接结果静态不变，首次生成后缓存复用
+- **大结果集流式读取**：`QueryStream` / Mapper 流式 select 逐行消费（内存 O(1)），配合全局行数上限（P4-3，默认 10000 行）兜底截断，避免大结果集 OOM / 拖垮连接
 
 ## 代码生成
 
@@ -336,7 +388,7 @@ go run ./cmd/kingbasedemo    # KingbaseES
 - `orm.RegisterModel` 用于注册模型类，注册后的类在调用 Mapper 函数时可以自动创建并填充值
 - 函数字段的 tag（如 `` `args:id` ``）可用于指定输入参数名称映射
 - `useGeneratedKeys` 回填需向 Insert 方法传 **struct 指针**（值传递无法写回调用方）；入参为 map 时同样支持
-- SELECT 方法的返回值类型为 `([]Model, error)`，INSERT/UPDATE/DELETE 为 `(int64, error)`
+- SELECT 方法的返回值类型为 `([]Model, error)`，INSERT/UPDATE/DELETE 为 `(int64, error)`；流式 select 可返回 `(*orm.RowStream, error)`（逐行消费，调用方必须 `Close()` 释放连接）
 - KingbaseES 驱动由框架自动注册（`sql.Register("kingbase", &pq.Driver{})`），无需也不应重复引入驱动
 - 日志通过 `orm.SetLogger` 替换，实现 `log.Logger` 接口即可
 - 事务：`orm.Begin()` 开启后 Mapper 方法自动在事务内执行，`Commit()` / `Rollback()` 结束事务（见「事务」章节）
@@ -355,6 +407,7 @@ go run ./cmd/kingbasedemo    # KingbaseES
 ├── orm/                 # 核心 ORM 框架
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
 │   ├── multi_datasource.go  # 多数据源注册表（InitializeDataSources / UseDataSource / AddDataSource）
+│   ├── row_stream.go    # 大结果集流式读取（QueryStream / RowStream，Mapper 流式 select）
 │   ├── mysql_dialector.go / postgres_dialector.go
 │   ├── sqlite_dialector.go / kingbase_dialector.go   # 数据库方言
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
@@ -376,6 +429,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-08-20（v0.1.11）**：大结果集流式读取（P4-2）+ MinDuration 并发修复（P2-5 跟进）— ① 新增 `orm.QueryStream(ctx, sql, args...)` 返回 `*orm.RowStream`：`Next()` / `Row()` 逐行消费（游标保持打开、内存 O(1)，10 万行以上不再整表进内存），`Scan(&dest)` 填充结构体或 map（列名→字段名：原名/首字母大写/下划线转驼峰/大小写不敏感），`Err()` / `Count()` / `Close()` 齐备（`Close` 幂等，未读完也必须 Close 释放连接）；② Mapper 代理支持 select 方法返回 `(*orm.RowStream, error)`（`BaseMapper.executeStream`），结果类型与 XML resultType 解耦；③ 语义对齐：行数上限遵循全局 `orm.SetDefaultRowLimit`（P4-3，打开时快照）、ctx 无 deadline 叠加全局默认超时（P4-1）、扫描失败不静默丢行（`Err()` 返回行号明细）；④ 修复 `updateMinDuration` 以 0 兼作「未初始化」哨兵与真实 0ms 测量值冲突（并发下最小值 0 被较大值覆盖）——新增 `minDurationInit` 原子标志区分，回归测试 `Test_updateMinDuration_ZeroCollision`
 - **2026-08-19（v0.1.10）**：全局查询行数上限（P4-3）— `fetchRows` 默认最多返回 10000 行，防止大结果集 OOM/拖垮连接；新增 `orm.SetDefaultRowLimit(n)` / `orm.DefaultRowLimit()` 全局系统设置（负数不限制返回全部、0 不返回任何行），达到上限停止读取并 Warn 提示；`Query` / `QueryContext` / Mapper 代理所有查询路径共用 `fetchRows` 自动生效
 - **2026-08-19（v0.1.9）**：超时/上下文执行 API（P4-1）+ scan 错误聚合（M-05）— ① 新增 `ExecuteContext(ctx, sql, args...)` / `QueryContext(ctx, sql, args...)`；新增 `orm.SetDefaultTimeout(d)` / `orm.DefaultTimeout()` 全局系统设置（默认 5 分钟，防止慢 SQL 无限挂起占住连接）；`executeWithResult` / `queryRows` 及 Mapper 代理执行路径通过 `withExecTimeout` 在 ctx 无 deadline 时自动叠加全局超时（有 deadline 时不叠加，避免误覆盖调用方显式控制）；`context.Background()` 的 `Execute` / `Query` 传统调用同样受全局超时保护。② `convert2Results` 转换失败的行不再静默丢弃：新增 `ResultConvertReport`/`ResultConvertError` 聚合错误明细（行号/列名），`executeMethod` 在 Skipped>0 或 Errors 非空时输出聚合错误日志，便于排查「0 行但 SQL 有数据」
 - **2026-08-19（v0.1.8）**：MP 内置 CRUD 内存自动生成 — XML 含 resultMap（基本类型列 + `<id>` 主键）但缺 MP 内置方法时，加载期按缺失 ID 在内存补生成 10 个 CRUD（不落盘、不覆盖手写）；表名由 resultMap type 推导（SysUser→sys_user），jdbcType 缺失时主键默认 BIGINT/普通列默认 VARCHAR，逻辑删除支持 `deleted` 与 RuoYi `del_flag` 双约定；samples（RuoYi）真实回归验证（`SysUserMapper` 自动具备 SelectById 等，`del_flag='0'` 过滤生效）
