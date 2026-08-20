@@ -32,6 +32,12 @@ type SqlFunction struct {
 	// 无参 SQL 结果静态不变，首次生成后缓存（P2-5）
 	noParamOnce sync.Once
 	noParamSQL  string
+
+	// minDurationInit 标记 MinDuration 是否已初始化（原子）。
+	// 注意：MinDuration==0 兼作「无数据」语义，但真实 0ms 测量值也是 0，
+	// 若以 0 作未初始化哨兵，真实最小值 0 会被后续较大值误覆盖（CAS 分支 bug），
+	// 故单独用标志区分「未初始化」与「已初始化为 0」。
+	minDurationInit int32
 }
 
 func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
@@ -42,7 +48,7 @@ func (in *SqlFunction) UpdateUsage(start time.Time, success bool) {
 	d := time.Since(start).Milliseconds()
 	atomic.AddInt64(&in.TotalDuration, d)
 	updateMaxDuration(&in.MaxDuration, d)
-	updateMinDuration(&in.MinDuration, d)
+	updateMinDuration(&in.MinDuration, &in.minDurationInit, d)
 }
 
 // updateMaxDuration 以 CAS 循环原子更新最大值（避免并发 Swap 互相覆盖）。
@@ -55,16 +61,19 @@ func updateMaxDuration(target *int64, v int64) {
 	}
 }
 
-// updateMinDuration 以 CAS 循环原子更新最小值；0 表示未初始化，首调直接设置。
-func updateMinDuration(target *int64, v int64) {
+// updateMinDuration 以 CAS 循环原子更新最小值。
+// init 单独标记是否已初始化：真实测量值可以是 0ms，与「无数据」的 0 冲突，
+// 因此不能用 MinDuration==0 兼作未初始化哨兵（否则真实最小值 0 会被后续较大值覆盖）。
+func updateMinDuration(target *int64, init *int32, v int64) {
 	for {
-		cur := atomic.LoadInt64(target)
-		if cur == 0 {
-			if atomic.CompareAndSwapInt64(target, 0, v) {
+		if atomic.LoadInt32(init) == 0 {
+			if atomic.CompareAndSwapInt32(init, 0, 1) {
+				atomic.StoreInt64(target, v)
 				return
 			}
 			continue
 		}
+		cur := atomic.LoadInt64(target)
 		if v >= cur || atomic.CompareAndSwapInt64(target, cur, v) {
 			return
 		}

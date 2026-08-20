@@ -101,27 +101,82 @@ func Test_UpdateUsageStats(t *testing.T) {
 	}
 }
 
-// 并发调用 UpdateUsage 不应互相覆盖 Max/Min（CAS 语义）
+// 并发调用 UpdateUsage 不应互相覆盖 Max/Min（CAS 语义，P2-5）。
+// 断言改为与观测到的样本极值比较：无论调度如何延迟，Max/Min 都必须是全体样本的极值
+// （旧断言依赖绝对毫秒阈值，goroutine 抢占会抬高/压低测量值而偶发失败）。
 func Test_UpdateUsageConcurrent(t *testing.T) {
 	fn := &SqlFunction{}
 	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var observed []int64
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func(ms int) {
 			defer wg.Done()
-			fn.UpdateUsage(time.Now().Add(-time.Duration(ms)*time.Millisecond), true)
+			start := time.Now().Add(-time.Duration(ms) * time.Millisecond)
+			fn.UpdateUsage(start, true)
+			mu.Lock()
+			observed = append(observed, time.Since(start).Milliseconds())
+			mu.Unlock()
 		}((i % 5) * 10) // 0/10/20/30/40ms
 	}
 	wg.Wait()
 	if fn.TotalUsage != 20 {
 		t.Errorf("total usage should be 20, got %d", fn.TotalUsage)
 	}
-	// 最大应接近 40ms，最小应接近 0ms
-	if fn.MaxDuration < 35 {
-		t.Errorf("max should be ~40ms, got %d", fn.MaxDuration)
+	if fn.FailedUsage != 0 {
+		t.Errorf("failed usage should be 0, got %d", fn.FailedUsage)
 	}
-	if fn.MinDuration > 15 {
-		t.Errorf("min should be <= ~10ms, got %d", fn.MinDuration)
+	expMax, expMin := int64(0), int64(1<<62-1)
+	for _, d := range observed {
+		if d > expMax {
+			expMax = d
+		}
+		if d < expMin {
+			expMin = d
+		}
+	}
+	// UpdateUsage 内部的 time.Since 早于外部观测，二者相差不超过毫秒截断 + 调度窗口，容差 5ms
+	if diff := fn.MaxDuration - expMax; diff > 5 || diff < -5 {
+		t.Errorf("max duration mismatch: got %d, observed max %d", fn.MaxDuration, expMax)
+	}
+	if diff := fn.MinDuration - expMin; diff > 5 || diff < -5 {
+		t.Errorf("min duration mismatch: got %d, observed min %d", fn.MinDuration, expMin)
+	}
+	if fn.MaxDuration < fn.MinDuration {
+		t.Errorf("max %d < min %d", fn.MaxDuration, fn.MinDuration)
+	}
+}
+
+// P2-5 跟进：真实最小值 0ms 不应被「未初始化」哨兵误覆盖。
+// 旧实现以 MinDuration==0 兼作未初始化标记，真实 0ms 最小值会被后续较大值覆盖。
+func Test_updateMinDuration_ZeroCollision(t *testing.T) {
+	var target int64
+	var init int32
+	// 首调为 0ms（真实测量值），随后 20ms/5ms 都不应覆盖
+	updateMinDuration(&target, &init, 0)
+	if target != 0 {
+		t.Errorf("first call min should be 0, got %d", target)
+	}
+	updateMinDuration(&target, &init, 20)
+	if target != 0 {
+		t.Errorf("min 0 overwritten by 20, got %d", target)
+	}
+	updateMinDuration(&target, &init, 5)
+	if target != 0 {
+		t.Errorf("min 0 overwritten by 5, got %d", target)
+	}
+	// 首次为较大值时，后续更小值仍能更新
+	var t2 int64
+	var i2 int32
+	updateMinDuration(&t2, &i2, 30)
+	updateMinDuration(&t2, &i2, 10)
+	if t2 != 10 {
+		t.Errorf("min should drop to 10, got %d", t2)
+	}
+	updateMinDuration(&t2, &i2, 10)
+	if t2 != 10 {
+		t.Errorf("min should stay 10, got %d", t2)
 	}
 }
 
