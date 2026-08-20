@@ -67,7 +67,7 @@
 - [x] **P2-2 ✅ 已修复 死代码清理**：删除 `orm/base_mapper.go` 的 `convert2Interfaces` 与 `orm/interfaces.go` 的 `Rows` 接口（均无引用）
 - [ ] **P2-3 依赖升级**：`go-sql-driver/mysql v1.6.0` → v1.8.x；`lib/pq v1.10.1` 已进维护模式（评估 `pgx/v5` 迁移）；`beevik/etree v1.1.0` 有更新版；go.mod 已为 `go 1.21`（旧 TODO 中「go 1.14」已过时）
 - [x] **P2-4 ✅ 已修复 .gitignore 去重**：`/generator /mysqldemo /postgresdemo /schema2code /temp/ /orm/test.xml /reasonix.toml` 重复块已合并
-- [x] **P2-5 ✅ 已修复 MinDuration 初始化语义**：`MinDuration` 初始改为 0（无数据语义）；`UpdateUsage` 用 CAS 循环原子更新 Max/Min（修复并发下 `SwapInt64` 互相覆盖的统计 bug），`String()` 统计字段改原子读
+- [x] **P2-5 ✅ 已修复 MinDuration 初始化语义**：`MinDuration` 初始改为 0（无数据语义）；`UpdateUsage` 用 CAS 循环原子更新 Max/Min（修复并发下 `SwapInt64` 互相覆盖的统计 bug），`String()` 统计字段改原子读。**跟进修复（2026-08-20）**：0 哨兵与真实 0ms 测量值冲突 —— 以 `MinDuration==0` 兼作「未初始化」标记时，真实最小值 0 会被后续较大值误覆盖（`updateMinDuration` CAS 分支 bug）；新增 `minDurationInit` 原子标志区分「未初始化」与「已初始化为 0」，回归测试 `Test_updateMinDuration_ZeroCollision` + 并发测试 `Test_UpdateUsageConcurrent` 改为与观测样本极值比对（消除绝对毫秒阈值的调度抖动假阳性）
 
 ---
 
@@ -94,7 +94,7 @@
 ## 🟣 P4 — 功能建议
 
 - [x] **P4-1 ✅ 已实现 带超时/上下文的执行 API**：`Execute`/`Query` 内部原来固定 `context.Background()`，慢 SQL 会无限挂起占住连接。现在（`orm/sql_execute.go`）：① 新增 `DefaultTimeout()`/`SetDefaultTimeout(d)` 全局超时设置（默认 5 分钟，`Config.MaxTimeout` 已有同值常量，但两者独立——`MaxTimeout` 控制连接池生命周期，`DefaultTimeout` 控制语句执行超时）；② 新增 `ExecuteContext(ctx, sql, args...)` / `QueryContext(ctx, sql, args...)` 支持调用方 context；③ 内部 `executeWithResult`/`queryRows` 通过 `withExecTimeout` 在 ctx 无 deadline 时自动叠加全局默认超时（有 deadline 时保持调用方原样，防止误叠加）；④ Mapper 代理执行路径（`base_mapper.go executeMethod`）同步通过 `context.Background()` 接入，慢 SQL 同样受全局超时保护。回归测试：`Test_DefaultTimeout` / `Test_withExecTimeout` / `Test_ExecuteQueryContext` / `Test_ExecuteContextCanceled` / `Test_ExecuteContextShortTimeout` / `Test_ExecuteNoTimeout`（`orm/sql_execute_test.go`）。
-- [ ] **P4-2 大结果集流式读取**：`fetchRows` 全量进内存，10 万行以上内存压力明显；建议提供流式回调或分页选项（全局行数上限 P4-3 已提供兜底截断，流式/分页仍待实现）
+- [x] **P4-2 ✅ 已实现 大结果集流式读取**：`fetchRows` 全量进内存，10 万行以上内存压力明显。新增流式读取：① 顶层 `QueryStream(ctx, sql, args...)` 返回 `*RowStream`（`orm/row_stream.go`）：`Next()`/`Row()` 逐行消费（游标保持打开、任意时刻只保留当前一行，内存 O(1)），`Scan(&dest)` 填充结构体或 map（列名→字段名匹配：原名/首字母大写/下划线转驼峰/大小写不敏感，`utils.ChangeType` 转换），`Err()`/`Count()`/`Close()` 齐备；② Mapper 代理支持 select 方法返回 `(*RowStream, error)`（`BaseMapper.executeStream` 分流，`orm_cache.go` 按返回类型走流式路径；`makeReturnType`/`checkSql` 放行 `*RowStream`，结果类型与 XML resultType 解耦，仅限 select）；③ 语义对齐：行数上限遵循 P4-3 全局 `DefaultRowLimit`（打开时快照，达到上限停止读取并 Warn）、ctx 无 deadline 叠加 P4-1 全局超时（cancel 延至 Close 释放）、扫描失败不静默丢行（`Err()` 返回行号明细，M-05 精神）、`Close()` 幂等（未读完也必须 Close 释放连接）。回归测试：`Test_QueryStreamBasic/Parity/Scan/EarlyClose/RowLimit/Err`（`orm/row_stream_test.go`）+ `Test_SqliteStreamMapper`（`orm/sqlite_test.go`，SQLite 端到端 Mapper 流式 select）。分页选项仍待实现（见 M-07）。
 - [x] **P4-3 ✅ 已实现 全局查询行数上限**：`fetchRows`（`orm/sql_execute.go`）默认最多返回 10000 行，防止大结果集 OOM/拖垮连接；新增 `DefaultRowLimit()`/`SetDefaultRowLimit(n)` 全局系统设置——负数不限制（返回全部）、0 不返回任何行；达到上限停止读取并 Warn 日志提示（`SetDefaultRowLimit(-1)` 可恢复全部返回）。所有查询路径（`Query`/`QueryContext`/Mapper 代理）共用同一 `fetchRows`，自动生效。回归测试：`Test_DefaultRowLimit` / `Test_QueryRowLimit`（上限截断/0 不返回/负数全量/上限大于总行数）（`orm/sql_execute_test.go`）。
 
 ---
