@@ -10,6 +10,7 @@
 ### v0.1.12（2026-08-20）
 
 - **M-03 PG/金仓 useGeneratedKeys RETURNING 支持（P4）**：`backfillGeneratedKey` 依赖 `sql.Result.LastInsertId()`，lib/pq 返回 error → 回填跳过（MySQL/SQLite 正常）。新增 RETURNING 路径：当数据库为 PostgreSQL / KingbaseES 且 `useGeneratedKeys` + `keyProperty` 已指定时，自动追加 `RETURNING col`（keyColumn 显式指定或 keyProperty 驼峰转下划线），改用 `QueryContext` + `Scan` 读取生成的 ID 并回填；MySQL / SQLite 仍走 `LastInsertId()` 路径，行为不变。回归测试 `Test_keyColumnToSnake` / `Test_toInt64` / `Test_needsReturning_noDb`（`orm/base_mapper_test.go`）+ `Test_SqliteGeneratedKeysBackfill`（原有，验证无回归）
+- **P2-3 依赖升级**：`go-sql-driver/mysql` v1.6.0 → v1.10.0；`beevik/etree` v1.1.0 → v1.7.1；`lib/pq` v1.10.1 → v1.12.3；`go.mod` go 版本升至 1.24.0（新依赖要求）；`lib/pq` 迁移 `pgx/v5` 已评估，当前 lib/pq v1.12.3 仍可维护，迁移收益有限暂缓
 
 ### v0.1.11（2026-08-20）
 
@@ -76,10 +77,6 @@
 - **M-04 自定义 `resultType` 短类名不解析（P12）**：`parseResultTypeFrom`（`types/common.go`）只认 JDBC 基础类型，未知类型返回 `map[string]interface{}` → 注册校验失败。应在已注册 model 中按短类名解析
 - **M-06 XML 无 parameterType 但有入参时注册校验失败（P6）**：`methodFieldCheck` 在 `ArgsLen > 0 && !Param.Need` 时报错；Java @Param 多参数在 XML 不写 parameterType 时无法注册。GenerateSQL 已支持无 parameterType 走参数渲染（S-04），注册期校验应同步放宽（按方法签名推断 Need）
 - **M-07 分页支持（P22）**：无 PageHelper 等价物，`selectList` 类操作无 limit；现仅内存分页。建议提供分页参数约定或 SQL 层分页助手（与 P4-2 流式读取互补）
-
-### 代码质量
-
-- **P2-3 依赖升级**：`go-sql-driver/mysql v1.6.0` → v1.8.x；`lib/pq v1.10.1` 已进维护模式（评估 `pgx/v5` 迁移）；`beevik/etree v1.1.0` 有更新版；go.mod 已为 `go 1.21`
 
 ---
 
