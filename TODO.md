@@ -7,7 +7,7 @@
 
 ## ✅ 已完成
 
-### v0.1.13（schema 配置支持）
+### v0.1.14（schema 配置支持）
 
 - **数据库模式（schema）配置支持**：`DatabaseSetting` 新增 `Schema` 字段；配置来源按优先级：`spring.datasource.schema` 键 > JDBC URL query 参数（`currentSchema` / `search_path` / `schema`，由 `parseSchema`/`schemaFromURL` 解析）。PG/Kingbase 连接串自动追加 `search_path=<schema>`（lib/pq 运行时参数），表结构查询（`fetchTables`/`newTableStruct`）按配置 schema 过滤（非 public schema 时 `attrelid` 全限定 `'schema.table'::regclass`）；MySQL 下 schema 即数据库名，显式配置时覆盖表结构查询库名（DSN 不变）、未配置回退库名；SQLite 忽略。未配置时行为与历史完全一致（PG 默认 `public`）。回归测试 `Test_schemaFromURL` / `Test_parseSchema` / `Test_generateConn_schema` / `Test_effectiveSchema` / `Test_parseDatabaseConfig_schema`
 
