@@ -77,14 +77,20 @@ func (t *Transaction) Rollback() error {
 }
 
 func (t *Transaction) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	query = t.db.applyTablePrefix(query)
+	query = t.db.formatSQL(query, args)
 	return t.tx.ExecContext(ctx, query, args...)
 }
 
 func (t *Transaction) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	query = t.db.applyTablePrefix(query)
+	query = t.db.formatSQL(query, args)
 	return t.tx.QueryContext(ctx, query, args...)
 }
 
 func (t *Transaction) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	query = t.db.applyTablePrefix(query)
+	query = t.db.formatSQL(query, args)
 	return t.tx.QueryRowContext(ctx, query, args...)
 }
 

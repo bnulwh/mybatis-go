@@ -25,3 +25,5 @@
 
 - 支持 Spring Boot 风格 `.properties` 文件（`spring.datasource.*`）和 `mybatis.mapper-locations`。
 - KingbaseES 使用 `jdbc:kingbase8://host:port/dbname` 或 `jdbc:kingbase://host:port/dbname` URL，类型填 `kingbase`。
+- 数据表名前缀：`mybatis.table-prefix`（如 `test_`），SQL 执行入口自动改写表名，XML Mapper 语句不变；
+  系统表（information_schema / pg_% / sqlite_% / pragma_%）与已带前缀的表不参与改写；也可用 `orm.SetTablePrefix`。

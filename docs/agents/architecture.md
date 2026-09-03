@@ -11,6 +11,8 @@
   - `proxy_arg.go` — `ProxyArg` 封装函数调用参数（tag args 映射 + 位置参数）
   - `return_type.go` / `return_value.go` — 返回值类型推断与结果转换
   - `sql_execute.go` — 实际 `database/sql` 的 Exec/Query 调用
+  - `table_prefix.go` — 数据表名前缀支持（`mybatis.table-prefix`/`SetTablePrefix`）：SQL 执行入口
+    按词法扫描改写 FROM/JOIN/INTO/UPDATE/TABLE 表位置的表名，跳过字符串/注释/系统目录/已带前缀的表，XML 语句不变
   - `row_stream.go` — 大结果集流式读取（`QueryStream` / `RowStream`：`Next`/`Row`/`Scan`/`Err`/`Count`/`Close`，配合 `BaseMapper.executeStream` 支持 Mapper 流式 select）
   - `transaction.go` — 事务支持（`Begin`/`BeginTx`/`Commit`/`Rollback`，开启后 Mapper 与 orm.Execute/Query 自动在事务内执行）
   - `multi_datasource.go` — 多数据源注册表（`InitializeDataSources`/`UseDataSource`/`AddDataSource`/`ReConnectDataSource`，默认源键无前缀、附加源键为 `spring.datasource.<name>.*` 并在 `mybatis.datasources` 列出）

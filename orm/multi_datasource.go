@@ -144,6 +144,7 @@ func ReConnectDataSource(name string) error {
 // parseMultiDatabaseConfig 解析多数据源配置：
 // 默认数据源使用 spring.datasource.url / username / password 等无名称前缀的键；
 // 附加数据源在 mybatis.datasources 中列出，配置键为 spring.datasource.<name>.<key>。
+// 附加数据源未单独配置表名前缀时，继承默认数据源的前缀（mybatis.table-prefix）。
 func parseMultiDatabaseConfig(cm map[string]string) map[string]*Config {
 	configs := map[string]*Config{}
 	configs[defaultDataSourceName] = parseDatabaseConfig(cm)
@@ -167,7 +168,11 @@ func parseMultiDatabaseConfig(cm map[string]string) map[string]*Config {
 			log.Warnf("datasource %s has no config, skipped", name)
 			continue
 		}
-		configs[name] = parseDatabaseConfig(sub)
+		cfg := parseDatabaseConfig(sub)
+		if cfg.Setting.TablePrefix == "" {
+			cfg.Setting.TablePrefix = configs[defaultDataSourceName].Setting.TablePrefix
+		}
+		configs[name] = cfg
 	}
 	return configs
 }

@@ -36,6 +36,7 @@ type MyBatisSetting struct {
 	MapperLocations  string
 	TypeAliasPackage string
 	MaxRows          int64
+	TablePrefix      string // 数据表名前缀（如 test_），SQL 执行时自动拼接到表名前，空串不启用
 }
 
 type Config struct {
@@ -184,6 +185,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 				Name:     d,
 				Type:     dt,
 			},
+			TablePrefix: parseTablePrefix(m),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,
@@ -194,6 +196,21 @@ func parseDatabaseConfig(m map[string]string) *Config {
 		ConnPool:     nil,
 		cacheStore:   &sync.Map{},
 	}
+}
+
+// parseTablePrefix 解析数据表名前缀，按优先级：
+// mybatis.table-prefix > mybatis-plus.global-config.db-config.table-prefix > spring.datasource.table-prefix。
+func parseTablePrefix(m map[string]string) string {
+	for _, key := range []string{
+		"mybatis.table-prefix",
+		"mybatis-plus.global-config.db-config.table-prefix",
+		"spring.datasource.table-prefix",
+	} {
+		if v, ok := m[key]; ok && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 // parseBool 解析布尔配置项；key 不存在或值非法时返回默认值。

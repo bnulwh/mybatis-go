@@ -38,6 +38,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 |------|------|
 | 修改框架代码 / 排查调用链 | docs/agents/architecture.md（核心模块 + 核心流程） |
 | 编写代码时的完整规范 | docs/agents/conventions.md |
+| 数据表名前缀功能（表位置改写算法/配置优先级/边界） | docs/agents/table-prefix.md |
 | 完整命令表 / 工具编译 / 入口点 | docs/agents/commands.md |
 | MyBatis-Plus 内置 CRUD 的使用 / 生成 | docs/agents/mybatis-plus.md（schema2code -mp / BaseMapper 方法映射 / 逻辑删除 / 批量签名） |
 | samples 兼容性缺陷（S-01~S-11） | TODO.md「📁 samples 目录」段落（修复时务必同步更新） |

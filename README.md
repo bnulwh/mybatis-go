@@ -293,6 +293,7 @@ URL 类型支持 `jdbc:kingbase8://`、`jdbc:kingbase://` 等（parseDatabaseTyp
 | `spring.datasource.max-timeout` | 连接最大存活时长（秒） | 300 |
 | `spring.datasource.prepared-stmt` | 是否启用预编译语句缓存（`false` 关闭，适合 PgBouncer 等不支持服务端预编译的代理场景） | true |
 | `mybatis.mapper-locations` | XML Mapper 文件目录 | - |
+| `mybatis.table-prefix` | 数据表名前缀（如 `test_`），SQL 执行时自动拼接到表名前，XML Mapper 语句无需改动 | - |
 
 > **MySQL DATETIME 列**：框架自动在 MySQL DSN 追加 `?parseTime=true&loc=Local`（与 SQLite 的 `_loc=auto` 同理），DATETIME/TIMESTAMP 列直接扫描为 `time.Time`；否则 go-sql-driver 返回原始 `[]byte`，时间字段无法赋值。
 
@@ -308,6 +309,41 @@ JDBC URL 支持 IPv6 地址，如 `jdbc:postgresql://[2001:db8::1]:5432/testdb`�
 err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("kingbase", "localhost", 54321, "system", "123456", "testdb")
 ```
+
+### 数据表名前缀
+
+同一套 XML Mapper 可在不同环境指向不同的物理表：测试环境配置 `mybatis.table-prefix=test_`，
+SQL 执行时所有表引用自动改为 `test_sys_user`；生产环境不配置（或配置 `prod_`）即可，
+**XML Mapper 里的 SQL 语句保持 `sys_user` 不变**。
+
+```properties
+# 测试环境
+mybatis.table-prefix= test_
+```
+
+```properties
+# 生产环境（不配置或用 prod_）
+# mybatis.table-prefix= prod_
+```
+
+特性说明：
+
+- 前缀改写发生在执行入口（`orm.Execute`/`orm.Query`、Mapper 代理、事务、流式查询全覆盖），
+  对 `FROM/JOIN/INTO/UPDATE/TABLE` 等表位置的标识符生效，不留改列名、字符串字面量、别名与 `#{}` 占位符；
+- 系统表/目录不参与改写：`information_schema`、`pg_%`、`sqlite_%`、`pragma_%`；
+- 已带前缀的表名不再叠加（`test_sys_user` 不会被改成 `test_test_sys_user`）；
+- CTE（`WITH x AS (...)`）名、`CREATE TABLE IF NOT EXISTS` 等 DDL 修饰词不会被误改为表名；
+- 多数据源：附加数据源未单独配置前缀时继承默认源前缀；
+- 兼容 MyBatis-Plus 风格配置键 `mybatis-plus.global-config.db-config.table-prefix`。
+
+编程方式设置全局前缀（作用于未在配置中单独指定前缀的数据源）：
+
+```go
+orm.SetTablePrefix("test_")
+prefix := orm.GetTablePrefix()
+```
+
+实现细节（表位置改写算法、词法扫描/状态机、边界与已知限制）见 **docs/agents/table-prefix.md**。
 
 ## 注入自定义 DB / DSN
 
@@ -429,6 +465,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-09-03（v0.1.13）**：数据表名前缀（TablePrefix）— 配置 `mybatis.table-prefix=test_`（兼容 `mybatis-plus.global-config.db-config.table-prefix` 与逐源覆盖键 `spring.datasource.table-prefix`）后，SQL 执行入口自动把 `FROM/JOIN/INTO/UPDATE/TABLE` 表位置的表名改为 `test_sys_user`，XML Mapper 语句保持不变；词法扫描+状态机改写（tokenizeSQL + rewriteSQLTables），不碰列名/字符串字面量/注释/占位符/别名；跳过系统目录（information_schema / pg_% / sqlite_% / pragma_%）与已带前缀的表（不叠加）；CTE 名、`TABLE IF NOT EXISTS` 等 DDL 修饰词不误伤；多数据源未单独配置时继承默认源前缀；编程式 `orm.SetTablePrefix` / `orm.GetTablePrefix`；覆盖 Mapper 代理、`orm.Execute/Query`、事务、流式查询全部执行路径（含 `Transaction` 直调补齐 `formatSQL` 对齐）；实现细节见 docs/agents/table-prefix.md
 - **2026-08-20（v0.1.12）**：PG/金仓 useGeneratedKeys RETURNING 支持（M-03）+ 依赖升级（P2-3）— ① PostgreSQL/KingbaseES 的 `sql.Result.LastInsertId()` 返回 error，自增主键回填失效。新增 RETURNING 路径：当数据库为 PostgreSQL/KingbaseES 且 `useGeneratedKeys` + `keyProperty` 已指定时，INSERT 自动追加 `RETURNING col`（keyColumn 显式指定或 keyProperty 驼峰转下划线），改用 `QueryContext` + `Scan` 读取生成的 ID 并回填；MySQL/SQLite 仍走 `LastInsertId()` 路径，行为不变。② `go-sql-driver/mysql` v1.6.0→v1.10.0、`beevik/etree` v1.1.0→v1.7.1、`lib/pq` v1.10.1→v1.12.3；`go.mod` go 版本升至 1.24.0；`lib/pq` → `pgx/v5` 迁移已评估，当前 lib/pq v1.12.3 仍可维护，迁移暂缓
 - **2026-08-20（v0.1.11）**：大结果集流式读取（P4-2）+ MinDuration 并发修复（P2-5 跟进）— ① 新增 `orm.QueryStream(ctx, sql, args...)` 返回 `*orm.RowStream`：`Next()` / `Row()` 逐行消费（游标保持打开、内存 O(1)，10 万行以上不再整表进内存），`Scan(&dest)` 填充结构体或 map（列名→字段名：原名/首字母大写/下划线转驼峰/大小写不敏感），`Err()` / `Count()` / `Close()` 齐备（`Close` 幂等，未读完也必须 Close 释放连接）；② Mapper 代理支持 select 方法返回 `(*orm.RowStream, error)`（`BaseMapper.executeStream`），结果类型与 XML resultType 解耦；③ 语义对齐：行数上限遵循全局 `orm.SetDefaultRowLimit`（P4-3，打开时快照）、ctx 无 deadline 叠加全局默认超时（P4-1）、扫描失败不静默丢行（`Err()` 返回行号明细）；④ 修复 `updateMinDuration` 以 0 兼作「未初始化」哨兵与真实 0ms 测量值冲突（并发下最小值 0 被较大值覆盖）——新增 `minDurationInit` 原子标志区分，回归测试 `Test_updateMinDuration_ZeroCollision`
 - **2026-08-19（v0.1.10）**：全局查询行数上限（P4-3）— `fetchRows` 默认最多返回 10000 行，防止大结果集 OOM/拖垮连接；新增 `orm.SetDefaultRowLimit(n)` / `orm.DefaultRowLimit()` 全局系统设置（负数不限制返回全部、0 不返回任何行），达到上限停止读取并 Warn 提示；`Query` / `QueryContext` / Mapper 代理所有查询路径共用 `fetchRows` 自动生效
