@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,6 +29,7 @@ type DatabaseSetting struct {
 	Username string
 	Password string
 	Name     string
+	Schema   string // 模式：PG/Kingbase 的 schema（默认 public）；MySQL 下 schema 即数据库名，为空时等价于 Name
 	Type     DatabaseType
 }
 
@@ -93,9 +95,14 @@ func newDatabaseConfig(dbType, host string, port int, user, pwd, dbName string) 
 func (ds *DatabaseSetting) generateConn() string {
 	switch ds.Type {
 	case PostgresDb, KingbaseDb:
-		// KingbaseES 兼容 PostgreSQL 连接串格式
-		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		// KingbaseES 兼容 PostgreSQL 连接串格式；
+		// search_path 为 lib/pq 支持的运行时参数，连接建立后自动 SET，避免依赖库默认搜索路径
+		dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 			ds.Host, ds.Port, ds.Username, ds.Password, ds.Name)
+		if ds.Schema != "" {
+			dsn += " search_path=" + ds.Schema
+		}
+		return dsn
 	case MySqlDb:
 		// parseTime=true 使 DATETIME/TIMESTAMP 列直接扫描为 time.Time
 		// （否则 go-sql-driver 返回 []byte 原始字节，无法 Scan 到时间字段）；
@@ -136,6 +143,23 @@ func (ds *DatabaseSetting) getDriver() string {
 		return "sqlite"
 	}
 	return ""
+}
+
+// effectiveSchema 返回表结构查询使用的 schema：
+//   - MySQL 下 schema 即数据库名，显式配置时优先，否则回退 dbName；
+//   - PG/Kingbase 未配置时默认 public（与历史硬编码行为一致）；
+//   - SQLite 无 schema 概念，返回空串。
+func (ds *DatabaseSetting) effectiveSchema(dbName string) string {
+	if ds.Schema != "" {
+		return ds.Schema
+	}
+	if ds.Type == MySqlDb {
+		return dbName
+	}
+	if ds.Type == SqliteDb {
+		return ""
+	}
+	return "public"
 }
 
 func (in *Config) GenerateDSN() string {
@@ -183,6 +207,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 				Username: u,
 				Password: p,
 				Name:     d,
+				Schema:   parseSchema(m),
 				Type:     dt,
 			},
 			TablePrefix: parseTablePrefix(m),
@@ -196,6 +221,50 @@ func parseDatabaseConfig(m map[string]string) *Config {
 		ConnPool:     nil,
 		cacheStore:   &sync.Map{},
 	}
+}
+
+// parseSchema 解析 schema 配置，按优先级：
+// spring.datasource.schema 键 > JDBC URL query 参数（currentSchema / search_path / schema）。
+func parseSchema(m map[string]string) string {
+	if v, ok := m["spring.datasource.schema"]; ok && strings.TrimSpace(v) != "" {
+		return strings.TrimSpace(v)
+	}
+	if raw, ok := m["spring.datasource.url"]; ok {
+		if s := schemaFromURL(raw); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// schemaFromURL 从 JDBC URL 的 query 参数提取 schema，兼容 PostgreSQL JDBC 的
+// currentSchema 与通用的 search_path / schema 两种写法（search_path 可含逗号多值）。
+func schemaFromURL(rawURL string) string {
+	q := rawURL
+	if i := strings.IndexByte(q, '?'); i >= 0 {
+		q = q[i+1:]
+	} else {
+		return ""
+	}
+	for _, pair := range strings.Split(q, "&") {
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(kv[0])) {
+		case "currentschema", "search_path", "schema":
+		default:
+			continue
+		}
+		v, err := url.QueryUnescape(strings.TrimSpace(kv[1]))
+		if err != nil {
+			v = strings.TrimSpace(kv[1])
+		}
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // parseTablePrefix 解析数据表名前缀，按优先级：

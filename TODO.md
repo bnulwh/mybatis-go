@@ -7,6 +7,10 @@
 
 ## ✅ 已完成
 
+### v0.1.13（schema 配置支持）
+
+- **数据库模式（schema）配置支持**：`DatabaseSetting` 新增 `Schema` 字段；配置来源按优先级：`spring.datasource.schema` 键 > JDBC URL query 参数（`currentSchema` / `search_path` / `schema`，由 `parseSchema`/`schemaFromURL` 解析）。PG/Kingbase 连接串自动追加 `search_path=<schema>`（lib/pq 运行时参数），表结构查询（`fetchTables`/`newTableStruct`）按配置 schema 过滤（非 public schema 时 `attrelid` 全限定 `'schema.table'::regclass`）；MySQL 下 schema 即数据库名，显式配置时覆盖表结构查询库名（DSN 不变）、未配置回退库名；SQLite 忽略。未配置时行为与历史完全一致（PG 默认 `public`）。回归测试 `Test_schemaFromURL` / `Test_parseSchema` / `Test_generateConn_schema` / `Test_effectiveSchema` / `Test_parseDatabaseConfig_schema`
+
 ### v0.1.12（2026-08-20）
 
 - **M-03 PG/金仓 useGeneratedKeys RETURNING 支持（P4）**：`backfillGeneratedKey` 依赖 `sql.Result.LastInsertId()`，lib/pq 返回 error → 回填跳过（MySQL/SQLite 正常）。新增 RETURNING 路径：当数据库为 PostgreSQL / KingbaseES 且 `useGeneratedKeys` + `keyProperty` 已指定时，自动追加 `RETURNING col`（keyColumn 显式指定或 keyProperty 驼峰转下划线），改用 `QueryContext` + `Scan` 读取生成的 ID 并回填；MySQL / SQLite 仍走 `LastInsertId()` 路径，行为不变。回归测试 `Test_keyColumnToSnake` / `Test_toInt64` / `Test_needsReturning_noDb`（`orm/base_mapper_test.go`）+ `Test_SqliteGeneratedKeysBackfill`（原有，验证无回归）
@@ -82,7 +86,7 @@
 
 ## 📌 业务侧约定（非框架改动，生成器/业务层处理）
 
-- **P1**：JDBC URL 不支持 query 参数（解析正则 `([\w._-]+)` 不含 `?`）→ 需自定义 DSN 时用 `Config.DSN`（v0.1.7 新增）
+- **P1**：JDBC URL 的 query 参数整体不解析（解析正则 `([\w._-]+)` 不含 `?`）→ 需自定义 DSN 时用 `Config.DSN`（v0.1.7 新增）。v0.1.13 起 schema 相关 query 参数（`currentSchema` / `search_path` / `schema`）可直接解析并生效，其余 query 参数仍走 `Config.DSN`
 - **P6/P7**：XML 副本由生成器补 `parameterType`（多参数→`java.util.Map`、List/数组→`java.util.List`、反向删除多余）；`List<SysRoleDept>` 等泛型值需规范化为 `java.util.List`（`<`/`>` 未转义会截断标签）
 - **P8/P10**：model 字段全部值类型（`time.Time`/`int64`，杜绝 `*T`）；查询参数统一 `map[string]interface{}` + `QueryMap()` 排除零值（规避 M-02；M-01 已修复，`*T` 字段不再 panic，但值类型仍是更稳妥的约定）
 - **P9**：Java 泛型映射（`Set<X>`/`X[]`/`Map<String,Object>`）由生成器 j2g 处理

@@ -10,6 +10,13 @@ func newTableStruct(dbName, table string) (*types.TableStructure, error) {
 	var sql string
 	switch gDbConn.Setting.Type {
 	case PostgresDb, KingbaseDb:
+		// schema 优先取配置值（默认 public）；非 public schema 时 attrelid 需全限定
+		// （'schema.table'::regclass），否则依赖 search_path 无法解析
+		schema := gDbConn.Setting.effectiveSchema(dbName)
+		attrelid := table
+		if schema != "public" {
+			attrelid = schema + "." + table
+		}
 		sql = fmt.Sprintf(`SELECT
     A.ordinal_position,A.table_name,A.column_name,CASE A.is_nullable WHEN 'NO' THEN 0 ELSE 1 END AS is_nullable,
     col_description(B.attrelid,B.attnum) as column_comment,
@@ -17,13 +24,13 @@ func newTableStruct(dbName, table string) (*types.TableStructure, error) {
     A.numeric_scale,CASE WHEN length(B.attname) > 0 THEN 'PRI' ELSE '' END AS column_key
     FROM information_schema.columns A,pg_attribute B
     WHERE A.column_name = B.attname AND B.attrelid = '%s' :: regclass   
-          AND  A.table_schema = 'public'  AND A.table_name = '%s'
-    ORDER BY A.ordinal_position ASC`, table, table)
+          AND  A.table_schema = '%s'  AND A.table_name = '%s'
+    ORDER BY A.ordinal_position ASC`, attrelid, schema, table)
 	case MySqlDb:
 		sql = fmt.Sprintf(`select TABLE_NAME as table_name,COLUMN_NAME as column_name,
     COLUMN_TYPE as column_type,COLUMN_COMMENT as column_comment,COLUMN_KEY as column_key 
     from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'
-    ORDER BY ORDINAL_POSITION ASC`, dbName, table)
+    ORDER BY ORDINAL_POSITION ASC`, gDbConn.Setting.effectiveSchema(dbName), table)
 	case SqliteDb:
 		// sqlite 无 information_schema，用 pragma_table_info 表值函数获取列信息
 		sql = fmt.Sprintf(`SELECT name AS column_name, type AS column_type,
