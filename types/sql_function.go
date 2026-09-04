@@ -336,13 +336,21 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 	log.Debugf("begin parse sql function from %v %v", node.Id, node.Name)
 	defer log.Debugf("finish parse sql function from %v %v", node.Id, node.Name)
 	tp := parseSqlFunctionType(node.Name)
+	items := parsesqlFragmentsFromXmlElements(node.Elements, sns)
+	param := parseSqlParamFromXmlAttrs(node.Attrs)
+	slots := collectSqlSlots(items)
+	if !param.Need { // 无显式 parameterType：由语句占位符推导（1.1)
+		param.AutoDerive = true
+		param.Need = len(slots) > 0 || containsForEach(items)
+	}
+	param.Slots = slots
 	return &SqlFunction{
 		Id:               node.Id,
 		Owner:            owner,
 		Type:             tp,
-		Param:            parseSqlParamFromXmlAttrs(node.Attrs),
+		Param:            param,
 		Result:           parseSqlResultFromXmlAttrs(node.Attrs, rms),
-		Items:            parsesqlFragmentsFromXmlElements(node.Elements, sns),
+		Items:            items,
 		UseGeneratedKeys: strings.EqualFold(node.Attrs["useGeneratedKeys"], "true"),
 		KeyProperty:      node.Attrs["keyProperty"],
 		KeyColumn:        node.Attrs["keyColumn"],

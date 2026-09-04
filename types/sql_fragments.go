@@ -602,6 +602,52 @@ func parseSimpleSqlFromText(text string) *simpleSql {
 	}
 }
 
+// collectSqlSlots 收集无条件位置的占位符名（#{} / ${}，去重、按首现序）。
+// 推导规则（1.1）：<if>/<choose>/<foreach> 体内的占位符不统计——条件体由运行时求值，
+// 不视为必参（selectAll 类「占位符全在 if 体内」语句保持无参调用契约）；
+// <include>/<where>/<set> 的直接文本视为无条件位置，正常统计。
+func collectSqlSlots(items []*sqlFragment) []string {
+	seen := map[string]bool{}
+	var out []string
+	var walk func(fl []*sqlFragment)
+	walk = func(fl []*sqlFragment) {
+		for _, it := range fl {
+			if it == nil {
+				continue
+			}
+			switch it.Type {
+			case simpleSqlFragment:
+				if it.Sql == nil {
+					continue
+				}
+				for _, p := range it.Sql.Params {
+					k := buildKey(p.Name)
+					if k != "" && !seen[k] {
+						seen[k] = true
+						out = append(out, p.Name)
+					}
+				}
+			case includeSqlFragment:
+				if it.Include != nil {
+					walk(it.Include.Fragments)
+				}
+			case whereSqlFragment:
+				if it.Where != nil {
+					walk(it.Where.Sql)
+				}
+			case setSqlFragment:
+				if it.Set != nil {
+					walk(it.Set.Sql)
+				}
+			}
+			// ifTestSqlFragment / chooseSqlFragment：条件体内占位符不统计（1.1 风险项）；
+			// forLoopSqlFragment：体由 slice/集合驱动，不入 slots。
+		}
+	}
+	walk(items)
+	return out
+}
+
 func parseSqlFragmentParamFromText(text string) []sqlFragmentParam {
 	re := regexp.MustCompile(`[#$][{][\s]*([\w.]+)[\s]*(,[\s]*([\w.]+)[\s]*=[\s]*([\w.]+)[\s]*)*[}]`)
 	matches := re.FindAllStringSubmatch(text, -1)

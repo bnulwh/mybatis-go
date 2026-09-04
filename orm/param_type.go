@@ -2,6 +2,7 @@ package orm
 
 import (
 	"fmt"
+	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 )
@@ -15,10 +16,14 @@ type ParamType struct {
 
 func (in *ParamType) checkSql(f *types.SqlFunction, name string) error {
 	if in.ArgsLen == 0 && f.Param.Need {
-		return fmt.Errorf("%v check sql function %v failed, need func args", name, f.Id)
+		return fmt.Errorf("%v check sql function %v failed, need func args: %v", name, f.Id, f.Param.Slots)
 	}
+	// 1.1（M-06）：有参函数 + 语句无显式 parameterType 不再失败。
+	// Need 已由语句占位符推导（SqlParam.Slots）；语句无占位符但有参时按 Java 语义
+	// 容忍「未使用参数」，仅 debug 提示。
 	if in.ArgsLen > 0 && !f.Param.Need {
-		return fmt.Errorf("%v check sql function %v failed, not need func args", name, f.Id)
+		log.Debugf("%v check sql function %v: statement has no param slots, %d func args ignored", name, f.Id, in.ArgsLen)
+		return nil
 	}
 	return nil
 }

@@ -17,10 +17,15 @@ const (
 )
 
 type SqlParam struct {
-	Name     string
-	TypeName string
-	Type     SqlParamType
-	Need     bool
+	Name       string
+	TypeName   string
+	Type       SqlParamType
+	Need       bool
+	// Slots 语句中出现过的占位符名（#{} / ${}，去重、按首现序）；
+	// 无 parameterType 时用于注册期与运行期按名/按位绑定多参数（1.1/1.2）。
+	Slots []string
+	// AutoDerive 未声明 parameterType，Need 由语句占位符推导（1.1）。
+	AutoDerive bool
 }
 
 func parseSqlParamFromXmlAttrs(attrs map[string]string) SqlParam {
