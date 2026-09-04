@@ -70,12 +70,14 @@ func buildProxy(mapperValue reflect.Value, buildFunc func(funcField reflect.Stru
 
 func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp reflect.Type, structField reflect.StructField, proxyFunc func(arg ProxyArg) []reflect.Value) {
 	var tagArgs = parseTagArgs(getTagArgNames(structField.Tag))
-	if len(tagArgs) > fieldTyp.NumIn() {
-		panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + structField.Name)
-	}
-	var tagArgsLen = len(tagArgs)
-	if tagArgsLen > 0 && fieldTyp.NumIn() != tagArgsLen {
-		panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + structField.Name)
+	if !fieldTyp.IsVariadic() { // 1.3：变参不在代理安装期校验 tag 长度（注册期已放行）
+		if len(tagArgs) > fieldTyp.NumIn() {
+			panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + structField.Name)
+		}
+		var tagArgsLen = len(tagArgs)
+		if tagArgsLen > 0 && fieldTyp.NumIn() != tagArgsLen {
+			panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + structField.Name)
+		}
 	}
 	var fn = func(args []reflect.Value) (results []reflect.Value) {
 		return proxyFunc(NewProxyArg(tagArgs, args))

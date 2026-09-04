@@ -12,7 +12,9 @@ type ParamType struct {
 	TagArgsLen int
 	Args       []reflect.Type
 	ArgsLen    int
+	Variadic   bool // 变参函数（...T）：不校验 tag 与 NumIn 严格相等（1.3）
 }
+
 
 func (in *ParamType) checkSql(f *types.SqlFunction, name string) error {
 	if in.ArgsLen == 0 && f.Param.Need {
@@ -28,9 +30,9 @@ func (in *ParamType) checkSql(f *types.SqlFunction, name string) error {
 	return nil
 }
 
-func makeParamType(funcName string, funcType reflect.Type, funcTag reflect.StructTag) *ParamType {
+func makeParamType(funcName string, funcType reflect.Type, funcTag reflect.StructTag) (*ParamType, error) {
 	if funcType.Kind() != reflect.Func {
-		return nil
+		return nil, fmt.Errorf("[mybatis-go] %v is not a func kind, got %v", funcName, funcType.Kind())
 	}
 	if funcType.NumIn() == 0 {
 		return &ParamType{
@@ -38,15 +40,17 @@ func makeParamType(funcName string, funcType reflect.Type, funcTag reflect.Struc
 			TagArgsLen: 0,
 			Args:       []reflect.Type{},
 			ArgsLen:    0,
-		}
+		}, nil
 	}
 	tagArgs := parseTagArgs(getTagArgNames(funcTag))
-	if len(tagArgs) > funcType.NumIn() {
-		panic(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=` + funcName)
-	}
-	var tagArgsLen = len(tagArgs)
-	if tagArgsLen > 0 && funcType.NumIn() != tagArgsLen {
-		panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + funcName)
+	variadic := funcType.IsVariadic()
+	if !variadic { // 变参不校验：NumIn 只反映 []T 一个槽位（1.3）
+		if len(tagArgs) > funcType.NumIn() {
+			return nil, fmt.Errorf(`[mybatis-go] method fail! the tag "args" length can not > arg length ! filed=%s`, funcName)
+		}
+		if len(tagArgs) > 0 && funcType.NumIn() != len(tagArgs) {
+			return nil, fmt.Errorf(`[mybatis-go] method fail! the tag "args" length  != args length ! filed=%s`, funcName)
+		}
 	}
 	var args []reflect.Type
 	for i := 0; i < funcType.NumIn(); i++ {
@@ -54,8 +58,9 @@ func makeParamType(funcName string, funcType reflect.Type, funcTag reflect.Struc
 	}
 	return &ParamType{
 		TagArgs:    tagArgs,
-		TagArgsLen: tagArgsLen,
+		TagArgsLen: len(tagArgs),
 		Args:       args,
 		ArgsLen:    len(args),
-	}
+		Variadic:   variadic,
+	}, nil
 }

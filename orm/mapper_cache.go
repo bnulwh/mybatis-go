@@ -24,6 +24,7 @@ type mapperInfo struct {
 	Functions      []*funcInfo
 	NamedFunctions map[string]*funcInfo
 	SqlMapper      *types.SqlMapper
+	FuncErrs       []error // 参数解析失败（如 tag 长度不匹配）的函数，注册期聚合上报（1.3）
 }
 
 type mapperCache struct {
@@ -66,8 +67,9 @@ func (in *mapperInfo) bindSql(smp *types.SqlMapper) error {
 	log.Debugf("%v bind sql mapper %v finished", in.Name, smp.Filename)
 	return combineErrors(errs...)
 }
-func getFunctions(typ reflect.Type) []*funcInfo {
+func getFunctions(typ reflect.Type) ([]*funcInfo, []error) {
 	var infos []*funcInfo
+	var errs []error
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		fieldName := typ.Field(i).Name
@@ -77,16 +79,21 @@ func getFunctions(typ reflect.Type) []*funcInfo {
 			continue
 		}
 		methodFieldCheck(&typ, &field, true)
+		pt, err := makeParamType(fieldName, fieldType, fieldTag)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%v.%v: %v", typ.Name(), fieldName, err))
+			continue
+		}
 		infos = append(infos, &funcInfo{
 			Name:       fieldName,
 			Type:       fieldType,
 			Tag:        fieldTag,
-			ParamType:  makeParamType(fieldName, fieldType, fieldTag),
+			ParamType:  pt,
 			ReturnType: makeReturnType(fieldName, fieldType),
 			SqlFunc:    nil,
 		})
 	}
-	return infos
+	return infos, errs
 }
 
 func makeNamedFunctions(infos []*funcInfo) map[string]*funcInfo {
@@ -98,13 +105,14 @@ func makeNamedFunctions(infos []*funcInfo) map[string]*funcInfo {
 }
 
 func newMapperInfo(typ reflect.Type) *mapperInfo {
-	fs := getFunctions(typ)
+	fs, errs := getFunctions(typ)
 	mfs := makeNamedFunctions(fs)
 	return &mapperInfo{
 		Name:           typ.Name(),
 		Type:           typ,
 		Functions:      fs,
 		NamedFunctions: mfs,
+		FuncErrs:       errs,
 	}
 }
 func (in *mapperCache) registerMapper(inPtr interface{}) {

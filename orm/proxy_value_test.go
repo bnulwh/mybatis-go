@@ -120,31 +120,45 @@ func Test_makeReturnTypePanics(t *testing.T) {
 }
 
 func Test_makeParamType(t *testing.T) {
-	pt := makeParamType("f", reflect.TypeOf(func() {}), reflect.StructTag(""))
+	pt, err := makeParamType("f", reflect.TypeOf(func() {}), reflect.StructTag(""))
+	if err != nil {
+		t.Errorf("makeParamType no-arg failed: %v", err)
+	}
 	if pt.ArgsLen != 0 || pt.TagArgsLen != 0 {
 		t.Errorf("no-arg param type wrong: %+v", pt)
 	}
-	pt2 := makeParamType("f", reflect.TypeOf(func(a int) {}), reflect.StructTag(`args:a`))
+	pt2, err := makeParamType("f", reflect.TypeOf(func(a int) {}), reflect.StructTag(`args:a`))
+	if err != nil {
+		t.Errorf("makeParamType single failed: %v", err)
+	}
 	if pt2.ArgsLen != 1 || pt2.TagArgsLen != 1 {
 		t.Errorf("tagged param type wrong: %+v", pt2)
 	}
-	// tag 长度与参数个数不一致 → panic
-	func() {
-		defer func() {
-			if recover() == nil {
-				t.Error("makeParamType should panic when tag length != params")
-			}
-		}()
-		makeParamType("f", reflect.TypeOf(func(a, b int) {}), reflect.StructTag(`args:x`))
-	}()
-	func() {
-		defer func() {
-			if recover() == nil {
-				t.Error("makeParamType should panic when tag length > params")
-			}
-		}()
-		makeParamType("f", reflect.TypeOf(func(a int) {}), reflect.StructTag(`args:x,y`))
-	}()
+	// 1.3：非变参 tag 长度不匹配 → 返回 error 而非 panic
+	if _, err := makeParamType("f", reflect.TypeOf(func(a, b int) {}), reflect.StructTag(`args:x`)); err == nil {
+		t.Error("tag length != args should return error")
+	}
+	if _, err := makeParamType("f", reflect.TypeOf(func(a int) {}), reflect.StructTag(`args:x,y`)); err == nil {
+		t.Error("tag length > args should return error")
+	}
+	// 1.3：变参（func(args ...interface{}) NumIn=1）tag 长度 > NumIn 不再 panic、不再报错
+	pt3, err := makeParamType("f", reflect.TypeOf(func(args ...interface{}) {}), reflect.StructTag(`args:schema,tableName`))
+	if err != nil {
+		t.Errorf("variadic + tag length mismatch should be allowed: %v", err)
+	}
+	if pt3 == nil || !pt3.Variadic {
+		t.Error("ParamType.Variadic should be true")
+	}
+	if pt3.TagArgsLen != 2 {
+		t.Errorf("variadic TagArgsLen = %d, want 2", pt3.TagArgsLen)
+	}
+}
+
+// Test_makeParamType_NonFuncKind：非函数类型返回 error 而非 panic
+func Test_makeParamType_NonFuncKind(t *testing.T) {
+	if _, err := makeParamType("f", reflect.TypeOf(1), reflect.StructTag("")); err == nil {
+		t.Error("non-func kind should return error")
+	}
 }
 
 func Test_methodFieldCheck(t *testing.T) {

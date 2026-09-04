@@ -51,7 +51,9 @@ func (in *ormCache) bindSqls() error {
 		if !ok {
 			continue
 		}
-		err := in.mappers.Mappers[name].bindSql(smp)
+		mi := in.mappers.Mappers[name]
+		errs = append(errs, mi.FuncErrs...)
+		err := mi.bindSql(smp)
 		if err != nil {
 			errs = append(errs, err)
 		}
