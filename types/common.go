@@ -105,6 +105,9 @@ func parseResultTypeFrom(tps string) reflect.Type {
 		return reflect.TypeOf(true)
 	case "DOUBLE", "FLOAT":
 		return reflect.TypeOf(0.0)
+	case "MAP", "HASHMAP", "TREEMAP", "POJO":
+		// 1.4：map 为合法通用 resultType，不再落入 default warn
+		return reflect.TypeOf(map[string]interface{}{})
 	default:
 		log.Warnf("unsupport type to parse: %v", tps)
 	}
