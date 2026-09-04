@@ -503,6 +503,17 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **v0.2.0（优化改造，2026-09-04 起）**：共享 Java Mapper XML 零改造接入 + 多环境前缀切换免改 XML
+  - **参数需求由语句占位符自动推导（1.1/M-06）**：`<select|insert|update|delete>` 含 `#{}`/`${}` 或 `<foreach>` 即自动识别为需要参数（无需 `parameterType`），有参函数 + 无 `parameterType` 语句不再注册失败（samples/RuoYi 共享 XML 直接可用）；`<if>/<choose>` 条件体占位符不视为必参（保持静态无参调用契约）
+  - **多参数按占位符按位绑定（1.2）**：`SelectTableColumns(#{schema},#{tableName})` 传入两个实参时按语句占位符名/位置分别绑定，不再出现「所有占位符都绑 args[0]」
+  - **变参函数不再 panic（1.3）**：`func(args ...interface{})` + `args:"a,b"` 标签长度 > 参数槽数不再 panic（`makeParamType` 与代理安装期两处）；参数解析错误由 panic 改为 error 聚合上报；代理运行期自动展开变参切片，tag 按元素逐位绑定
+  - **表前缀映射/替换（2.1）**：`mybatis.table-prefix-map=threedb_:`（空值=移除旧前缀、非空=替换），存量硬编码旧前缀的 XML 无需批量改写即可切生产；映射优先于真实表集合，逐源可覆盖并继承
+  - **resultType="map" 合法化（1.4）**：不再刷 `unsupport type to parse: map` 告警
+  - 宽松注册 `orm.SetStrictRegister(false)`（5.1）：失败函数跳过、其余正常注册，未绑定函数运行时返回明确错误
+  - schema 逐源覆盖键 `spring.datasource.<name>.schema` 验证 + 多数据源×schema×前缀配置矩阵（3.1/3.2）
+  - 表前缀细节：`MERGE INTO...USING`/`CREATE INDEX...ON`/`RENAME TABLE...TO` 表位置识别（2.2）；表集合缓存 TTL `mybatis.table-prefix-set-ttl`（2.4）；改写 debug 日志与 prepared 降级告警（2.5/5.3）；每文件解析汇总日志 + 生成 Go 文件 gofmt（5.2/4.2，含 resultType=map/无 parameterType 签名修复）
+  - 端到端验收：`Test_P0_SharedJavaXml_NoParameterType`（无 parameterType 注册 + 变参运行）、`Test_TablePrefixMap_SqliteRemovePrefix`（三库 prod 前缀移除场景）
+
 - **2026-09-04（v0.1.15）**：表名前缀按**真实表集合**精确改写（提高准确率）— 在纯前缀匹配之前，先从配置的 schema 获取数据库真实表名集合（`tableNameSet`，查询 `information_schema.COLUMNS` / `pg_class(+pg_namespace)` / `sqlite_master`，按数据源缓存、DDL 后自动失效），改写时与集合比对：带前缀表名在库中真实存在→按配置前缀改写；**无前缀表名在库中真实存在→保持原样**（修复「改了前缀但物理表未改名导致访问错误表」的核心场景，如配置 `test_` 但库中只有 `sys_user` 时不再改写为不存在的 `test_sys_user`）；两者均未收录（`CREATE TABLE` 新建表等）→沿用前缀匹配兜底（行为与旧版一致）；拉取失败自动降级纯前缀匹配并 Warn；多数据源按各自 schema 独立取集合；回归测试 `Test_rewriteSQLTables_tableSet` / `Test_TablePrefix_SqliteExistingUnprefixed` / `Test_TablePrefix_SqliteTableSetRefresh`；实现细节见 docs/agents/table-prefix.md
 - **2026-09-03（v0.1.13）**：数据表名前缀（TablePrefix）— 配置 `mybatis.table-prefix=test_`（兼容 `mybatis-plus.global-config.db-config.table-prefix` 与逐源覆盖键 `spring.datasource.table-prefix`）后，SQL 执行入口自动把 `FROM/JOIN/INTO/UPDATE/TABLE` 表位置的表名改为 `test_sys_user`，XML Mapper 语句保持不变；词法扫描+状态机改写（tokenizeSQL + rewriteSQLTables），不碰列名/字符串字面量/注释/占位符/别名；跳过系统目录（information_schema / pg_% / sqlite_% / pragma_%）与已带前缀的表（不叠加）；CTE 名、`TABLE IF NOT EXISTS` 等 DDL 修饰词不误伤；多数据源未单独配置时继承默认源前缀；编程式 `orm.SetTablePrefix` / `orm.GetTablePrefix`；覆盖 Mapper 代理、`orm.Execute/Query`、事务、流式查询全部执行路径（含 `Transaction` 直调补齐 `formatSQL` 对齐）；实现细节见 docs/agents/table-prefix.md
 - **2026-08-20（v0.1.12）**：PG/金仓 useGeneratedKeys RETURNING 支持（M-03）+ 依赖升级（P2-3）— ① PostgreSQL/KingbaseES 的 `sql.Result.LastInsertId()` 返回 error，自增主键回填失效。新增 RETURNING 路径：当数据库为 PostgreSQL/KingbaseES 且 `useGeneratedKeys` + `keyProperty` 已指定时，INSERT 自动追加 `RETURNING col`（keyColumn 显式指定或 keyProperty 驼峰转下划线），改用 `QueryContext` + `Scan` 读取生成的 ID 并回填；MySQL/SQLite 仍走 `LastInsertId()` 路径，行为不变。② `go-sql-driver/mysql` v1.6.0→v1.10.0、`beevik/etree` v1.1.0→v1.7.1、`lib/pq` v1.10.1→v1.12.3；`go.mod` go 版本升至 1.24.0；`lib/pq` → `pgx/v5` 迁移已评估，当前 lib/pq v1.12.3 仍可维护，迁移暂缓

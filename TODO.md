@@ -7,6 +7,16 @@
 
 ## ✅ 已完成
 
+### v0.2.0（优化改造，依据 2026-09-04 优化点整理）
+
+- **1.1 参数需求由语句占位符自动推导（M-06 关闭）**：`SqlParam` 增加 `Slots`（占位符名，去重按首现序）与 `AutoDerive`；`parseSqlFunctionFromXmlNode` 在无 `parameterType` 时用 `collectSqlSlots`（仅统计无条件位置：顶层文本/include/where/set 直接文本，`<if>/<choose>/<foreach>` 体内不统计）推导 `Need`；`checkSql` 放宽「有参函数 + 无 parameterType 语句」不再报错（Java 容忍未使用参数）。samples/MdmOrgRawMapper（无 parameterType）验证注册通过
+- **1.2 多参数按占位符按位绑定**：`SqlFunction.GenerateSQL/PrepareSQL` 在 `len(args)>1` 时按 `Slots` 位置打包为 map 走 Map 渲染（`buildParamMap`，无 slots 时 arg0/arg1 兜底）；`validParam` 增加多参校验分支。`SelectTableColumns(#{schema},#{tableName})` 双实参正确绑定
+- **1.3 变参 panic→error + 运行期展开**：`makeParamType`/`buildRemoteMethod` 对变参跳过 tag 长度校验；`makeParamType` 改返回 error，`getFunctions`/`newMapperInfo` 聚合到 `mapperInfo.FuncErrs`；代理运行期展开 `reflect.MakeFunc` 传入的变参切片（否则 tag 绑到整个切片）
+- **2.1 表前缀映射/替换**：`mybatis.table-prefix-map` 配置 + `rewriteSQLTablesWithMap`（映射优先于表集合：替换=剥旧套新；移除=集合判定保留/剥离）；逐源覆盖与继承；`orm.SetTablePrefixMap`
+- **4.1 codegen parameterType 不变式验证**：生成 XML「含占位符/foreach 必有 parameterType，纯静态无」；修复旧 `countByPrimaryKey` 静态语句误声明 parameterType
+- **5.1 宽松注册**：`orm.SetStrictRegister(bool)`，lax 模式下失败函数跳过；`bindMapper` 对未绑定函数返回错误代理而非 panic
+- **1.4 / 4.2 / 5.2 / 5.3 / 2.2~2.5 / 3.1 / 3.2**：map resultType 合法化；生成 Go 文件 gofmt（修复 resultType=map→`models.map[...]`、无 parameterType→`models.` 两类非法签名）；每文件解析汇总日志；表集合缓存 TTL；改写 debug 日志 + prepared 降级计数/一次性告警；MERGE USING / CREATE INDEX ON / RENAME TO 表位置；schema 逐源验证 + 文档矩阵；嵌套 CTE 验证（已支持）
+
 ### v0.1.15（2026-09-04，表名前缀真实表集合匹配）
 
 - **表名前缀按真实表集合精确改写（提高准确率）**：纯前缀匹配存在「改了前缀但物理表未改名时改写指向不存在的表」的问题。新增 `DB.tableNameSet()` 在改写前从**配置的 schema** 获取真实表名集合（查询 `information_schema.COLUMNS`（MySQL）/ `pg_class join pg_namespace`（PG/金仓，`spring.datasource.schema` 指定）/ `sqlite_master`（SQLite），键小写），按数据源（`Config.cacheStore` key `tableNames`）惰性缓存；改写时与集合比对（`prefixRequired`，`rewriteSQLTablesWithSet`）：① 带前缀表名真实存在→按配置前缀改写（配置意图优先）；② **无前缀表名真实存在→保持原样**（核心修复场景，`Test_TablePrefix_SqliteExistingUnprefixed`）；③ 两者均未收录（`CREATE TABLE` 新建表 / 表确实不存在）→沿用前缀匹配兜底（兼容旧行为）；DDL（`CREATE/DROP/ALTER/RENAME/TRUNCATE`，`isDDLStatement`）在 `ExecContext` 执行后使缓存失效（`Test_TablePrefix_SqliteTableSetRefresh`），新建表立即可见；拉取失败记录 Warn 并缓存空集，降级纯前缀匹配不阻塞查询；集合查询直连底层 ConnPool（不经 `applyTablePrefix`，避免循环依赖），仅访问系统表不会被自我改写；`fetchTables` 复用新 `tableListSQL` 生成器（行为不变）。纯函数单测 `Test_rewriteSQLTables_tableSet`（8 组断言：带前缀/无前缀/并存/未知/已带前缀/大小写/schema 限定/退化）；既有前缀测试全部保持兼容。实现细节见 docs/agents/table-prefix.md
@@ -83,7 +93,6 @@
 ### 框架功能（M 系列）
 
 - **M-04 自定义 `resultType` 短类名不解析（P12）**：`parseResultTypeFrom`（`types/common.go`）只认 JDBC 基础类型，未知类型返回 `map[string]interface{}` → 注册校验失败。应在已注册 model 中按短类名解析
-- **M-06 XML 无 parameterType 但有入参时注册校验失败（P6）**：`methodFieldCheck` 在 `ArgsLen > 0 && !Param.Need` 时报错；Java @Param 多参数在 XML 不写 parameterType 时无法注册。GenerateSQL 已支持无 parameterType 走参数渲染（S-04），注册期校验应同步放宽（按方法签名推断 Need）
 - **M-07 分页支持（P22）**：无 PageHelper 等价物，`selectList` 类操作无 limit；现仅内存分页。建议提供分页参数约定或 SQL 层分页助手（与 P4-2 流式读取互补）
 
 ---

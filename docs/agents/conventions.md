@@ -17,6 +17,16 @@
 - 测试函数命名 `Test_函数名` 或 `Test函数名`。
 - XML Mapper 的文件名与 `namespace` 对应，放在 `resources/mapper` 目录。
 
+## 注册期参数绑定（v0.2.0）
+
+- **无 `parameterType` 自动推导**：语句含 `#{}`/`${}`（无条件位置）或 `<foreach>` → 视为需要参数；
+  `<if>/<choose>` 条件体占位符不视为必参（相关语句可无参调用，if 条件不满足时段落省略）。
+- **多参数按位绑定**：无 `args:` 标签的多参函数，实参按语句占位符出现顺序绑定
+  （第 i 个实参 ↔ 第 i 个去重占位符名）；带 `args:"a,b"` 标签按别名打包为 map。
+- **变参**：`func(args ...interface{})` 允许 tag 长度 > NumIn（运行时按 tag 逐元素展开）；tag 长度不匹配
+  属错误上报而非 panic（默认严格注册整体失败；`orm.SetStrictRegister(false)` 后跳过失败函数，
+  该函数运行时返回明确错误）。
+
 ## 日志
 
 通过 `log` 包调用所有日志（`log.Debugf`/`Infof`/`Warnf`/`Errorf`），可替换实现。
