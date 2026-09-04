@@ -745,3 +745,18 @@ func Test_TablePrefixMap_SqliteRemovePrefix(t *testing.T) {
 		t.Errorf("row name = %v, want prod_user (prefix removed -> real table hit)", rs[0]["name"])
 	}
 }
+
+// 2.3 嵌套 CTE 验证：顶层 WITH 与子查询内的 WITH 名称均不被加前缀（主循环逐 token 扫描已覆盖）
+func Test_rewriteSQLTables_nestedCTE(t *testing.T) {
+	q := "with outer_cte as (select id from sys_user) select * from outer_cte where id in (with inner_cte as (select id from sys_org) select id from inner_cte)"
+	got := rewriteSQLTables(q, "test_")
+	if strings.Contains(got, "test_inner_cte") {
+		t.Errorf("nested CTE name should not be prefixed: %v", got)
+	}
+	if strings.Contains(got, "test_outer_cte") {
+		t.Errorf("outer CTE name should not be prefixed: %v", got)
+	}
+	if !strings.Contains(got, "test_sys_user") || !strings.Contains(got, "test_sys_org") {
+		t.Errorf("real tables should be prefixed: %v", got)
+	}
+}

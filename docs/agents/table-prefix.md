@@ -95,6 +95,25 @@
 - **别名不破坏逗号列表**：`FROM t1 a, t2 b` 中的别名 `a`/`b` 只当普通词，不中断 `commaList`，
   别名本身也不是表关键字或断句词时保持原样。
 
+## 前缀映射 / 替换（table-prefix-map，v0.2.0）
+
+**逆场景**：生产物理表不再带旧前缀（或换成另一前缀），而存量 XML 硬编码了旧前缀。此时无需
+批量改写 XML，配置 `mybatis.table-prefix-map`（`oldprefix:newprefix`，逗号分隔多个；
+`newprefix` 为空表示**移除**；无冒号条目等价 `oldprefix:`）即让 SQL 执行入口统一翻译：
+
+- **映射优先于表集合判定**：表名以旧前缀开头（大小写不敏感）即命中；
+- 新前缀非空 → 剥旧前缀 + 套新前缀（替换）；
+- 新前缀为空（移除）→ **走表集合判定**：库中该无前缀表已存在 → 保持（它已是物理表）；
+  库中带前缀表存在 → 保留原样（剥了反而指向错误表）；其余（含集合缺失/CREATE TABLE）→ 按配置剥离；
+- schema 限定名（`subsp.threedb_ods_x`）：映射为显式意图，对表名部分同样生效（不区分 schema 是否 public/main）；
+  未命中映射的限定名维持「仅 public/main 参与正向前缀」的既有规则；
+- 配置键：`mybatis.table-prefix-map`（主键），逐源覆盖 `spring.datasource.<name>.table-prefix-map`；
+  未配置的附加源继承默认源的映射；编程方式 `orm.SetTablePrefixMap(map[string]string{...})`。
+
+实现：`rewriteSQLTablesWithMap(query, prefix, prefixMap, tableSet)`，与 `rewriteSQLTablesWithSet`
+共用同一 tokenizeSQL 状态机（`applyToken` 闭包先走映射通道、未命中再走原 `prefixRequired` 路径）；
+`prefixMap` 为 nil/空时输出与旧版完全一致（既有 20+24+8 组单测零回归）。
+
 ## 多数据源
 
 `parseMultiDatabaseConfig` 解析附加数据源后，若其未单独配置前缀（如通过
@@ -129,7 +148,10 @@
 - 表关键字仅识别 `FROM/JOIN/INTO/UPDATE/TABLE`；`MERGE INTO`、`CREATE INDEX ... ON`（ON 是
   JOIN 条件关键字，不能当表关键字）、MySQL `RENAME TABLE a TO b` 的目标名等罕见写法不加前缀；
 - 非 `public`/`main` schema 的限定名整段跳过（跨库引用由各自环境自行管理）；
-- 嵌套 CTE（子查询内部再 `WITH`）名称未收集，若 Mapper 使用会报 SQL 错误（显式失败而非静默错数据）。
+- 嵌套 CTE（子查询内部再 `WITH`）名称：主循环逐 token 扫描会访问括号内 `with` 关键词，
+  顶层与嵌套 CTE 名均会被收集（见 `Test_rewriteSQLTables_nestedCTE`），无需人工规避。
+- 命名约定（3.2）：**SQL 一律写无 schema 名 + `search_path` 路由**；`schema.table` 限定名仅
+  `public/main` 参与正向前缀改写，其余 schema 整段跳过；前缀映射（显式意图）对限定名表名部分生效。
 
 ## 表集合匹配边界
 

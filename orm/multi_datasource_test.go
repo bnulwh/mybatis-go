@@ -180,3 +180,58 @@ func Test_AddDataSource(t *testing.T) {
 		t.Error("ReConnectDataSource(nope) should fail")
 	}
 }
+
+// Test_parseMultiDatabaseConfig_schemaOverride：逐源 schema 键 spring.datasource.<name>.schema（3.1）
+func Test_parseMultiDatabaseConfig_schemaOverride(t *testing.T) {
+	cm := map[string]string{
+		"spring.datasource.url":       "jdbc:postgresql://h:5432/pg?currentSchema=public",
+		"spring.datasource.type":      "postgres",
+		"spring.datasource.username":  "u",
+		"spring.datasource.password":  "p",
+		"spring.datasource.schema":    "public",
+		"mybatis.datasources":         "report",
+		"spring.datasource.report.url": "jdbc:postgresql://h:5432/pg",
+		"spring.datasource.report.schema": "subsp",
+		"spring.datasource.report.type":   "postgres",
+		"spring.datasource.report.username": "u2",
+		"spring.datasource.report.password": "p2",
+	}
+	cfgs := parseMultiDatabaseConfig(cm)
+	def, ok1 := cfgs["default"]
+	rep, ok2 := cfgs["report"]
+	if !ok1 || !ok2 {
+		t.Errorf("sources not parsed: default=%v report=%v", def != nil, rep != nil)
+		return
+	}
+	if def.Setting.Schema != "public" {
+		t.Errorf("default schema = %q, want public", def.Setting.Schema)
+	}
+	if rep.Setting.Schema != "subsp" {
+		t.Errorf("report schema = %q, want subsp", rep.Setting.Schema)
+	}
+}
+
+// Test_parseMultiDatabaseConfig_prefixMapInherit：逐源未配置前缀映射时继承默认源（2.1）
+func Test_parseMultiDatabaseConfig_prefixMapInherit(t *testing.T) {
+	cm := map[string]string{
+		"spring.datasource.url":             "jdbc:postgresql://h:5432/pg",
+		"spring.datasource.type":            "postgres",
+		"spring.datasource.username":        "u",
+		"spring.datasource.password":        "p",
+		"mybatis.table-prefix-map":          "threedb_:",
+		"mybatis.datasources":               "backup",
+		"spring.datasource.backup.url":      "jdbc:postgresql://h:5432/bak",
+		"spring.datasource.backup.type":     "postgres",
+		"spring.datasource.backup.username": "u2",
+		"spring.datasource.backup.password": "p2",
+	}
+	cfgs := parseMultiDatabaseConfig(cm)
+	bak, ok := cfgs["backup"]
+	if !ok {
+		t.Error("backup source not parsed")
+		return
+	}
+	if len(bak.Setting.TablePrefixMap) != 1 || bak.Setting.TablePrefixMap["threedb_"] != "" {
+		t.Errorf("backup should inherit default prefix map, got %v", bak.Setting.TablePrefixMap)
+	}
+}

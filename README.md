@@ -228,6 +228,25 @@ orm.UseDataSource("default")   // 切回默认
 
 编程方式注册命名数据源：
 
+> **多数据源 × schema × 前缀 配置矩阵**（v0.2.0）：默认源用无名称前缀键；附加源键带 `<name>` 前缀，
+> 逐源可覆盖 schema 与前缀（未配置时继承默认源前缀/前缀映射）。
+
+```properties
+# 默认源：public schema + threedb_ 前缀（开发环境）
+spring.datasource.url= jdbc:kingbase://localhost:54321/db?currentSchema=public
+mybatis.table-prefix= threedb_
+
+# 附加源 report：subsp schema + 移除 threedb_ 前缀（生产环境，物理表无前缀）
+mybatis.datasources= report
+spring.datasource.report.url= jdbc:kingbase://localhost:54321/db
+spring.datasource.report.schema= subsp
+spring.datasource.report.table-prefix-map= threedb_:
+```
+
+> 约定：SQL 一律写无 schema 名（`sys_user`），由 `search_path=<schema>` 路由到目标 schema；
+> 显式 `schema.table` 限定名中，仅 `public/main` 参与前缀正向改写，其余 schema 整段跳过
+> （前缀映射为显式配置意图，对限定名的表名部分同样生效）——两种写法不要混用。
+
 ```go
 orm.AddDataSource("report", "postgres", "10.1.2.3", 5432, "root", "123456", "reportdb")
 orm.UseDataSource("report")
@@ -340,12 +359,27 @@ mybatis.table-prefix= test_
 - 多数据源：附加数据源未单独配置前缀时继承默认源前缀；
 - 兼容 MyBatis-Plus 风格配置键 `mybatis-plus.global-config.db-config.table-prefix`。
 
-编程方式设置全局前缀（作用于未在配置中单独指定前缀的数据源）：
+编程方式设置全局前缀 / 前缀映射（作用于未在配置中单独指定前缀的数据源）：
 
 ```go
 orm.SetTablePrefix("test_")
 prefix := orm.GetTablePrefix()
+orm.SetTablePrefixMap(map[string]string{"threedb_": ""}) // 移除 threedb_ 前缀
 ```
+
+**前缀映射（移除/替换，v0.2.0）**：存量 XML 硬编码了 `threedb_` 之类的旧前缀、而生产物理表已改名为无前缀
+（或 `app_` 前缀）时，无需批量改写 XML，配置 `mybatis.table-prefix-map` 即可在 SQL 执行入口统一翻译：
+
+```properties
+# 移除旧前缀（threedb_sys_user → sys_user）
+mybatis.table-prefix-map= threedb_:
+# 或替换为另一前缀（threedb_sys_user → app_sys_user）
+mybatis.table-prefix-map= threedb_:app_
+```
+
+映射优先级高于真实表集合判定；映射值为空（移除）时按表集合判定：库中该无前缀表存在则保持、
+带前缀表存在则保留原样（防指向错误表）、其余按配置剥离。逐源可覆盖
+（`spring.datasource.<name>.table-prefix-map`），未配置的附加源继承默认源。
 
 实现细节（表位置改写算法、词法扫描/状态机、边界与已知限制）见 **docs/agents/table-prefix.md**。
 
