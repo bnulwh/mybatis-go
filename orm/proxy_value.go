@@ -79,7 +79,17 @@ func buildRemoteMethod(source reflect.Value, fieldVal reflect.Value, fieldTyp re
 			panic(`[mybatis-go] method fail! the tag "args" length  != args length ! filed = ` + structField.Name)
 		}
 	}
+	// 1.3：变参函数由 reflect.MakeFunc 传入单个切片值（[]T），展开为逐元素以便
+	// TagArgs 按位绑定 / 无 tag 多参按位路由（buildArgs + SqlFunction.buildParamMap）。
 	var fn = func(args []reflect.Value) (results []reflect.Value) {
+		if fieldTyp.IsVariadic() && len(args) == 1 && args[0].Kind() == reflect.Slice {
+			s := args[0]
+			expanded := make([]reflect.Value, 0, s.Len())
+			for i := 0; i < s.Len(); i++ {
+				expanded = append(expanded, s.Index(i))
+			}
+			args = expanded
+		}
 		return proxyFunc(NewProxyArg(tagArgs, args))
 		//for _, returnV := range proxyResults {
 		//	results = append(results, returnV)
