@@ -177,6 +177,11 @@ rows2, _ := mp.SelectBatchIds([]int64{1, 2})
 7. **`-mp` 只影响 schema2code 产出**：手写 XML 不受影响；`TableStructure.SaveToFile`（旧 CRUD 风格）行为不变。
 8. **文件组织**：与普通 mapper 一样支持子目录（如 `mybatis/system/`），`mybatis-config.xml` 会被跳过（S-10）。
 
+### 4.1 参数声明与自动推导（v0.2.0）
+
+- schema2code/saveMP 生成的 XML 中，**含占位符的语句内嵌 `parameterType`**（标量→基础类型、模型→类型名、批量→主键类型），**纯静态语句不声明**（如 `selectOne/selectList/selectPage/selectCount`、旧版 `countByPrimaryKey`）——与框架 1.1「参数需求由语句占位符自动推导」一致，codegen 生成的无参/有参签名与语句匹配，**接入无需再手工补参**（取代历史 P6 手工补 parameterType 的做法）。
+- 共享 Java 侧手写 XML（无 `parameterType`）同样可直接注册：框架从语句 `#{}`/`${}`/`<foreach>` 自动推导参数需求（类型按实际参数分派）。
+
 ## 7. 限制与后续（已知边界）
 
 - 仅生成「全表 / 按主键」的内置 CRUD；**Wrapper（`ew.customSqlSegment`）动态条件暂不支持**——条件查询仍用 RuoYi 传统 XML `<if>` 写法。

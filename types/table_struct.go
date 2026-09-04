@@ -341,7 +341,8 @@ func (ts *TableStructure) writeSelectAllFunction(mapper *etree.Element) {
 func (ts *TableStructure) writeCountFunction(mapper *etree.Element) {
 	sf := mapper.CreateElement("select")
 	sf.CreateAttr("id", "countByPrimaryKey")
-	sf.CreateAttr("parameterType", ts.getPrimaryJdbcType())
+	// 4.1：SQL 为静态无条件 count（无占位符），不声明 parameterType，
+	// codegen 据此生成无参函数，与 1.1 自动推导保持一致。
 	sf.CreateAttr("resultType", "int")
 	sf.CreateText(fmt.Sprintf("\n\t\tselect count(%s) \n\t\tfrom %s where deleted = false\n\t", ts.PrimaryColumn.Name, ts.Table))
 }

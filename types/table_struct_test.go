@@ -230,3 +230,63 @@ func Test_TableStruct_MPCodegen(t *testing.T) {
 		}
 	}
 }
+
+// Test_GeneratedXML_AllStatementsHaveParameterType：schema2code 产物与 1.1 推导保持一致（4.1）：
+// 语句含占位符（#{}）或 <foreach> → 必须带 parameterType（或可由占位符自动推导）；
+// 纯静态语句 → 不强制 parameterType（codegen 生成无参签名，杜绝错参）。
+// 不变式：parameterType 存在 ⟺ 语句含 #{} 或 <foreach>。
+func Test_GeneratedXML_AllStatementsHaveParameterType(t *testing.T) {
+	for _, mp := range []bool{false, true} {
+		ts := newMPTestTableStructure()
+		dir := t.TempDir()
+		filename := filepath.Join(dir, "SysUserMapper.xml")
+		var err error
+		if mp {
+			err = ts.SaveMPToFile(filename, "")
+		} else {
+			err = ts.SaveToFile(filename, "")
+		}
+		if err != nil {
+			t.Errorf("SaveToFile(mp=%v) failed: %v", mp, err)
+			continue
+		}
+		bts, rerr := os.ReadFile(filename)
+		if rerr != nil {
+			t.Errorf("read generated xml failed: %v", rerr)
+			continue
+		}
+		xmlStr := string(bts)
+		for _, tag := range []string{"<select", "<insert", "<update", "<delete"} {
+			idx := strings.Index(xmlStr, tag)
+			for idx >= 0 {
+				endRel := strings.Index(xmlStr[idx:], ">")
+				if endRel < 0 {
+					break
+				}
+				head := xmlStr[idx : idx+endRel]
+				// 只取开标签属性与开头到 <include> 前的内容（开标签内无嵌套）
+				starts := []string{"#{import"}
+				_ = starts
+				hasParam := strings.Contains(head, "parameterType")
+				// 语句体（含 foreach 与否）需要 <select..> 之后的文本，用下一个结束标签前的整体判断
+				stmtEnd := strings.Index(xmlStr[idx+endRel:], "</"+tag[1:]+">")
+				body := ""
+				if stmtEnd >= 0 {
+					body = xmlStr[idx+endRel+1 : idx+endRel+1+stmtEnd]
+				}
+				needParam := strings.Contains(body+" "+head, "#{") || strings.Contains(body, "<foreach")
+				if needParam && !hasParam {
+					t.Errorf("mp=%v %v has placeholders but missing parameterType: %v", mp, tag, head[:min(160, len(head))])
+				}
+				if !needParam && hasParam {
+					t.Errorf("mp=%v %v static statement should not declare parameterType: %v", mp, tag, head[:min(160, len(head))])
+				}
+				rel := strings.Index(xmlStr[idx+len(tag):], tag)
+				if rel < 0 {
+					break
+				}
+				idx += len(tag) + rel
+			}
+		}
+	}
+}
