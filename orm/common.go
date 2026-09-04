@@ -211,7 +211,7 @@ func resolveConverter(colType *sql.ColumnType) convertFn {
 		return convertToConvertFn(convertSqlString2String)
 	}
 	switch typ.String() {
-	case "string":
+	case "string", "sql.NullString":
 		return convertToConvertFn(convertSqlString2String)
 	case "sql.RawBytes":
 		if colType.DatabaseTypeName() == "BIT" {
