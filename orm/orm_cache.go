@@ -6,6 +6,7 @@ import (
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
+	"sync/atomic"
 )
 
 type ormCache struct {
@@ -15,7 +16,8 @@ type ormCache struct {
 }
 
 var (
-	gCache ormCache
+	gCache       ormCache
+	strictReg    atomic.Bool // 5.1：注册模式，默认严格（任一函数绑定失败即整体失败）
 )
 
 func init() {
@@ -24,7 +26,16 @@ func init() {
 		mappers: mapperCache{Mappers: map[string]*mapperInfo{}},
 		sqls:    nil,
 	}
+	strictReg.Store(true)
 }
+
+// SetStrictRegister 设置注册模式：true=严格（默认），任一函数绑定失败即整体失败；
+// false=宽松：失败函数记 error 日志后跳过（该函数运行时返回明确错误），其余正常注册（5.1）。
+func SetStrictRegister(strict bool) { strictReg.Store(strict) }
+
+// IsStrictRegister 返回当前注册模式。
+func IsStrictRegister() bool { return strictReg.Load() }
+
 
 func (in *ormCache) createModel(name string) (reflect.Value, error) {
 	return in.models.createModel(name)
@@ -55,6 +66,10 @@ func (in *ormCache) bindSqls() error {
 		errs = append(errs, mi.FuncErrs...)
 		err := mi.bindSql(smp)
 		if err != nil {
+			if !IsStrictRegister() {
+				log.Errorf("lax register: skip mapper %s: %v", name, err)
+				continue
+			}
 			errs = append(errs, err)
 		}
 	}
@@ -114,7 +129,13 @@ func bindMapper(name string, mapper reflect.Value) {
 		//mapper
 		sqlFunc, err := bm.fetchSqlFunction(funcName)
 		if err != nil {
-			panic(err)
+			// 5.1 宽松注册：函数因注册期失败被跳过（SqlFunc 未绑定），
+			// 运行时返回明确错误而非 panic（该错误已在注册期记录日志）。
+			rerr := err
+			methodFieldCheck(&outTyp, &funcField, true)
+			return func(arg ProxyArg) []reflect.Value {
+				return buildReturnValues(returnType, reflect.Value{}, rerr)
+			}
 		}
 		methodFieldCheck(&outTyp, &funcField, true)
 		//执行期

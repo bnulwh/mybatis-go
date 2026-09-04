@@ -61,6 +61,11 @@ func (in *mapperInfo) bindSql(smp *types.SqlMapper) error {
 		}
 		err := in.Functions[i].bindSql(sf)
 		if err != nil {
+			if !IsStrictRegister() {
+				// 5.1 宽松模式：跳过失败函数，其余继续绑定（运行时该函数返回明确错误）
+				log.Errorf("lax register: skip %v.%v: %v", in.Name, fi.Name, err)
+				continue
+			}
 			errs = append(errs, err)
 		}
 	}

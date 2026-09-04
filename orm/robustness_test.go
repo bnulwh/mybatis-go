@@ -3,6 +3,8 @@ package orm
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
@@ -118,5 +120,74 @@ func Test_PreparedStmtCacheCap(t *testing.T) {
 	}
 	if len(ps2.Stmts) != 1 {
 		t.Errorf("cache should grow under cap, got %d", len(ps2.Stmts))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 5.1 宽松注册模式
+
+type LaxMapper struct {
+	BaseMapper
+	SelectGood func() ([]map[string]interface{}, error)
+	SelectBad  func() ([]map[string]interface{}, error)
+}
+
+func initLaxSqlite(t *testing.T) string {
+	dir := t.TempDir()
+	xmlDir := filepath.Join(dir, "mapper")
+	if err := os.MkdirAll(xmlDir, 0755); err != nil {
+		t.Errorf("create mapper dir failed: %v", err)
+		return ""
+	}
+	// XML 只含 selectGood；SelectBad 无对应语句
+	xml := `<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="LaxMapper">
+  <select id="selectGood" resultType="map">select 1 as g</select>
+</mapper>`
+	if err := os.WriteFile(filepath.Join(xmlDir, "LaxMapper.xml"), []byte(xml), 0644); err != nil {
+		t.Errorf("write mapper xml failed: %v", err)
+		return ""
+	}
+	dbPath := filepath.Join(dir, "lax.db")
+	cm := map[string]string{
+		"spring.datasource.url":    "jdbc:sqlite:" + dbPath,
+		"mybatis.mapper-locations": xmlDir,
+	}
+	if err := InitializeFromSettings(cm); err != nil {
+		t.Errorf("initialize sqlite failed: %v", err)
+		return ""
+	}
+	return dir
+}
+
+func Test_SetStrictRegister_Lax(t *testing.T) {
+	dir := initLaxSqlite(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+
+	// 严格（默认）：任一函数失败 → 整体失败
+	if err := RegisterMapper(new(LaxMapper)); err == nil {
+		t.Error("strict register should fail when a function has no sql statement")
+	}
+	// 宽松：失败函数跳过，其余正常注册
+	SetStrictRegister(false)
+	defer SetStrictRegister(true)
+	if err := RegisterMapper(new(LaxMapper)); err != nil {
+		t.Errorf("lax register should succeed, got: %v", err)
+	}
+	mp := NewMapper("LaxMapper").(LaxMapper)
+	// 好函数可用
+	rs, err := mp.SelectGood()
+	if err != nil {
+		t.Errorf("good function should still work in lax mode: %v", err)
+	} else if len(rs) != 1 || rs[0]["g"] != int64(1) {
+		t.Errorf("good function result wrong: %v", rs)
+	}
+	// 坏函数返回明确错误而非 panic（bindMapper 容错：fetchSqlFunction 失败 → error 代理）
+	_, err = mp.SelectBad()
+	if err == nil {
+		t.Error("bad function should return error in lax mode (not panic)")
 	}
 }
