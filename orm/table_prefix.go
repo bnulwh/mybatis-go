@@ -1,7 +1,10 @@
 package orm
 
 import (
+	"context"
+	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/bnulwh/mybatis-go/log"
 )
@@ -50,12 +53,142 @@ func (db *DB) tablePrefix() string {
 }
 
 // applyTablePrefix 对 SQL 执行前的最终语句做表名前缀改写；未配置前缀时原样返回。
+// 改写前先取当前数据源指定 schema 的真实表名集合：若 SQL 引用的表名（无前缀）在库中
+// 真实存在，则保持原样不改写，避免「改了前缀但物理表未改名」导致 SQL 指向不存在的表。
 func (db *DB) applyTablePrefix(query string) string {
 	prefix := db.tablePrefix()
 	if prefix == "" {
 		return query
 	}
-	return rewriteSQLTables(query, prefix)
+	return rewriteSQLTablesWithSet(query, prefix, db.tableNameSet())
+}
+
+// tableNamesCacheKey 表名集合缓存在 cacheStore 中的键。
+const tableNamesCacheKey = "tableNames"
+
+// tableNamesCache 数据源真实表名集合的缓存（键为小写物理表名）。
+// done 为 true 表示已获取（成功或失败降级）；失败时缓存空集合并视为已获取，
+// 退化为纯前缀匹配（与历史行为一致），后续 DDL 成功会使缓存失效并重新获取。
+type tableNamesCache struct {
+	mu    sync.RWMutex
+	names map[string]struct{}
+	done  bool
+}
+
+func (c *tableNamesCache) get() (map[string]struct{}, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.names, c.done
+}
+
+// tableNameSet 返回当前数据源指定 schema 的真实表名集合（小写键），首次调用时惰性
+// 查询数据库并缓存；查询失败时记录告警并返回空集（退化为纯前缀匹配）。
+// 集合查询直接走 ConnPool，不会再次触发 applyTablePrefix，避免循环依赖。
+func (db *DB) tableNameSet() map[string]struct{} {
+	if db == nil || db.cacheStore == nil {
+		return nil
+	}
+	if v, ok := db.cacheStore.Load(tableNamesCacheKey); ok {
+		if names, done := v.(*tableNamesCache).get(); done {
+			return names
+		}
+	}
+	tc := &tableNamesCache{}
+	actual, _ := db.cacheStore.LoadOrStore(tableNamesCacheKey, tc)
+	cache := actual.(*tableNamesCache)
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	if cache.done {
+		return cache.names
+	}
+	names, err := db.fetchTableNames()
+	if err != nil {
+		log.Warnf("fetch table names from schema failed, fallback to prefix-only rewrite: %v", err)
+		cache.names = map[string]struct{}{}
+		cache.done = true
+		return cache.names
+	}
+	cache.names = names
+	cache.done = true
+	return cache.names
+}
+
+// invalidateTableNames 使表名集合缓存失效（DDL 成功后调用），下一条 SQL 重新获取真实表集合。
+func (db *DB) invalidateTableNames() {
+	if db == nil || db.cacheStore == nil {
+		return
+	}
+	db.cacheStore.Delete(tableNamesCacheKey)
+}
+
+// fetchTableNames 从当前数据源查询真实表名集合（小写键）。
+// 使用底层 ConnPool 直接执行，绕过 applyTablePrefix（集合查询本身只访问
+// information_schema / sqlite_master / pg_class 等系统表，无需改写）。
+func (db *DB) fetchTableNames() (map[string]struct{}, error) {
+	if db == nil || db.ConnPool == nil {
+		return nil, nil
+	}
+	sqlStr := tableListSQL(db.Setting, db.Setting.Name)
+	if sqlStr == "" {
+		return map[string]struct{}{}, nil
+	}
+	ctx, cancel := withExecTimeout(context.Background())
+	defer cancel()
+	rows, err := db.ConnPool.QueryContext(ctx, sqlStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	names := map[string]struct{}{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names[strings.ToLower(name)] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
+// tableListSQL 返回列出指定 schema 真实表名的 SQL（按方言区分）；
+// 与框架内建的表结构探查（database_structure.go）共用同一套查询。
+func tableListSQL(setting MyBatisSetting, dbName string) string {
+	switch setting.Type {
+	case MySqlDb:
+		// MySQL 下 schema 即数据库名；显式配置 spring.datasource.schema 时以它为准
+		return fmt.Sprintf("select DISTINCT TABLE_NAME as table_name from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s'", setting.effectiveSchema(dbName))
+	case PostgresDb, KingbaseDb:
+		// 配置了 schema 时仅列该 schema 的表；未配置保持历史行为（列出所有 schema）
+		if schema := setting.Schema; schema != "" {
+			return fmt.Sprintf("select relname as TABLE_NAME from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind = 'r' and n.nspname = '%s' and c.relname not like 'pg_%%' and c.relname not like 'sql_%%'", schema)
+		}
+		return "select relname as TABLE_NAME from pg_class where  relkind = 'r' and relname not like 'pg_%' and relname not like 'sql_%'"
+	case SqliteDb:
+		return "select name as table_name from sqlite_master where type='table' and name not like 'sqlite_%'"
+	}
+	log.Errorf("unsupport database type %v to get table list", setting.Type)
+	return ""
+}
+
+// isDDLStatement 判断 SQL 是否属于可能改变表集合的 DDL（CREATE/DROP/ALTER/RENAME/TRUNCATE）。
+// 命中时在 SQL 执行成功后使表名集合缓存失效，保证后续改写基于最新表集合。
+func isDDLStatement(query string) bool {
+	q := strings.TrimLeft(query, " \t\r\n")
+	if q == "" {
+		return false
+	}
+	word := q
+	if i := strings.IndexAny(q, " \t\r\n("); i >= 0 {
+		word = q[:i]
+	}
+	switch strings.ToLower(word) {
+	case "create", "drop", "alter", "rename", "truncate":
+		return true
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +392,39 @@ func prefixable(tok sqlToken, prefix string) bool {
 	return !strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix))
 }
 
+// prefixRequired 在纯前缀匹配基础上，结合指定 schema 的真实表名集合做精确匹配，
+// 提高「改了前缀后实际表不在」场景下的准确率：
+//  1. 系统表 / 已带前缀的表 → 不改写（保持原样，防叠加）；
+//  2. 带前缀的表名在库中真实存在 → 按配置前缀改写（配置意图优先）；
+//  3. SQL 引用的表名（无前缀）在库中真实存在 → 保持原样（它就是物理表，改写反而出错）；
+//  4. 两者均未收录（如 CREATE TABLE 新建表、目标表确实不存在）→ 沿用前缀匹配兜底。
+//
+// tableSet 为 nil 或空时退化为旧的纯前缀匹配行为。
+func prefixRequired(tok sqlToken, prefix string, tableSet map[string]struct{}) bool {
+	name := identContent(tok)
+	if name == "" || isSystemTable(name) {
+		return false
+	}
+	lower := strings.ToLower(name)
+	if strings.HasPrefix(lower, strings.ToLower(prefix)) {
+		// 已带前缀不叠加
+		return false
+	}
+	if len(tableSet) > 0 {
+		// 带前缀的表名在库中真实存在 → 按配置前缀改写（配置意图优先）
+		if _, ok := tableSet[strings.ToLower(prefix)+lower]; ok {
+			return true
+		}
+		// SQL 引用的表名（无前缀）在库中真实存在 → 保持原样
+		if _, ok := tableSet[lower]; ok {
+			return false
+		}
+		// 库中也未收录（建表 DDL / 表确实不存在）→ 沿用前缀匹配兜底
+		log.Debugf("table %q not found in schema table set, rewrite with prefix %q", name, prefix)
+	}
+	return true
+}
+
 // identContent 取标识符内容（引号标识符去掉引号）。
 func identContent(tok sqlToken) string {
 	if tok.typ == tkQuoted && len(tok.text) >= 2 {
@@ -289,7 +455,14 @@ var clauseBreakWords = map[string]bool{
 }
 
 // rewriteSQLTables 为查询中的表名插入前缀；输入输出 SQL 除表名前缀外完全一致。
+// 纯前缀匹配（不携带真实表名集合），保持纯函数语义供单元测试使用。
 func rewriteSQLTables(query, prefix string) string {
+	return rewriteSQLTablesWithSet(query, prefix, nil)
+}
+
+// rewriteSQLTablesWithSet 同 rewriteSQLTables，但携带数据源指定 schema 的真实表名集合：
+// 无前缀表名在库中真实存在时不改写（修复改了前缀但物理表未改名导致访问错误表的问题）。
+func rewriteSQLTablesWithSet(query, prefix string, tableSet map[string]struct{}) string {
 	if prefix == "" || query == "" {
 		return query
 	}
@@ -313,12 +486,12 @@ func rewriteSQLTables(query, prefix string) string {
 				if j >= 0 && tokens[j].typ == tkPunct && tokens[j].text == "." {
 					k := nextSig(tokens, j)
 					if k >= 0 && (tokens[k].typ == tkWord || tokens[k].typ == tkQuoted) {
-						if isPrefixableSchema(identContent(*t)) && prefixable(tokens[k], prefix) {
+						if isPrefixableSchema(identContent(*t)) && prefixRequired(tokens[k], prefix, tableSet) {
 							applyPrefix(&tokens[k], prefix)
 						}
 						i = k
 					}
-				} else if !cteNames[lower] && prefixable(*t, prefix) {
+				} else if !cteNames[lower] && prefixRequired(*t, prefix, tableSet) {
 					applyPrefix(t, prefix)
 				}
 				expectTable = false
@@ -345,12 +518,12 @@ func rewriteSQLTables(query, prefix string) string {
 				if j >= 0 && tokens[j].typ == tkPunct && tokens[j].text == "." {
 					k := nextSig(tokens, j)
 					if k >= 0 && (tokens[k].typ == tkWord || tokens[k].typ == tkQuoted) {
-						if isPrefixableSchema(identContent(*t)) && prefixable(tokens[k], prefix) {
+						if isPrefixableSchema(identContent(*t)) && prefixRequired(tokens[k], prefix, tableSet) {
 							applyPrefix(&tokens[k], prefix)
 						}
 						i = k
 					}
-				} else if !cteNames[strings.ToLower(identContent(*t))] && prefixable(*t, prefix) {
+				} else if !cteNames[strings.ToLower(identContent(*t))] && prefixRequired(*t, prefix, tableSet) {
 					applyPrefix(t, prefix)
 				}
 				expectTable = false

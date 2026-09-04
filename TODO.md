@@ -7,6 +7,10 @@
 
 ## ✅ 已完成
 
+### v0.1.15（2026-09-04，表名前缀真实表集合匹配）
+
+- **表名前缀按真实表集合精确改写（提高准确率）**：纯前缀匹配存在「改了前缀但物理表未改名时改写指向不存在的表」的问题。新增 `DB.tableNameSet()` 在改写前从**配置的 schema** 获取真实表名集合（查询 `information_schema.COLUMNS`（MySQL）/ `pg_class join pg_namespace`（PG/金仓，`spring.datasource.schema` 指定）/ `sqlite_master`（SQLite），键小写），按数据源（`Config.cacheStore` key `tableNames`）惰性缓存；改写时与集合比对（`prefixRequired`，`rewriteSQLTablesWithSet`）：① 带前缀表名真实存在→按配置前缀改写（配置意图优先）；② **无前缀表名真实存在→保持原样**（核心修复场景，`Test_TablePrefix_SqliteExistingUnprefixed`）；③ 两者均未收录（`CREATE TABLE` 新建表 / 表确实不存在）→沿用前缀匹配兜底（兼容旧行为）；DDL（`CREATE/DROP/ALTER/RENAME/TRUNCATE`，`isDDLStatement`）在 `ExecContext` 执行后使缓存失效（`Test_TablePrefix_SqliteTableSetRefresh`），新建表立即可见；拉取失败记录 Warn 并缓存空集，降级纯前缀匹配不阻塞查询；集合查询直连底层 ConnPool（不经 `applyTablePrefix`，避免循环依赖），仅访问系统表不会被自我改写；`fetchTables` 复用新 `tableListSQL` 生成器（行为不变）。纯函数单测 `Test_rewriteSQLTables_tableSet`（8 组断言：带前缀/无前缀/并存/未知/已带前缀/大小写/schema 限定/退化）；既有前缀测试全部保持兼容。实现细节见 docs/agents/table-prefix.md
+
 ### v0.1.14（schema 配置支持）
 
 - **数据库模式（schema）配置支持**：`DatabaseSetting` 新增 `Schema` 字段；配置来源按优先级：`spring.datasource.schema` 键 > JDBC URL query 参数（`currentSchema` / `search_path` / `schema`，由 `parseSchema`/`schemaFromURL` 解析）。PG/Kingbase 连接串自动追加 `search_path=<schema>`（lib/pq 运行时参数），表结构查询（`fetchTables`/`newTableStruct`）按配置 schema 过滤（非 public schema 时 `attrelid` 全限定 `'schema.table'::regclass`）；MySQL 下 schema 即数据库名，显式配置时覆盖表结构查询库名（DSN 不变）、未配置回退库名；SQLite 忽略。未配置时行为与历史完全一致（PG 默认 `public`）。回归测试 `Test_schemaFromURL` / `Test_parseSchema` / `Test_generateConn_schema` / `Test_effectiveSchema` / `Test_parseDatabaseConfig_schema`

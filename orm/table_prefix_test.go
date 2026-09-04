@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite" // SQLite 驱动（与 sqlite_test.go 相同的驱动注册）
@@ -388,5 +389,158 @@ func Test_TablePrefix_SqliteTableStructure(t *testing.T) {
 	}
 	if _, err := newTableStruct("", "test_t_sqlite"); err != nil {
 		t.Errorf("newTableStruct with prefixed physical table failed: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 真实表集合匹配（rewriteSQLTablesWithSet）单元测试：纯函数，不依赖数据库
+
+// tableSetOf 构造小写键的真实表名集合（与 fetchTableNames 返回格式一致）。
+func tableSetOf(names ...string) map[string]struct{} {
+	set := map[string]struct{}{}
+	for _, n := range names {
+		set[strings.ToLower(n)] = struct{}{}
+	}
+	return set
+}
+
+func Test_rewriteSQLTables_tableSet(t *testing.T) {
+	// ① 物理表带前缀：库中只有 prefixed 表 → 照常改写（与纯前缀匹配一致）
+	set1 := tableSetOf("test_sys_user", "test_sys_role")
+	got := rewriteSQLTablesWithSet("SELECT * FROM sys_user JOIN sys_role r ON 1=1", "test_", set1)
+	if got != "SELECT * FROM test_sys_user JOIN test_sys_role r ON 1=1" {
+		t.Errorf("prefixed-physical: got %q", got)
+	}
+
+	// ② 核心修复场景：改了前缀但物理表未改名（库中只有无前缀表）→ 保持原样
+	set2 := tableSetOf("sys_user", "test_other")
+	cases := []struct {
+		in, want string
+	}{
+		{"SELECT * FROM sys_user", "SELECT * FROM sys_user"},
+		{"INSERT INTO sys_user (name) VALUES (?)", "INSERT INTO sys_user (name) VALUES (?)"},
+		{"UPDATE sys_user SET name = ? WHERE id = ?", "UPDATE sys_user SET name = ? WHERE id = ?"},
+		{"DELETE FROM sys_user WHERE id = ?", "DELETE FROM sys_user WHERE id = ?"},
+		// 库中不存在的表照常加前缀（如 test_other 不存在，回退前缀匹配）
+		{"SELECT * FROM other", "SELECT * FROM test_other"},
+		{"SELECT * FROM public.sys_user", "SELECT * FROM public.sys_user"},
+	}
+	for _, c := range cases {
+		got := rewriteSQLTablesWithSet(c.in, "test_", set2)
+		if got != c.want {
+			t.Errorf("unprefixed-physical %q: rewriteSQLTablesWithSet = %q, want %q", c.in, got, c.want)
+		}
+	}
+
+	// ③ 带前缀与无前缀表并存：配置意图优先 → 改写为带前缀表
+	set3 := tableSetOf("sys_user", "test_sys_user")
+	got = rewriteSQLTablesWithSet("SELECT * FROM sys_user", "test_", set3)
+	if got != "SELECT * FROM test_sys_user" {
+		t.Errorf("both-exist: got %q", got)
+	}
+
+	// ④ 库中未知（建表 DDL / 目标表确实不存在）→ 沿用前缀匹配兜底
+	set4 := tableSetOf("test_sys_user")
+	got = rewriteSQLTablesWithSet("CREATE TABLE IF NOT EXISTS brand_new (id int)", "test_", set4)
+	if got != "CREATE TABLE IF NOT EXISTS test_brand_new (id int)" {
+		t.Errorf("untracked-ddl: got %q", got)
+	}
+
+	// ⑤ 已带前缀不叠加（即使集合中有该带前缀表）
+	got = rewriteSQLTablesWithSet("SELECT * FROM test_sys_user", "test_", set1)
+	if got != "SELECT * FROM test_sys_user" {
+		t.Errorf("already-prefixed: got %q", got)
+	}
+
+	// ⑥ 大小写不敏感：集合键与查询均归一为小写匹配
+	set6 := tableSetOf("TEST_SYS_USER")
+	got = rewriteSQLTablesWithSet("SELECT * FROM sys_user", "test_", set6)
+	if got != "SELECT * FROM test_sys_user" {
+		t.Errorf("case-insensitive prefixed: got %q", got)
+	}
+	got = rewriteSQLTablesWithSet("SELECT * FROM SYs_user", "test_", set2)
+	if got != "SELECT * FROM SYs_user" {
+		t.Errorf("case-insensitive plain: got %q", got)
+	}
+
+	// ⑦ schema 限定名 / 引号标识符同样走集合匹配
+	got = rewriteSQLTablesWithSet("SELECT * FROM public.sys_user", "test_", set1)
+	if got != "SELECT * FROM public.test_sys_user" {
+		t.Errorf("schema-prefixed: got %q", got)
+	}
+	got = rewriteSQLTablesWithSet("SELECT * FROM \"public\".\"sys_user\"", "test_", set2)
+	if got != "SELECT * FROM \"public\".\"sys_user\"" {
+		t.Errorf("quoted-schema-unprefixed: got %q", got)
+	}
+
+	// ⑧ nil / 空集合退化为纯前缀匹配
+	if got := rewriteSQLTablesWithSet("SELECT * FROM sys_user", "test_", nil); got != "SELECT * FROM test_sys_user" {
+		t.Errorf("nil-set: got %q", got)
+	}
+	if got := rewriteSQLTablesWithSet("SELECT * FROM sys_user", "test_", map[string]struct{}{}); got != "SELECT * FROM test_sys_user" {
+		t.Errorf("empty-set: got %q", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 端到端：改了前缀但物理表未改名时，SQL 引用应保持原样（命中真实表集合）
+
+func Test_TablePrefix_SqliteExistingUnprefixed(t *testing.T) {
+	if err := InitializeDatabase("sqlite", "", 0, "", "", filepath.Join(t.TempDir(), "exist.db")); err != nil {
+		t.Errorf("init failed: %v", err)
+		return
+	}
+	defer Close()
+	// 先建一张无前缀物理表（模拟表未改名）
+	if _, err := Execute(`CREATE TABLE t_sqlite (id INTEGER PRIMARY KEY, name TEXT)`); err != nil {
+		t.Errorf("create unprefixed table failed: %v", err)
+		return
+	}
+	// 启用 test_ 前缀：SQL 引用的 t_sqlite 在库中真实存在（无前缀），应保持原样
+	SetTablePrefix("test_")
+	defer SetTablePrefix("")
+	if _, err := Execute(`INSERT INTO t_sqlite (name) VALUES (?)`, "keep-me"); err != nil {
+		t.Errorf("insert into existing unprefixed table failed: %v", err)
+		return
+	}
+	res, err := Query(`SELECT name FROM t_sqlite`)
+	if err != nil {
+		t.Errorf("query existing unprefixed table failed: %v", err)
+		return
+	}
+	if len(res) != 1 || res[0]["name"] != "keep-me" {
+		t.Errorf("query result failed, got %v", res)
+	}
+	// 反向：库中不存在的表仍按前缀改写（建新表走 test_ 前缀），且 DDL 后集合刷新
+	if _, err := Execute(`CREATE TABLE other_table (id int)`); err != nil {
+		t.Errorf("create prefixed table failed: %v", err)
+		return
+	}
+	if _, err := Query(`SELECT * FROM other_table`); err != nil {
+		t.Errorf("query prefixed table failed: %v", err)
+	}
+}
+
+// 端到端：DDL 成功后表名集合缓存失效并重新获取（新建表对后续改写可见）
+func Test_TablePrefix_SqliteTableSetRefresh(t *testing.T) {
+	dir := initTablePrefixSqlite(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+	if _, err := Execute(`CREATE TABLE t_sqlite (id INTEGER PRIMARY KEY, name TEXT)`); err != nil {
+		t.Errorf("create failed: %v", err)
+		return
+	}
+	if set := gDbConn.tableNameSet(); set == nil || set["test_t_sqlite"] != struct{}{} {
+		t.Errorf("table set should contain test_t_sqlite after ddl, got %v", set)
+	}
+	// 再建一张表：DDL 成功使缓存失效，新表应在集合中可见
+	if _, err := Execute(`CREATE TABLE t_more (id int)`); err != nil {
+		t.Errorf("create second table failed: %v", err)
+		return
+	}
+	if set := gDbConn.tableNameSet(); set == nil || set["test_t_more"] != struct{}{} {
+		t.Errorf("table set should refresh with test_t_more after ddl, got %v", set)
 	}
 }

@@ -332,6 +332,10 @@ mybatis.table-prefix= test_
   对 `FROM/JOIN/INTO/UPDATE/TABLE` 等表位置的标识符生效，不留改列名、字符串字面量、别名与 `#{}` 占位符；
 - 系统表/目录不参与改写：`information_schema`、`pg_%`、`sqlite_%`、`pragma_%`；
 - 已带前缀的表名不再叠加（`test_sys_user` 不会被改成 `test_test_sys_user`）；
+- **真实表集合校验（提高准确率）**：改写前先从配置的 schema 查询真实表名集合并缓存（DDL 后自动失效），
+  若 SQL 引用的表名在库中真实存在（物理表未带前缀，如改了前缀但表未改名）则保持原样，
+  带前缀的表名真实存在才改写，两者均不存在（如 `CREATE TABLE` 新建表）才按前缀匹配兜底；
+  该特性不依赖连库即可用的纯前缀逻辑保留为降级路径；
 - CTE（`WITH x AS (...)`）名、`CREATE TABLE IF NOT EXISTS` 等 DDL 修饰词不会被误改为表名；
 - 多数据源：附加数据源未单独配置前缀时继承默认源前缀；
 - 兼容 MyBatis-Plus 风格配置键 `mybatis-plus.global-config.db-config.table-prefix`。
@@ -465,6 +469,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **2026-09-04（v0.1.15）**：表名前缀按**真实表集合**精确改写（提高准确率）— 在纯前缀匹配之前，先从配置的 schema 获取数据库真实表名集合（`tableNameSet`，查询 `information_schema.COLUMNS` / `pg_class(+pg_namespace)` / `sqlite_master`，按数据源缓存、DDL 后自动失效），改写时与集合比对：带前缀表名在库中真实存在→按配置前缀改写；**无前缀表名在库中真实存在→保持原样**（修复「改了前缀但物理表未改名导致访问错误表」的核心场景，如配置 `test_` 但库中只有 `sys_user` 时不再改写为不存在的 `test_sys_user`）；两者均未收录（`CREATE TABLE` 新建表等）→沿用前缀匹配兜底（行为与旧版一致）；拉取失败自动降级纯前缀匹配并 Warn；多数据源按各自 schema 独立取集合；回归测试 `Test_rewriteSQLTables_tableSet` / `Test_TablePrefix_SqliteExistingUnprefixed` / `Test_TablePrefix_SqliteTableSetRefresh`；实现细节见 docs/agents/table-prefix.md
 - **2026-09-03（v0.1.13）**：数据表名前缀（TablePrefix）— 配置 `mybatis.table-prefix=test_`（兼容 `mybatis-plus.global-config.db-config.table-prefix` 与逐源覆盖键 `spring.datasource.table-prefix`）后，SQL 执行入口自动把 `FROM/JOIN/INTO/UPDATE/TABLE` 表位置的表名改为 `test_sys_user`，XML Mapper 语句保持不变；词法扫描+状态机改写（tokenizeSQL + rewriteSQLTables），不碰列名/字符串字面量/注释/占位符/别名；跳过系统目录（information_schema / pg_% / sqlite_% / pragma_%）与已带前缀的表（不叠加）；CTE 名、`TABLE IF NOT EXISTS` 等 DDL 修饰词不误伤；多数据源未单独配置时继承默认源前缀；编程式 `orm.SetTablePrefix` / `orm.GetTablePrefix`；覆盖 Mapper 代理、`orm.Execute/Query`、事务、流式查询全部执行路径（含 `Transaction` 直调补齐 `formatSQL` 对齐）；实现细节见 docs/agents/table-prefix.md
 - **2026-08-20（v0.1.12）**：PG/金仓 useGeneratedKeys RETURNING 支持（M-03）+ 依赖升级（P2-3）— ① PostgreSQL/KingbaseES 的 `sql.Result.LastInsertId()` 返回 error，自增主键回填失效。新增 RETURNING 路径：当数据库为 PostgreSQL/KingbaseES 且 `useGeneratedKeys` + `keyProperty` 已指定时，INSERT 自动追加 `RETURNING col`（keyColumn 显式指定或 keyProperty 驼峰转下划线），改用 `QueryContext` + `Scan` 读取生成的 ID 并回填；MySQL/SQLite 仍走 `LastInsertId()` 路径，行为不变。② `go-sql-driver/mysql` v1.6.0→v1.10.0、`beevik/etree` v1.1.0→v1.7.1、`lib/pq` v1.10.1→v1.12.3；`go.mod` go 版本升至 1.24.0；`lib/pq` → `pgx/v5` 迁移已评估，当前 lib/pq v1.12.3 仍可维护，迁移暂缓
 - **2026-08-20（v0.1.11）**：大结果集流式读取（P4-2）+ MinDuration 并发修复（P2-5 跟进）— ① 新增 `orm.QueryStream(ctx, sql, args...)` 返回 `*orm.RowStream`：`Next()` / `Row()` 逐行消费（游标保持打开、内存 O(1)，10 万行以上不再整表进内存），`Scan(&dest)` 填充结构体或 map（列名→字段名：原名/首字母大写/下划线转驼峰/大小写不敏感），`Err()` / `Count()` / `Close()` 齐备（`Close` 幂等，未读完也必须 Close 释放连接）；② Mapper 代理支持 select 方法返回 `(*orm.RowStream, error)`（`BaseMapper.executeStream`），结果类型与 XML resultType 解耦；③ 语义对齐：行数上限遵循全局 `orm.SetDefaultRowLimit`（P4-3，打开时快照）、ctx 无 deadline 叠加全局默认超时（P4-1）、扫描失败不静默丢行（`Err()` 返回行号明细）；④ 修复 `updateMinDuration` 以 0 兼作「未初始化」哨兵与真实 0ms 测量值冲突（并发下最小值 0 被较大值覆盖）——新增 `minDurationInit` 原子标志区分，回归测试 `Test_updateMinDuration_ZeroCollision`

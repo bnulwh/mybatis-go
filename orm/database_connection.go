@@ -135,6 +135,11 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 	start := time.Now()
 	query = db.applyTablePrefix(query)
 	query = db.formatSQL(query, args)
+	// DDL 可能改变表集合：无论执行成败都使表名缓存失效，下一条 SQL 重新获取真实表集合
+	// （失败时重取一次代价可忽略，且能覆盖事务内建表等无法感知的变更）
+	if isDDLStatement(query) {
+		defer db.invalidateTableNames()
+	}
 	if t := db.currentTx(); t != nil {
 		defer db.updateExecStatement(start, true)
 		cur := time.Now()

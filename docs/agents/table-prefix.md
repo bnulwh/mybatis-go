@@ -54,11 +54,32 @@
     - `CREATE/DROP/ALTER TABLE IF NOT EXISTS` 的 `IF/NOT/EXISTS` 是 DDL 修饰词，跳过不当作表名；
     - schema 限定名 `schema.table`：仅 `public` / `main`（SQLite 默认模式）给表名部分加前缀，
       其余 schema（`app`、`information_schema`、`pg_catalog` 等）整体跳过，避免跨库/跨 schema 误改；
-    - 否则对该标识符判定 `prefixable` 后插入前缀。
+    - 否则对该标识符判定 `prefixRequired` 后插入前缀。
 - `commaList`：`FROM t1, t2` / MySQL `UPDATE t1, t2 SET` 逗号分隔的多表列表。
   `,` 后继续期待表名；遇 `(`/`)` 或 `WHERE/SET/ON/GROUP/ORDER/LIMIT/VALUES/...` 等断句关键字复位
   （`clauseBreakWords`）。`INSERT INTO t (a, b) VALUES (1, 2)` 中列名列表的逗号不会误触发
   （`INTO`/`UPDATE` 后的 `(` 立即复位 commaList）。
+
+### 3) 真实表集合匹配（prefixRequired，v0.1.15 新增）
+
+在纯前缀匹配之前，先从**指定 schema 获取数据库真实表名集合**（`tableNameSet`，从
+`information_schema.COLUMNS` / `pg_class(+pg_namespace)` / `sqlite_master` 查询，键为小写），
+改写时与集合比对，解决「改了前缀但物理表未改名导致访问错误表」的问题，提高准确率：
+
+1. 系统表 / 已带前缀的表 → 不改写（防叠加，同旧行为）；
+2. **带前缀的表名在集合中真实存在** → 按配置前缀改写（配置意图优先）；
+3. **SQL 引用的表名（无前缀）在集合中真实存在** → 保持原样（它就是物理表，改写反而出错）——
+   这是本特性修复的核心场景：如配置 `mybatis.table-prefix=test_` 但库中只有 `sys_user`（未改名），
+   旧实现会改写成不存在的 `test_sys_user`，新实现命中集合后保留 `sys_user`；
+4. 两者均未收录（`CREATE TABLE` 新建表、目标表确实不存在）→ 沿用前缀匹配兜底（行为与旧版一致）。
+
+集合缓存与失效：
+
+- 集合按数据源（`Config.cacheStore`，key `tableNames`）惰性缓存，首次启用前缀的 SQL 执行时拉取一次；
+- DDL（`CREATE/DROP/ALTER/RENAME/TRUNCATE`，`isDDLStatement`）在 `ExecContext` 执行后使缓存失效，
+  下一条 SQL 按最新表集合改写（新建表立即可见）；
+- 拉取失败（如连不上库）记录 Warn 并缓存空集，退化为纯前缀匹配（不阻塞查询）；
+- 集合查询直连底层 `ConnPool`（不经 `applyTablePrefix`），避免循环依赖；只查系统表，不会自我改写。
 
 其它保护规则：
 
@@ -87,6 +108,9 @@
     引号标识符/CTE 共 20 组正向断言；
   - `Test_rewriteSQLTables_noFalsePositive` —— 列名同名、字符串字面量、`$1`、`LIMIT/GROUP BY`、
     已带前缀、三种注释、美元引用、批量 VALUES、子查询、系统表、引号 schema 等 24 组反向断言；
+  - `Test_rewriteSQLTables_tableSet` —— 真实表集合匹配：带前缀表存在→改写；无前缀表存在→保持原样
+    （修复核心场景）；两者并存→带前缀者优先；未知表→前缀兜底；已带前缀/大小写不敏感/schema 限定名/
+    nil 与空集合退化，共 8 组断言；
   - `Test_parseTablePrefix` / `Test_parseDatabaseConfig_tablePrefix` / `Test_parseMultiDatabaseConfig_tablePrefixInherit` —— 配置解析与多源继承。
 - 端到端（SQLite 真实执行，物理表带 `test_` 前缀，SQL 保持不带前缀）：
   - `Test_TablePrefix_SqliteQuery` —— `Execute/Query` 直调路径改写生效；
@@ -94,7 +118,11 @@
   - `Test_TablePrefix_GlobalSetter` —— 编程式 `SetTablePrefix`；
   - `Test_TablePrefix_GetAndTransactions` —— 事务内 SQL 同样生效 + `GetTablePrefix`；
   - `Test_TablePrefix_SqliteTableStructure` —— 带前缀时内置表结构探查（`sqlite_master`/
-    `pragma_table_info`）不受影响。
+    `pragma_table_info`）不受影响；
+  - `Test_TablePrefix_SqliteExistingUnprefixed` —— 端到端验证修复场景：物理表未带前缀时，
+    启用前缀后 SQL 引用保持原样（不断言改写），同库新表仍按前缀建表；
+  - `Test_TablePrefix_SqliteTableSetRefresh` —— DDL 成功后表名集合缓存失效并重新获取
+    （新建表对后续改写可见）。
 
 ## 已知边界（有意简化）
 
@@ -102,3 +130,14 @@
   JOIN 条件关键字，不能当表关键字）、MySQL `RENAME TABLE a TO b` 的目标名等罕见写法不加前缀；
 - 非 `public`/`main` schema 的限定名整段跳过（跨库引用由各自环境自行管理）；
 - 嵌套 CTE（子查询内部再 `WITH`）名称未收集，若 Mapper 使用会报 SQL 错误（显式失败而非静默错数据）。
+
+## 表集合匹配边界
+
+- **带前缀与无前缀同名表并存时**，判定为「带前缀表存在」→ 按配置前缀改写，以配置意图为准；
+  若需要无前缀表优先，应去掉前缀配置（保持行为：SQL 引用即物理表）；
+- **表集合缓存按库内容刷新**：在本 DB 上执行 DDL 后自动失效重取；其他会话/进程改表（如外部改名、
+  手工建无前缀表）不会主动触发刷新——此时若新表尚未出现在集合中，仍按前缀匹配兜底处理，
+  可执行任意 DDL 或重启进程强制刷新；
+- **集合查询失败**（如临时网络抖动）时缓存空集、降级为纯前缀匹配并 Warn 日志，不阻塞业务查询；
+- **大小写归一**：集合键与 SQL 表名均转小写后比对（与「已带前缀不叠加」的判断口径一致），
+  数据库实际表名的大写形式不影响匹配。
