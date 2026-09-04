@@ -201,6 +201,10 @@ func (in *SqlFunction) generateDefine() string {
 	buf.WriteString(" \tfunc (")
 	if in.Param.Need {
 		pt := toGolangType(in.Param.TypeName)
+		if in.Param.TypeName == "" {
+			// 1.1 自动推导（无 parameterType）：无类型名可推断，兜底为通用 map 签名
+			pt = "map[string]interface{}"
+		}
 		// 标量参数 + 含 <foreach> 的批量方法（如 deleteConfigByIds/selectBatchIds）：
 		// 参数自动生成为切片签名（[]int64 等），运行时 effectiveParamType 已支持切片分派（S-05）
 		if in.Param.Type == BaseSqlParam && containsForEach(in.Items) {
@@ -219,6 +223,9 @@ func (in *SqlFunction) generateDefine() string {
 		if in.Result.ResultM != nil {
 			buf.WriteString("models.")
 			buf.WriteString(GetShortName(in.Result.ResultM.TypeName))
+		} else if in.Result.ResultT.Kind() == reflect.Map {
+			// resultType="map"：ResultT 为通用 map 类型，直接写惯用签名（避免拼出 models.map[...]）
+			buf.WriteString("map[string]interface{}")
 		} else {
 			buf.WriteString(toGolangType(in.Result.ResultT.String()))
 		}

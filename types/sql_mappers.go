@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type SqlMappers struct {
@@ -26,8 +27,9 @@ func NewSqlMappers(dir string) *SqlMappers {
 	var mps []SqlMapper
 	nmp := map[string]*SqlMapper{}
 	for _, filename := range filenames {
-		log.Debugf("begin parse mapper file: %v", filename)
+		start := time.Now()
 		mp := loadMapper(filename)
+		count := 0
 		if mp != nil {
 			mps = append(mps, *mp)
 			nmp[mp.Namespace] = mp
@@ -35,7 +37,10 @@ func NewSqlMappers(dir string) *SqlMappers {
 			nmp[sname] = mp
 			nmp[buildKey(sname)] = mp
 			nmp[strings.ToLower(sname)] = mp
+			count = len(mp.Functions)
 		}
+		// 5.2：每文件一行汇总（替代逐条刷屏），便于看清解析耗时与条数
+		log.Debugf("parsed mapper %s: %d statements in %s", filename, count, time.Since(start))
 	}
 	return &SqlMappers{
 		Mappers:      mps,

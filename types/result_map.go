@@ -22,7 +22,11 @@ func (in *ResultMap) GenerateFile(dir, pkg string, namedMaps map[string]*ResultM
 	filename := filepath.Join(dir, fmt.Sprintf("%s.go", sname))
 	log.Debugf("generate file %v", filename)
 	bts := in.generateContent(pkg, namedMaps)
-	return os.WriteFile(filename, bts, 0640)
+	if err := os.WriteFile(filename, bts, 0640); err != nil {
+		return err
+	}
+	gofmtFile(filename) // 4.2：生成物统一 gofmt
+	return nil
 }
 
 func (in *ResultMap) generateContent(pkg string, namedMaps map[string]*ResultMap) []byte {

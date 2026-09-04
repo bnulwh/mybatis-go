@@ -38,7 +38,11 @@ func (in *SqlMapper) generateMapperFile(dir, pkg string) error {
 	filename := filepath.Join(dir, fmt.Sprintf("%s.go", sname))
 	log.Infof("generate mapper file: %v", filename)
 	bts := in.generateContent(pkg)
-	return os.WriteFile(filename, bts, 0640)
+	if err := os.WriteFile(filename, bts, 0640); err != nil {
+		return err
+	}
+	gofmtFile(filename) // 4.2：生成物统一 gofmt
+	return nil
 }
 
 func (in *SqlMapper) generateContent(pkg string) []byte {
