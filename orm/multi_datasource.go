@@ -172,6 +172,9 @@ func parseMultiDatabaseConfig(cm map[string]string) map[string]*Config {
 		if cfg.Setting.TablePrefix == "" {
 			cfg.Setting.TablePrefix = configs[defaultDataSourceName].Setting.TablePrefix
 		}
+		if len(cfg.Setting.TablePrefixMap) == 0 {
+			cfg.Setting.TablePrefixMap = configs[defaultDataSourceName].Setting.TablePrefixMap
+		}
 		configs[name] = cfg
 	}
 	return configs

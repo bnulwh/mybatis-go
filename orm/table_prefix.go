@@ -24,11 +24,23 @@ import (
 // defaultTablePrefix 全局默认表名前缀；SetTablePrefix 设置，DB 未单独配置时生效。
 var defaultTablePrefix string
 
+// defaultTablePrefixMap 全局默认前缀映射；SetTablePrefixMap 设置，DB 未单独配置时生效。
+var defaultTablePrefixMap map[string]string
+
 // SetTablePrefix 设置全局数据表名前缀（前缀直接拼接到表名之前，如 "test_"）。
 // 传空字符串可关闭前缀。对已初始化的数据源立即生效（该数据源未在配置中单独指定前缀时）。
 func SetTablePrefix(prefix string) {
 	defaultTablePrefix = strings.TrimSpace(prefix)
 	log.Infof("set default table prefix: %q", defaultTablePrefix)
+}
+
+// SetTablePrefixMap 设置全局前缀映射（2.1）：oldprefix→newprefix，空值表示移除前缀。
+// 传空 map / nil 可关闭映射。对已初始化的数据源立即生效（未单独配置时）。
+func SetTablePrefixMap(pm map[string]string) {
+	defaultTablePrefixMap = pm
+	if len(pm) > 0 {
+		log.Infof("set default table prefix map: %v", pm)
+	}
 }
 
 // GetTablePrefix 返回当前生效的表名前缀：
@@ -52,15 +64,24 @@ func (db *DB) tablePrefix() string {
 	return defaultTablePrefix
 }
 
-// applyTablePrefix 对 SQL 执行前的最终语句做表名前缀改写；未配置前缀时原样返回。
+// tablePrefixMap 返回当前 DB 生效的前缀映射：DB 自己配置优先，否则回退全局映射（2.1）。
+func (db *DB) tablePrefixMap() map[string]string {
+	if db != nil && db.Config != nil && len(db.Setting.TablePrefixMap) > 0 {
+		return db.Setting.TablePrefixMap
+	}
+	return defaultTablePrefixMap
+}
+
+// applyTablePrefix 对 SQL 执行前的最终语句做表名前缀改写；未配置前缀与映射时原样返回。
 // 改写前先取当前数据源指定 schema 的真实表名集合：若 SQL 引用的表名（无前缀）在库中
 // 真实存在，则保持原样不改写，避免「改了前缀但物理表未改名」导致 SQL 指向不存在的表。
 func (db *DB) applyTablePrefix(query string) string {
 	prefix := db.tablePrefix()
-	if prefix == "" {
+	pMap := db.tablePrefixMap()
+	if prefix == "" && len(pMap) == 0 {
 		return query
 	}
-	return rewriteSQLTablesWithSet(query, prefix, db.tableNameSet())
+	return rewriteSQLTablesWithMap(query, prefix, pMap, db.tableNameSet())
 }
 
 // tableNamesCacheKey 表名集合缓存在 cacheStore 中的键。
@@ -457,19 +478,99 @@ var clauseBreakWords = map[string]bool{
 // rewriteSQLTables 为查询中的表名插入前缀；输入输出 SQL 除表名前缀外完全一致。
 // 纯前缀匹配（不携带真实表名集合），保持纯函数语义供单元测试使用。
 func rewriteSQLTables(query, prefix string) string {
-	return rewriteSQLTablesWithSet(query, prefix, nil)
+	return rewriteSQLTablesWithMap(query, prefix, nil, nil)
 }
 
 // rewriteSQLTablesWithSet 同 rewriteSQLTables，但携带数据源指定 schema 的真实表名集合：
 // 无前缀表名在库中真实存在时不改写（修复改了前缀但物理表未改名导致访问错误表的问题）。
 func rewriteSQLTablesWithSet(query, prefix string, tableSet map[string]struct{}) string {
-	if prefix == "" || query == "" {
+	return rewriteSQLTablesWithMap(query, prefix, nil, tableSet)
+}
+
+// mappedPrefix 返回标识符命中的前缀映射（新前缀, 命中的旧前缀, 是否命中）。
+// 命中规则：标识符以旧前缀开头（大小写不敏感）；映射优先级高于表集合判定（2.1）。
+func mappedPrefix(name string, prefixMap map[string]string) (string, string, bool) {
+	lower := strings.ToLower(name)
+	for oldp, newp := range prefixMap {
+		ol := strings.ToLower(oldp)
+		if ol != "" && strings.HasPrefix(lower, ol) {
+			return newp, oldp, true
+		}
+	}
+	return "", "", false
+}
+
+// mappedHit 判断标识符是否命中任一前缀映射键（用于非 public/main schema 限定名也走映射）。
+func mappedHit(name string, prefixMap map[string]string) bool {
+	_, _, hit := mappedPrefix(name, prefixMap)
+	return hit
+}
+
+// stripPrefix 在标识符 token 上移除开头前缀（引号标识符在开引号之后切）。
+func stripPrefix(tok *sqlToken, oldp string) {
+	if oldp == "" {
+		return
+	}
+	if tok.typ == tkQuoted && len(tok.text) >= 2 {
+		inner := tok.text[1 : len(tok.text)-1]
+		if strings.HasPrefix(strings.ToLower(inner), strings.ToLower(oldp)) {
+			tok.text = tok.text[:1] + inner[len(oldp):] + tok.text[len(tok.text)-1:]
+		}
+		return
+	}
+	if strings.HasPrefix(strings.ToLower(tok.text), strings.ToLower(oldp)) {
+		tok.text = tok.text[len(oldp):]
+	}
+}
+
+// rewriteSQLTablesWithMap 同 rewriteSQLTablesWithSet，但叠加前缀映射（2.1）：
+// 命中映射（表名以旧前缀开头）→ 映射优先于表集合：新前缀非空则替换（剥旧套新）；
+// 新前缀为空（移除）→ 表集合判定：库中无前缀表存在则保持、带前缀表存在则保留原样、
+// 其余（含集合缺失）按配置剥离。未命中映射时保持原有的 prefixRequired + applyPrefix 逻辑，
+// 因此 nil/空映射时输出与 rewriteSQLTablesWithSet 完全一致（零回归）。
+func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, tableSet map[string]struct{}) string {
+	if query == "" {
+		return query
+	}
+	if prefix == "" && len(prefixMap) == 0 {
 		return query
 	}
 	tokens := tokenizeSQL(query)
 	expectTable := false // 下一个标识符处于表位置（FROM/JOIN/INTO/UPDATE/TABLE 之后）
 	commaList := false   // 处于 FROM/JOIN/UPDATE 逗号分隔的多表列表中
 	cteNames := map[string]bool{}
+
+	// applyToken 处理处于表位置的单个标识符：先走前缀映射通道，未命中再走原逻辑。
+	// allowPrefix=false 时禁止回落前缀匹配（用于非 public/main schema 限定名仅映射生效）。
+	applyToken := func(t *sqlToken, allowPrefix bool) {
+		name := identContent(*t)
+		if name == "" {
+			return
+		}
+		if newp, oldp, hit := mappedPrefix(name, prefixMap); hit {
+			if newp == "" {
+				// 移除：带前缀表物理存在 → 保留原样（避免指向错误表）；否则剥离
+				if len(tableSet) > 0 {
+					lower := strings.ToLower(name)
+					if _, ok := tableSet[lower]; ok {
+						return // 无前缀表已存在，保持
+					}
+					if _, ok := tableSet[strings.ToLower(prefix)+lower]; ok {
+						return // 带前缀表存在，不剥
+					}
+				}
+				stripPrefix(t, oldp)
+				return
+			}
+			// 替换：剥旧前缀再套新前缀
+			stripPrefix(t, oldp)
+			applyPrefix(t, newp)
+			return
+		}
+		if allowPrefix && !cteNames[strings.ToLower(name)] && prefixRequired(*t, prefix, tableSet) {
+			applyPrefix(t, prefix)
+		}
+	}
 
 	for i := 0; i < len(tokens); i++ {
 		t := &tokens[i]
@@ -481,18 +582,21 @@ func rewriteSQLTablesWithSet(query, prefix string, tableSet map[string]struct{})
 				if lower == "if" || lower == "not" || lower == "exists" {
 					continue
 				}
-				// schema 限定名 schema.table：仅 public/main 模式加前缀，其余跳过
+				// schema 限定名 schema.table：public/main 走原逻辑；非 public/main 仅映射生效
 				j := nextSig(tokens, i)
 				if j >= 0 && tokens[j].typ == tkPunct && tokens[j].text == "." {
 					k := nextSig(tokens, j)
 					if k >= 0 && (tokens[k].typ == tkWord || tokens[k].typ == tkQuoted) {
-						if isPrefixableSchema(identContent(*t)) && prefixRequired(tokens[k], prefix, tableSet) {
-							applyPrefix(&tokens[k], prefix)
+						tblName := identContent(tokens[k])
+						if isPrefixableSchema(identContent(*t)) {
+							applyToken(&tokens[k], true)
+						} else if mappedHit(tblName, prefixMap) {
+							applyToken(&tokens[k], false)
 						}
 						i = k
 					}
-				} else if !cteNames[lower] && prefixRequired(*t, prefix, tableSet) {
-					applyPrefix(t, prefix)
+				} else {
+					applyToken(t, true)
 				}
 				expectTable = false
 				commaList = true
@@ -518,13 +622,16 @@ func rewriteSQLTablesWithSet(query, prefix string, tableSet map[string]struct{})
 				if j >= 0 && tokens[j].typ == tkPunct && tokens[j].text == "." {
 					k := nextSig(tokens, j)
 					if k >= 0 && (tokens[k].typ == tkWord || tokens[k].typ == tkQuoted) {
-						if isPrefixableSchema(identContent(*t)) && prefixRequired(tokens[k], prefix, tableSet) {
-							applyPrefix(&tokens[k], prefix)
+						tblName := identContent(tokens[k])
+						if isPrefixableSchema(identContent(*t)) {
+							applyToken(&tokens[k], true)
+						} else if mappedHit(tblName, prefixMap) {
+							applyToken(&tokens[k], false)
 						}
 						i = k
 					}
-				} else if !cteNames[strings.ToLower(identContent(*t))] && prefixRequired(*t, prefix, tableSet) {
-					applyPrefix(t, prefix)
+				} else {
+					applyToken(t, true)
 				}
 				expectTable = false
 				commaList = true

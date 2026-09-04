@@ -617,3 +617,131 @@ func Test_Sqlite_MultiParamNoTag(t *testing.T) {
 		t.Errorf("row b = %v, want 'y' (per-slot binding failed)", rs[0]["b"])
 	}
 }
+
+// ---------------------------------------------------------------------------
+// 2.1 前缀映射（移除/替换）
+
+func Test_rewriteSQLTablesWithMap(t *testing.T) {
+	cases := []struct{ name, in, prefix, want string; pMap map[string]string }{
+		{"remove", "select * from threedb_sys_user", "", "select * from sys_user", map[string]string{"threedb_": ""}},
+		{"remove-noop", "select * from sys_user", "", "select * from sys_user", map[string]string{"threedb_": ""}},
+		{"replace", "select * from threedb_sys_user", "", "select * from app_sys_user", map[string]string{"threedb_": "app_"}},
+		{"map-plus-prefix", "select * from sys_user", "test_", "select * from test_sys_user", map[string]string{"threedb_": ""}},
+		{"map-into-join", "select * from threedb_a join threedb_b on a.id = b.id", "", "select * from a join b on a.id = b.id", map[string]string{"threedb_": ""}},
+		{"remove-schema-qualified", "select * from subsp.threedb_ods_x", "", "select * from subsp.ods_x", map[string]string{"threedb_": ""}},
+		{"remove-schema-public", "select * from public.threedb_ods_x", "", "select * from public.ods_x", map[string]string{"threedb_": ""}},
+		{"unmatched-keeps", "select * from app_sys_user", "", "select * from app_sys_user", map[string]string{"threedb_": ""}},
+		{"remove-in-update", "update threedb_sys_user set name = 'x'", "", "update sys_user set name = 'x'", map[string]string{"threedb_": ""}},
+		{"remove-in-delete", "delete from threedb_sys_user where id = 1", "", "delete from sys_user where id = 1", map[string]string{"threedb_": ""}},
+		{"no-map-nil", "select * from x", "test_", "select * from test_x", nil},
+		{"case-insensitive-match", "select * from THREEDB_sys_user", "", "select * from sys_user", map[string]string{"threedb_": ""}},
+	}
+	for _, c := range cases {
+		got := rewriteSQLTablesWithMap(c.in, c.prefix, c.pMap, nil)
+		if got != c.want {
+			t.Errorf("%s: rewriteSQLTablesWithMap(%q) = %q, want %q", c.name, c.in, got, c.want)
+		}
+	}
+}
+
+func Test_rewriteSQLTablesWithMap_tableSet(t *testing.T) {
+	// 库中有无前缀表 sys_user：剥前缀后能命中 → 剥
+	got := rewriteSQLTablesWithMap("select * from threedb_sys_user", "", map[string]string{"threedb_": ""}, tableSetOf("sys_user"))
+	if got != "select * from sys_user" {
+		t.Errorf("remove when unprefixed exists: got %q", got)
+	}
+	// 库中只有带前缀表 threedb_sys_user：剥了反而错 → 保留原样
+	got2 := rewriteSQLTablesWithMap("select * from threedb_sys_user", "", map[string]string{"threedb_": ""}, tableSetOf("threedb_sys_user"))
+	if got2 != "select * from threedb_sys_user" {
+		t.Errorf("keep when prefixed table exists: got %q", got2)
+	}
+}
+
+func Test_parseTablePrefixMap(t *testing.T) {
+	got := parseTablePrefixMap(map[string]string{"mybatis.table-prefix-map": "threedb_:,app_:subsp_"})
+	if len(got) != 2 || got["threedb_"] != "" || got["app_"] != "subsp_" {
+		t.Errorf("parseTablePrefixMap = %v, want {threedb_:'' app_:subsp_}", got)
+	}
+	if v := parseTablePrefixMap(map[string]string{}); v != nil {
+		t.Errorf("no config should be nil, got %v", v)
+	}
+	if v := parseTablePrefixMap(map[string]string{"mybatis.table-prefix-map": ":"}); v != nil {
+		t.Errorf("empty-old entries should be ignored, got %v", v)
+	}
+	// 无冒号条目视为移除该前缀（等价 old:）
+	if v := parseTablePrefixMap(map[string]string{"mybatis.table-prefix-map": ":,bad"}); v == nil || v["bad"] != "" {
+		t.Errorf("colon-less entry should mean remove prefix, got %v", v)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 2.1 端到端：前缀映射移除（模拟三库 prod：物理表无前缀、XML 硬编码 threedb_ 前缀）
+
+type PrefixMapMapper struct {
+	BaseMapper
+	SelectPrefixed func(id int) ([]map[string]interface{}, error)
+}
+
+func initPrefixMapSqlite(t *testing.T) string {
+	dir := t.TempDir()
+	xmlDir := filepath.Join(dir, "mapper")
+	if err := os.MkdirAll(xmlDir, 0755); err != nil {
+		t.Errorf("create mapper dir failed: %v", err)
+		return ""
+	}
+	xml := `<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="PrefixMapMapper">
+  <select id="selectPrefixed" resultType="map">
+    select id, name from threedb_sys_user where id = #{id}
+  </select>
+</mapper>`
+	if err := os.WriteFile(filepath.Join(xmlDir, "PrefixMapMapper.xml"), []byte(xml), 0644); err != nil {
+		t.Errorf("write mapper xml failed: %v", err)
+		return ""
+	}
+	dbPath := filepath.Join(dir, "pm.db")
+	cm := map[string]string{
+		"spring.datasource.url":      "jdbc:sqlite:" + dbPath,
+		"mybatis.mapper-locations":   xmlDir,
+		"mybatis.table-prefix-map":   "threedb_:",
+	}
+	if err := InitializeFromSettings(cm); err != nil {
+		t.Errorf("initialize sqlite failed: %v", err)
+		return ""
+	}
+	return dir
+}
+
+func Test_TablePrefixMap_SqliteRemovePrefix(t *testing.T) {
+	dir := initPrefixMapSqlite(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+	// prod：物理表为无前缀 sys_user
+	if _, err := Execute(`CREATE TABLE sys_user (id INTEGER PRIMARY KEY, name TEXT)`); err != nil {
+		t.Errorf("create table failed: %v", err)
+		return
+	}
+	if _, err := Execute(`INSERT INTO sys_user (id, name) VALUES (1, 'prod_user')`); err != nil {
+		t.Errorf("insert failed: %v", err)
+		return
+	}
+	if err := RegisterMapper(new(PrefixMapMapper)); err != nil {
+		t.Errorf("register mapper failed: %v", err)
+		return
+	}
+	mp := NewMapper("PrefixMapMapper").(PrefixMapMapper)
+	rs, err := mp.SelectPrefixed(1)
+	if err != nil {
+		t.Errorf("mapper select prefixed failed: %v", err)
+		return
+	}
+	if len(rs) != 1 {
+		t.Errorf("expect 1 row, got %d", len(rs))
+		return
+	}
+	if v, ok := rs[0]["name"].(string); !ok || v != "prod_user" {
+		t.Errorf("row name = %v, want prod_user (prefix removed -> real table hit)", rs[0]["name"])
+	}
+}

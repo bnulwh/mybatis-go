@@ -38,7 +38,8 @@ type MyBatisSetting struct {
 	MapperLocations  string
 	TypeAliasPackage string
 	MaxRows          int64
-	TablePrefix      string // 数据表名前缀（如 test_），SQL 执行时自动拼接到表名前，空串不启用
+	TablePrefix      string            // 数据表名前缀（如 test_），SQL 执行时自动拼接到表名前，空串不启用
+	TablePrefixMap   map[string]string // 前缀映射：oldprefix→newprefix（空值=移除），配置键 mybatis.table-prefix-map（2.1）
 }
 
 type Config struct {
@@ -210,7 +211,8 @@ func parseDatabaseConfig(m map[string]string) *Config {
 				Schema:   parseSchema(m),
 				Type:     dt,
 			},
-			TablePrefix: parseTablePrefix(m),
+			TablePrefix:    parseTablePrefix(m),
+			TablePrefixMap: parseTablePrefixMap(m),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,
@@ -280,6 +282,37 @@ func parseTablePrefix(m map[string]string) string {
 		}
 	}
 	return ""
+}
+
+// parseTablePrefixMap 解析前缀映射：mybatis.table-prefix-map = threedb_:,app_:subsp_
+// 逗号分隔多个 old:new；new 为空表示移除（剥离该前缀）；无冒号条目等价 old:（移除该前缀）；
+// 旧前缀为空（如输入 ":x" / ","）则忽略。
+func parseTablePrefixMap(m map[string]string) map[string]string {
+	raw := strings.TrimSpace(m["mybatis.table-prefix-map"])
+	if raw == "" {
+		return nil
+	}
+	out := map[string]string{}
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		kv := strings.SplitN(item, ":", 2)
+		oldp := strings.TrimSpace(kv[0])
+		newp := ""
+		if len(kv) == 2 {
+			newp = strings.TrimSpace(kv[1])
+		}
+		if oldp == "" {
+			continue
+		}
+		out[oldp] = newp
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // parseBool 解析布尔配置项；key 不存在或值非法时返回默认值。
