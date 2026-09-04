@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bnulwh/mybatis-go/log"
 )
@@ -90,47 +91,80 @@ const tableNamesCacheKey = "tableNames"
 // tableNamesCache 数据源真实表名集合的缓存（键为小写物理表名）。
 // done 为 true 表示已获取（成功或失败降级）；失败时缓存空集合并视为已获取，
 // 退化为纯前缀匹配（与历史行为一致），后续 DDL 成功会使缓存失效并重新获取。
+// ttl > 0 时按时间戳周期刷新（2.4）：过期后下次访问重取，降低外部会话改表的陈旧窗口。
 type tableNamesCache struct {
-	mu    sync.RWMutex
-	names map[string]struct{}
-	done  bool
+	mu        sync.RWMutex
+	names     map[string]struct{}
+	done      bool
+	fetchedAt time.Time
+	ttl       time.Duration
 }
 
-func (c *tableNamesCache) get() (map[string]struct{}, bool) {
+func (c *tableNamesCache) get() (map[string]struct{}, bool, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.names, c.done
+	return c.getLocked()
+}
+
+// getLocked 持有锁时读取：返回 (names, done, stale)。
+func (c *tableNamesCache) getLocked() (map[string]struct{}, bool, bool) {
+	stale := c.ttl > 0 && !c.fetchedAt.IsZero() && time.Since(c.fetchedAt) > c.ttl
+	return c.names, c.done, stale
+}
+
+// markDone 记录获取完成时间（读锁外调用，需已持有写锁）。
+func (c *tableNamesCache) markDone() {
+	c.done = true
+	c.fetchedAt = time.Now()
+}
+
+// tablePrefixSetTTL 返回当前 DB 的表集合缓存 TTL（0=永不过期）。
+func (db *DB) tablePrefixSetTTL() time.Duration {
+	if db != nil && db.Config != nil && db.Setting.TablePrefixSetTTL > 0 {
+		return db.Setting.TablePrefixSetTTL
+	}
+	return 0
 }
 
 // tableNameSet 返回当前数据源指定 schema 的真实表名集合（小写键），首次调用时惰性
-// 查询数据库并缓存；查询失败时记录告警并返回空集（退化为纯前缀匹配）。
+// 查询数据库并缓存；TTL 过期后下次访问重取（失败时保留旧集合）。
+// 查询失败时记录告警并返回空集（退化为纯前缀匹配）。
 // 集合查询直接走 ConnPool，不会再次触发 applyTablePrefix，避免循环依赖。
 func (db *DB) tableNameSet() map[string]struct{} {
 	if db == nil || db.cacheStore == nil {
 		return nil
 	}
-	if v, ok := db.cacheStore.Load(tableNamesCacheKey); ok {
-		if names, done := v.(*tableNamesCache).get(); done {
-			return names
-		}
+	v, ok := db.cacheStore.Load(tableNamesCacheKey)
+	if !ok {
+		tc := &tableNamesCache{ttl: db.tablePrefixSetTTL()}
+		actual, _ := db.cacheStore.LoadOrStore(tableNamesCacheKey, tc)
+		v = actual
 	}
-	tc := &tableNamesCache{}
-	actual, _ := db.cacheStore.LoadOrStore(tableNamesCacheKey, tc)
-	cache := actual.(*tableNamesCache)
+	cache := v.(*tableNamesCache)
+	names, done, stale := cache.get()
+	if done && !stale {
+		return names
+	}
+	// 首次获取或 TTL 过期：持写锁单飞重取；失败时保留旧集合（若已有），否则降级空集
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
-	if cache.done {
-		return cache.names
+	names, done, stale = cache.getLocked()
+	if done && !stale {
+		return names
 	}
-	names, err := db.fetchTableNames()
+	fresh, err := db.fetchTableNames()
 	if err != nil {
+		if done {
+			log.Warnf("refresh table names failed, keep stale set: %v", err)
+			return names
+		}
 		log.Warnf("fetch table names from schema failed, fallback to prefix-only rewrite: %v", err)
 		cache.names = map[string]struct{}{}
-		cache.done = true
+		cache.markDone()
 		return cache.names
 	}
-	cache.names = names
-	cache.done = true
+	cache.names = fresh
+	cache.markDone()
 	return cache.names
 }
 

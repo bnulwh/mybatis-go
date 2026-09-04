@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type DatabaseType string
@@ -35,11 +36,12 @@ type DatabaseSetting struct {
 
 type MyBatisSetting struct {
 	DatabaseSetting
-	MapperLocations  string
-	TypeAliasPackage string
-	MaxRows          int64
-	TablePrefix      string            // 数据表名前缀（如 test_），SQL 执行时自动拼接到表名前，空串不启用
-	TablePrefixMap   map[string]string // 前缀映射：oldprefix→newprefix（空值=移除），配置键 mybatis.table-prefix-map（2.1）
+	MapperLocations    string
+	TypeAliasPackage   string
+	MaxRows            int64
+	TablePrefix        string            // 数据表名前缀（如 test_），SQL 执行时自动拼接到表名前，空串不启用
+	TablePrefixMap     map[string]string // 前缀映射：oldprefix→newprefix（空值=移除），配置键 mybatis.table-prefix-map（2.1）
+	TablePrefixSetTTL  time.Duration     // 真实表集合缓存 TTL（0=永不过期），配置键 mybatis.table-prefix-set-ttl（2.4）
 }
 
 type Config struct {
@@ -211,8 +213,9 @@ func parseDatabaseConfig(m map[string]string) *Config {
 				Schema:   parseSchema(m),
 				Type:     dt,
 			},
-			TablePrefix:    parseTablePrefix(m),
-			TablePrefixMap: parseTablePrefixMap(m),
+			TablePrefix:       parseTablePrefix(m),
+			TablePrefixMap:    parseTablePrefixMap(m),
+			TablePrefixSetTTL: parseTablePrefixSetTTL(m),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,
@@ -313,6 +316,21 @@ func parseTablePrefixMap(m map[string]string) map[string]string {
 		return nil
 	}
 	return out
+}
+
+// parseTablePrefixSetTTL 解析表集合缓存 TTL：mybatis.table-prefix-set-ttl=1h（2.4）。
+// 0（默认）表示永不过期（保持历史行为：仅本进程 DDL 后失效）。
+func parseTablePrefixSetTTL(m map[string]string) time.Duration {
+	raw := strings.TrimSpace(m["mybatis.table-prefix-set-ttl"])
+	if raw == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		log.Warnf("bad table-prefix-set-ttl %q: %v", raw, err)
+		return 0
+	}
+	return d
 }
 
 // parseBool 解析布尔配置项；key 不存在或值非法时返回默认值。

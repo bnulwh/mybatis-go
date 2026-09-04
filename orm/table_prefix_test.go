@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	_ "modernc.org/sqlite" // SQLite 驱动（与 sqlite_test.go 相同的驱动注册）
 )
@@ -773,5 +774,40 @@ func Test_rewriteSQLTables_edgeKeywords(t *testing.T) {
 		if got != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+// 2.4 表集合缓存 TTL：过期后标记 stale（下次访问重取）
+func Test_tableNamesCache_TTL(t *testing.T) {
+	c := &tableNamesCache{names: map[string]struct{}{"a": {}}, done: true, fetchedAt: time.Now(), ttl: time.Millisecond}
+	_, done, stale := c.get()
+	if !done {
+		t.Error("done should be true")
+	}
+	if stale {
+		t.Error("freshly fetched should not be stale")
+	}
+	time.Sleep(2 * time.Millisecond)
+	_, _, stale2 := c.get()
+	if !stale2 {
+		t.Error("ttl elapsed should mark stale")
+	}
+	// ttl=0（默认）永不过期
+	c0 := &tableNamesCache{names: map[string]struct{}{"a": {}}, done: true, fetchedAt: time.Now().Add(-time.Hour)}
+	_, _, stale0 := c0.get()
+	if stale0 {
+		t.Error("ttl=0 should never be stale")
+	}
+}
+
+func Test_parseTablePrefixSetTTL(t *testing.T) {
+	if d := parseTablePrefixSetTTL(map[string]string{}); d != 0 {
+		t.Errorf("absent config should be 0, got %v", d)
+	}
+	if d := parseTablePrefixSetTTL(map[string]string{"mybatis.table-prefix-set-ttl": "1h"}); d != time.Hour {
+		t.Errorf("1h should parse to 1h, got %v", d)
+	}
+	if d := parseTablePrefixSetTTL(map[string]string{"mybatis.table-prefix-set-ttl": "bad"}); d != 0 {
+		t.Errorf("bad duration should be 0, got %v", d)
 	}
 }
