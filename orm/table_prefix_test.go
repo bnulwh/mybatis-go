@@ -544,3 +544,76 @@ func Test_TablePrefix_SqliteTableSetRefresh(t *testing.T) {
 		t.Errorf("table set should refresh with test_t_more after ddl, got %v", set)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// 1.2 端到端：多参数（无 args 标签、无 parameterType）按位绑定，SQLite 真实执行
+
+type MultiParamMapper struct {
+	BaseMapper
+	SelectByAB func(a, b string) ([]map[string]interface{}, error)
+}
+
+func initMultiParamSqlite(t *testing.T) string {
+	dir := t.TempDir()
+	xmlDir := filepath.Join(dir, "mapper")
+	if err := os.MkdirAll(xmlDir, 0755); err != nil {
+		t.Errorf("create mapper dir failed: %v", err)
+		return ""
+	}
+	xml := `<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="MultiParamMapper">
+  <select id="selectByAB" resultType="map">
+    select a, b from pair_t where a = #{a} and b = #{b}
+  </select>
+</mapper>`
+	if err := os.WriteFile(filepath.Join(xmlDir, "MultiParamMapper.xml"), []byte(xml), 0644); err != nil {
+		t.Errorf("write mapper xml failed: %v", err)
+		return ""
+	}
+	dbPath := filepath.Join(dir, "mp.db")
+	cm := map[string]string{
+		"spring.datasource.url":    "jdbc:sqlite:" + dbPath,
+		"mybatis.mapper-locations": xmlDir,
+	}
+	if err := InitializeFromSettings(cm); err != nil {
+		t.Errorf("initialize sqlite failed: %v", err)
+		return ""
+	}
+	return dir
+}
+
+func Test_Sqlite_MultiParamNoTag(t *testing.T) {
+	dir := initMultiParamSqlite(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+	if _, err := Execute(`CREATE TABLE pair_t (a TEXT, b TEXT)`); err != nil {
+		t.Errorf("create table failed: %v", err)
+		return
+	}
+	for _, row := range []string{`('x', 'y')`, `('x', 'z')`} {
+		if _, err := Execute(`INSERT INTO pair_t (a, b) VALUES ` + row); err != nil {
+			t.Errorf("insert failed: %v", err)
+			return
+		}
+	}
+	if err := RegisterMapper(new(MultiParamMapper)); err != nil {
+		t.Errorf("register mapper failed: %v", err)
+		return
+	}
+	mp := NewMapper("MultiParamMapper").(MultiParamMapper)
+	rs, err := mp.SelectByAB("x", "y")
+	if err != nil {
+		t.Errorf("mapper multi-param select failed: %v", err)
+		return
+	}
+	if len(rs) != 1 {
+		t.Errorf("expect 1 row for (x,y), got %d: %v", len(rs), rs)
+		return
+	}
+	// 断言查到的确实是 b='y' 而不是 b='z'（1.2 回归：两占位符分别绑定，不再是都绑 args[0]）
+	if v, ok := rs[0]["b"].(string); !ok || v != "y" {
+		t.Errorf("row b = %v, want 'y' (per-slot binding failed)", rs[0]["b"])
+	}
+}

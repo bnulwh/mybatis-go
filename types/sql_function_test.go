@@ -360,3 +360,80 @@ func Test_GenerateDefine_ForEachSlice_Samples(t *testing.T) {
 		t.Error("deleteConfigByIds not found in samples")
 	}
 }
+
+// Test_GenerateSQL_MultiParam：无 args 标签的多参函数，占位符按位绑定（1.2）
+func Test_GenerateSQL_MultiParam(t *testing.T) {
+	n := xmlNode{
+		Id: "selectColumns", Name: "select",
+		Elements: []xmlElement{{ElementType: xmlTextElem, Val: "select * from information_schema.COLUMNS where TABLE_SCHEMA = #{schema} and TABLE_NAME = #{tableName}"}},
+	}
+	f := parseSqlFunctionFromXmlNode(n, nil, nil, "test")
+	sql, _, err := f.GenerateSQL("gzwsk", "sys_user")
+	if err != nil {
+		t.Errorf("GenerateSQL failed: %v", err)
+		return
+	}
+	if !strings.Contains(sql, "'gzwsk'") || !strings.Contains(sql, "'sys_user'") {
+		t.Errorf("multi-param not bound per-slot: %v", sql)
+	}
+	if strings.Count(sql, "'gzwsk'") != 1 {
+		t.Errorf("schema should appear exactly once: %v", sql)
+	}
+}
+
+// Test_GenerateSQL_MultiParam_DeclaredBase：显式 parameterType 标量 + 多占位符同样按位绑定
+func Test_GenerateSQL_MultiParam_DeclaredBase(t *testing.T) {
+	n := xmlNode{
+		Id: "cols", Name: "select",
+		Attrs: map[string]string{"parameterType": "String"},
+		Elements: []xmlElement{{ElementType: xmlTextElem, Val: "select * from t where a = #{a} and b = #{b}"}},
+	}
+	f := parseSqlFunctionFromXmlNode(n, nil, nil, "test")
+	sql, _, err := f.GenerateSQL("x", "y")
+	if err != nil {
+		t.Errorf("GenerateSQL failed: %v", err)
+		return
+	}
+	if !strings.Contains(sql, "'x'") || !strings.Contains(sql, "'y'") {
+		t.Errorf("declared-base multi-param not bound per-slot: %v", sql)
+	}
+}
+
+// Test_PrepareSQL_MultiParam：预编译路径同样按位绑定（参数数量=占位符数，值已渲染格式化）
+func Test_PrepareSQL_MultiParam(t *testing.T) {
+	n := xmlNode{
+		Id: "selectColumns2", Name: "select",
+		Elements: []xmlElement{{ElementType: xmlTextElem, Val: "select * from t where a = #{a} and b = #{b}"}},
+	}
+	f := parseSqlFunctionFromXmlNode(n, nil, nil, "test")
+	sql, params, err := f.PrepareSQL("x", "y")
+	if err != nil {
+		t.Errorf("PrepareSQL failed: %v", err)
+		return
+	}
+	if !strings.Contains(sql, "?") || len(params) != 2 {
+		t.Errorf("prepare multi-param: sql=%v params=%v want 2 placeholders", sql, params)
+	}
+	// 按位绑定：两参数不同值且各含对应占位符的原始值（框架 prepare 约定：值为渲染后字符串）
+	if params[0] == params[1] || !strings.Contains(params[0], "x") || !strings.Contains(params[1], "y") {
+		t.Errorf("prepare params = %v, want per-slot [x, y]", params)
+	}
+}
+
+// Test_GenerateSQL_MultiParam_SingleSlot：多参数但语句只有一个占位符 →
+// 第 0 参按位绑定，其余按 argN 兜底（不 panic）
+func Test_GenerateSQL_MultiParam_SingleSlot(t *testing.T) {
+	n := xmlNode{
+		Id: "one", Name: "select",
+		Elements: []xmlElement{{ElementType: xmlTextElem, Val: "select * from t where a = #{a}"}},
+	}
+	f := parseSqlFunctionFromXmlNode(n, nil, nil, "test")
+	sql, _, err := f.GenerateSQL("x", "y")
+	if err != nil {
+		t.Errorf("GenerateSQL failed: %v", err)
+		return
+	}
+	if !strings.Contains(sql, "'x'") {
+		t.Errorf("first slot should bind args[0]: %v", sql)
+	}
+}

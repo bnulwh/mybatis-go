@@ -50,6 +50,11 @@ func (in *SqlParam) validParam(args []interface{}) error {
 	if !in.Need {
 		return nil
 	}
+	// 1.2：多参数（无 parameterType 或 Base/Map 声明均可）→ 按 Slots 逐参数绑定，
+	// 允许多个标量/map 参数；仅校验非 nil/非 nil 指针。
+	if len(args) > 1 {
+		return in.validMultiParam(args)
+	}
 	switch in.Type {
 	case BaseSqlParam:
 		if len(args) == 0 {
@@ -103,6 +108,17 @@ func (in *SqlParam) validParam(args []interface{}) error {
 		}
 		if typ.Kind() == reflect.Ptr {
 			return fmt.Errorf("use two references to the struce %v", typ)
+		}
+	}
+	return nil
+}
+
+// validMultiParam 校验多参数场景：逐参数非 nil / 非 nil 指针（1.2）。
+func (in *SqlParam) validMultiParam(args []interface{}) error {
+	for _, a := range args {
+		val := reflect.ValueOf(a)
+		if (a == nil) || (val.Kind() == reflect.Ptr && val.IsNil()) {
+			return fmt.Errorf("need param, got nil in multi-param: %v", a)
 		}
 	}
 	return nil

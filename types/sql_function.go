@@ -142,6 +142,12 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, 
 	if !in.Param.Need && len(args) == 0 {
 		return in.generateSqlWithoutParam(), []interface{}{}, nil
 	}
+	if len(args) > 1 {
+		// 1.2：多参数按语句占位符名（Slots）位置绑定为 map，走 Map 渲染路径。
+		// 占位符名来自 XML（#{schema} / #{tableName}），与 Java @Param 按名取数对齐；
+		// 无 slots（纯静态/仅 foreach 或参数多于占位符）时按 arg0/arg1... 兜底。
+		return in.generateSqlWithMap(in.buildParamMap(args)), []interface{}{}, nil
+	}
 	switch in.effectiveParamType(args) {
 	case BaseSqlParam:
 		return in.generateSqlWithParam(args[0]), []interface{}{}, nil
@@ -168,6 +174,11 @@ func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []string, error)
 	}
 	if !in.Param.Need && len(args) == 0 {
 		return in.generateSqlWithoutParam(), []string{}, nil
+	}
+	if len(args) > 1 {
+		// 1.2：多参数按语句占位符名位置绑定（同 GenerateSQL）
+		sqlstr, results := in.prepareSqlWithMap(in.buildParamMap(args))
+		return sqlstr, results, nil
 	}
 	switch in.effectiveParamType(args) {
 	case BaseSqlParam:
@@ -215,6 +226,21 @@ func (in *SqlFunction) generateDefine() string {
 	}
 	buf.WriteString(")\n")
 	return buf.String()
+}
+
+// buildParamMap 将多参数按语句占位符名（Slots）位置绑定为渲染 map（1.2）。
+// 与 Java @Param 按名取数对齐：第 i 个参数绑定第 i 个去重占位符名；
+// 无 slots（纯静态/仅 foreach）或参数多于占位符时按 arg0/arg1... 兜底。
+func (in *SqlFunction) buildParamMap(args []interface{}) map[string]interface{} {
+	nmp := map[string]interface{}{}
+	for i, a := range args {
+		key := fmt.Sprintf("arg%d", i)
+		if i < len(in.Param.Slots) && in.Param.Slots[i] != "" {
+			key = in.Param.Slots[i]
+		}
+		nmp[buildKey(key)] = a
+	}
+	return nmp
 }
 
 // containsForEach 递归检查片段树（含 if/include/choose/where/set 嵌套）中是否含 <foreach>。
