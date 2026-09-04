@@ -82,7 +82,16 @@ func (db *DB) applyTablePrefix(query string) string {
 	if prefix == "" && len(pMap) == 0 {
 		return query
 	}
-	return rewriteSQLTablesWithMap(query, prefix, pMap, db.tableNameSet())
+	out := rewriteSQLTablesWithMap(query, prefix, pMap, db.tableNameSet())
+	// 2.5：改写动作可观测（debug 级），附带数据源名，便于多环境排查「为何没改写/改写成什么」
+	if log.IsDebugEnabled() && out != query {
+		name := ""
+		if db != nil && db.Config != nil {
+			name = db.Setting.Name
+		}
+		log.Debugf("[table-prefix] %s: rewrite %q -> %q", name, query, out)
+	}
+	return out
 }
 
 // tableNamesCacheKey 表名集合缓存在 cacheStore 中的键。

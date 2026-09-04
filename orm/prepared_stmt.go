@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"sync"
+	"sync/atomic"
+
+	"github.com/bnulwh/mybatis-go/log"
 )
 
 // maxPreparedStmts 预编译缓存上限：超过后降级为直接执行，
@@ -21,6 +24,18 @@ type PreparedStmtDB struct {
 	PreparedSQL []string
 	Mux         *sync.RWMutex
 	ConnPool
+
+	// 5.3：缓存满/无参降级直连的观测计数与一次性告警
+	directExec       atomic.Int64
+	directWarnedOnce atomic.Bool
+}
+
+// noteDirectExec 记录一次降级直连执行：累计计数可观测（Stats/测试），首次发生 Warn 一次（5.3）。
+func (db *PreparedStmtDB) noteDirectExec() {
+	db.directExec.Add(1)
+	if db.directWarnedOnce.CompareAndSwap(false, true) {
+		log.Warnf("prepared stmt cache full (>=%d), degraded to direct execution", maxPreparedStmts)
+	}
 }
 
 func (db *PreparedStmtDB) GetDBConn() (*sql.DB, error) {
@@ -140,6 +155,7 @@ func (db *PreparedStmtDB) cacheFull() bool {
 // 缓存已满时同样降级为直接执行，避免无界缓存钉死连接。
 func (db *PreparedStmtDB) ExecContext(ctx context.Context, query string, args ...interface{}) (result sql.Result, err error) {
 	if len(args) == 0 || db.cacheFull() {
+		db.noteDirectExec() // 5.3：降级可观测
 		return db.ConnPool.ExecContext(ctx, query, args...)
 	}
 	stmt, err := db.prepare(ctx, db.ConnPool, query)
@@ -156,6 +172,7 @@ func (db *PreparedStmtDB) ExecContext(ctx context.Context, query string, args ..
 }
 func (db *PreparedStmtDB) QueryContext(ctx context.Context, query string, args ...interface{}) (rows *sql.Rows, err error) {
 	if len(args) == 0 || db.cacheFull() {
+		db.noteDirectExec() // 5.3：降级可观测
 		return db.ConnPool.QueryContext(ctx, query, args...)
 	}
 	stmt, err := db.prepare(ctx, db.ConnPool, query)
@@ -172,6 +189,7 @@ func (db *PreparedStmtDB) QueryContext(ctx context.Context, query string, args .
 }
 func (db *PreparedStmtDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	if db.cacheFull() {
+		db.noteDirectExec() // 5.3：降级可观测
 		return db.ConnPool.QueryRowContext(ctx, query, args...)
 	}
 	stmt, err := db.prepare(ctx, db.ConnPool, query)

@@ -2,6 +2,7 @@ package orm
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -136,4 +137,23 @@ func Test_PreparedStmtPropertyParsing(t *testing.T) {
 	if !cfg.PreparedStmt {
 		t.Error("invalid prepared-stmt value should fall back to default true")
 	}
+}
+
+// Test_PreparedStmtDirectExecCounter：缓存满降级直连计数（5.3）
+func Test_PreparedStmtDirectExecCounter(t *testing.T) {
+	pdb := &PreparedStmtDB{Stmts: map[string]*Stmt{}, PreparedSQL: []string{}, Mux: &sync.RWMutex{}}
+	// 填满 maxPreparedStmts 个占位，使 cacheFull()=true
+	for i := 0; i < maxPreparedStmts; i++ {
+		pdb.Stmts[fmt.Sprintf("q%d", i)] = &Stmt{prepared: make(chan struct{})}
+	}
+	pdb.noteDirectExec()
+	if pdb.directExec.Load() != 1 {
+		t.Errorf("directExec = %d, want 1", pdb.directExec.Load())
+	}
+	// 首次已告警过，won't re-warn（warnedOnce 置位）
+	pdb.noteDirectExec()
+	if pdb.directExec.Load() != 2 {
+		t.Errorf("directExec = %d, want 2", pdb.directExec.Load())
+	}
+	// 未满时不应计为降级：直接构造不触发
 }
