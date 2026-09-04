@@ -539,6 +539,11 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 	expectTable := false // 下一个标识符处于表位置（FROM/JOIN/INTO/UPDATE/TABLE 之后）
 	commaList := false   // 处于 FROM/JOIN/UPDATE 逗号分隔的多表列表中
 	cteNames := map[string]bool{}
+	// 2.2 扩展表位置关键字上下文
+	pendingIndex  := false // CREATE INDEX ... ON 的 index→on 上下文
+	renameMode    := false // RENAME TABLE 上下文
+	expectToTable := false // rename 的首表已处理，期待 TO + 目标表
+	consumedTo    := false // 本次表位置由 TO 触发（处理完重置 rename 上下文）
 
 	// applyToken 处理处于表位置的单个标识符：先走前缀映射通道，未命中再走原逻辑。
 	// allowPrefix=false 时禁止回落前缀匹配（用于非 public/main schema 限定名仅映射生效）。
@@ -600,12 +605,42 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 				}
 				expectTable = false
 				commaList = true
+				if renameMode && !expectToTable {
+					expectToTable = true // rename: 首表已处理，等待 TO
+				}
+				if consumedTo {
+					renameMode = false
+					consumedTo = false
+					expectToTable = false
+				}
 				continue
 			}
 			switch lower {
-			case "from", "join", "into", "update", "table":
+			case "from", "join", "into", "update", "table", "using":
 				expectTable = true
 				commaList = false
+			case "index":
+				// CREATE INDEX ... ON t：index 后期待 on 触发表位置
+				pendingIndex = true
+				commaList = false
+			case "on":
+				if pendingIndex {
+					expectTable = true
+					pendingIndex = false
+				} else {
+					commaList = false
+				}
+			case "rename":
+				renameMode = true
+				commaList = false
+			case "to":
+				if expectToTable {
+					expectTable = true
+					expectToTable = false
+					consumedTo = true
+				} else {
+					commaList = false
+				}
 			case "with":
 				// WITH cte AS (...) 收集 CTE 名，后续 FROM cte 不参与前缀
 				cteModeCollect(tokens, i, cteNames)
@@ -635,6 +670,14 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 				}
 				expectTable = false
 				commaList = true
+				if renameMode && !expectToTable {
+					expectToTable = true // rename: 首表已处理，等待 TO
+				}
+				if consumedTo {
+					renameMode = false
+					consumedTo = false
+					expectToTable = false
+				}
 			}
 		case tkPunct:
 			switch t.text {

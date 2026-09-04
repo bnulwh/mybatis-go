@@ -760,3 +760,18 @@ func Test_rewriteSQLTables_nestedCTE(t *testing.T) {
 		t.Errorf("real tables should be prefixed: %v", got)
 	}
 }
+
+// 2.2 表关键字边界：MERGE INTO / CREATE INDEX ... ON / RENAME TABLE ... TO
+func Test_rewriteSQLTables_edgeKeywords(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"merge-into", "merge into target using src on a.id=b.id", "merge into test_target using test_src on a.id=b.id"},
+		{"create-index-on", "create index idx_x on sys_user(id)", "create index idx_x on test_sys_user(id)"},
+		{"rename-table", "rename table a to b", "rename table test_a to test_b"},
+	}
+	for _, c := range cases {
+		got := rewriteSQLTables(c.in, "test_")
+		if got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
