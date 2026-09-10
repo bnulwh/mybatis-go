@@ -311,7 +311,7 @@ URL 类型支持 `jdbc:kingbase8://`、`jdbc:kingbase://` 等（parseDatabaseTyp
 | `spring.datasource.max-open` | 连接池最大打开连接数 | 100 |
 | `spring.datasource.max-timeout` | 连接最大存活时长（秒） | 300 |
 | `spring.datasource.prepared-stmt` | 是否启用预编译语句缓存（`false` 关闭，适合 PgBouncer 等不支持服务端预编译的代理场景） | true |
-| `mybatis.mapper-locations` | XML Mapper 文件目录 | - |
+| `mybatis.mapper-locations` | XML Mapper 文件目录（也支持 `go:embed` 内嵌，见下文） | - |
 | `mybatis.table-prefix` | 数据表名前缀（如 `test_`），SQL 执行时自动拼接到表名前，XML Mapper 语句无需改动 | - |
 
 > **MySQL DATETIME 列**：框架自动在 MySQL DSN 追加 `?parseTime=true&loc=Local`（与 SQLite 的 `_loc=auto` 同理），DATETIME/TIMESTAMP 列直接扫描为 `time.Time`；否则 go-sql-driver 返回原始 `[]byte`，时间字段无法赋值。
@@ -382,6 +382,47 @@ mybatis.table-prefix-map= threedb_:app_
 （`spring.datasource.<name>.table-prefix-map`），未配置的附加源继承默认源。
 
 实现细节（表位置改写算法、词法扫描/状态机、边界与已知限制）见 **docs/agents/table-prefix.md**。
+
+## 内嵌 Mapper（go:embed）
+
+单文件二进制部署时无需把 XML 解出到临时目录：`orm.RegisterMapperFS` 直接读取 `embed.FS`，
+在内存中解析 Mapper（不落盘、无临时文件清理负担）。
+
+```go
+//go:embed resources/mapper/*.xml
+var mapperXML embed.FS
+
+func init() {
+    // 目录递归加载：与 mybatis.mapper-locations 语义一致
+    if err := orm.RegisterMapperFS(mapperXML, "resources/mapper"); err != nil {
+        log.Fatalf("load mapper failed: %v", err)
+    }
+    orm.RegisterModel(new(model.SysUser))
+    orm.RegisterMapper(new(mapper.SysUserMapper)) // XML 未就绪时先注册也不报错
+}
+```
+
+要点：
+
+- **pattern 可为目录或单个 `.xml` 文件**，可一次传入多个（`RegisterMapperFS(fsys, "m/a", "m/b.xml")`）；
+  目录递归收集全部 `.xml`，`mybatis-config.xml` 等无 `namespace` 的非 Mapper XML 自动跳过。
+- **`embed.FS` 之外的只读文件系统同样可用**（任何 `io/fs.FS`，含 `fstest.MapFS`），便于测试注入。
+- **加载顺序无关**：`RegisterMapper` 在 XML 已就绪时会自动重新绑定；若先注册结构体、后加载 XML，
+  调用一次 `orm.ReloadMappers()` 即可补绑。
+- **替换语义**：`RegisterMapperFS` 会替换当前全部 SQL 定义（与 `Initialize` 一致）。
+
+需要「内嵌为基础 + 磁盘覆盖」时用 `RegisterMapperSources`，后列来源覆盖同 `namespace` 的 Mapper
+（便于线上热修 SQL 而不重新发版）：
+
+```go
+err := orm.RegisterMapperSources(
+    orm.MapperSource{FS: mapperXML, Patterns: []string{"resources/mapper"}}, // 内嵌
+    orm.MapperSource{Patterns: []string{"override/mapper"}},                 // 磁盘覆盖（可选）
+)
+```
+
+底层解析入口在 `types` 包，可脱离 orm 单独使用：`types.NewSqlMappersFrom(fsys, patterns...)`
+与 `types.NewSqlMappersFromSources(sources...)`。
 
 ## 注入自定义 DB / DSN
 

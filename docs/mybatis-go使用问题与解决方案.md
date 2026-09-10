@@ -252,8 +252,8 @@ type SysUserMapper struct {
 #### P15. 加载目录会递归扫描子目录；mybatis-config.xml 无 namespace 需排除
 
 - **现象**：`mybatis.mapper-locations` 指向目录时 `filterMapperFiles` 用 `filepath.Walk` **递归**收集全部 `.xml`。
-- **要点**：XML 可以按子目录组织（`mybatis/system/`、`mybatis/monitor/`、`mapper/mdm/`）。但 `mybatis-config.xml`（根标签 configuration、无 namespace）会被解析成空 mapper，需在业务层跳过 `namespace` 不含 "Mapper" 的文件。
-- **配套**：Go 部署时用 `go:embed` 内嵌 XML 并在运行时解出到临时目录（mybatis-go 只支持文件路径加载，不支持 embed.FS 直接读取）。
+- **要点**：XML 可以按子目录组织（`mybatis/system/`、`mybatis/monitor/`、`mapper/mdm/`）。但 `mybatis-config.xml`（根标签 configuration、无 namespace）会被解析成空 mapper，框架已自动跳过（`loadMapper` 判定根标签非 `mapper` 或无 `namespace` 时返回 nil，S-10），业务层无需再自行过滤。
+- **配套**：Go 部署时用 `go:embed` 内嵌 XML，**无需再解出到临时目录**——`orm.RegisterMapperFS(fsys, patterns...)` 直接读取 `embed.FS` 在内存中解析（见 README「内嵌 Mapper（go:embed）」）。
 
 ---
 
@@ -374,6 +374,9 @@ type SysUserMapper struct {
 | `orm.InitializeFromSettings(map[string]string)` / `Initialize(filename)` / `InitializeDatabase(dbType, host, port, user, pwd, dbName)` | 初始化 |
 | `orm.RegisterModel(ptr)` | 注册 model（resultMap 实例化） |
 | `orm.RegisterMapper(ptr)` | 注册 mapper（校验 func 签名与 XML） |
+| `orm.RegisterMapperFS(fsys, patterns...)` | 从 `embed.FS` 直接加载 Mapper XML（不落盘，pattern 可为目录或单个 .xml） |
+| `orm.RegisterMapperSources(sources...)` | 合并磁盘/内嵌多来源加载，后者覆盖同 namespace |
+| `orm.ReloadMappers()` | 按已加载 XML 重新绑定（先注册结构体、后加载 XML 时补绑） |
 | `orm.NewMapper(name)` / `NewMapperPtr(name)` | 获取 mapper 实例 |
 | `orm.Query(sql, args...)` / `Execute(sql, args...)` | 原生查询/执行 |
 | `orm.Begin()` / `BeginTx(ctx, opts)` | 事务 |

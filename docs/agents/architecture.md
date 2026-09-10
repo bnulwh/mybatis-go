@@ -24,15 +24,18 @@
   - `common.go` — 大量工具函数（类型转换、SQL Null 处理、结构体扫描）
   - `table_structure.go` / `database_structure.go` — 从 information_schema 获取表结构
   - `orm_cache.go` / `mapper_cache.go` / `model_cache.go` — 缓存层
+  - `embed_fs.go` — `go:embed` 内嵌 Mapper 加载入口（`RegisterMapperFS` / `RegisterMapperSources` / `ReloadMappers`，支持任意 `io/fs.FS`，不落盘）
 
 - **`types/`** — 数据类型与 XML 解析引擎。
-  - `sql_mapper.go` / `sql_mappers.go` — Mapper 定义（`SqlMapper` / `SqlMappers`），`GenerateFiles()` 生成代码
+  - `sql_mapper.go` / `sql_mappers.go` — Mapper 定义（`SqlMapper` / `SqlMappers`），`GenerateFiles()` 生成代码；
+    `NewSqlMappers(dir)` 走磁盘，`NewSqlMappersFrom(fsys, patterns...)` / `NewSqlMappersFromSources(sources...)`
+    支持 `embed.FS` 等只读 FS（`MapperSource{FS, Patterns}`，FS 为 nil 即磁盘；pattern 可为目录或单个 .xml）
   - `sql_function.go` — `SqlFunction` 表示一个 SQL 操作（id/type/param/result/items）
   - `sql_fragment.go` / `sql_fragments.go` — SQL 片断解析（`#{}` `${}` `<if>` `<where>` 等标签处理）
   - `sql_where.go` — `<where>` 标签支持（`whereSqlFragment`/`sqlWhere`，子片段全空时输出空、否则输出 `where` 并剥离首个条件前导 `AND/OR`）
   - `sql_param.go` — 参数类型解析（`SqlParam` / `SqlParamInput`）
   - `sql_result.go` — 结果映射解析（`SqlResult` / `ResultMapping`）
-  - `xml_parse.go` — XML 文件解析入口
+  - `xml_parse.go` — XML 文件解析入口（`parseXmlFile` 读盘 / `parseXmlContent` 解析内存字节，供 embed.FS 复用）
   - `common.go` — `GetShortName()` / `ToJson()` / `UpperFirst()` 等通用工具
   - `sql_element.go` / `sql_include.go` / `sql_renderer.go` — SQL 元素与渲染（`SqlElement.Fragments` 支持 `<include>` 内嵌套标签参数替换）
   - `result_map.go` / `result_item.go` — 结果映射
@@ -51,6 +54,10 @@
 ## 核心流程
 
 1. `orm.Initialize("config.properties")` — 加载配置 → 解析 XML Mapper → 连接数据库
+   - 内嵌场景替代路径：`orm.RegisterMapperFS(embedFS, "resources/mapper")` 从 `go:embed` 直接加载
+     （XML 不落盘）。`RegisterMapperFS` 与 `RegisterMapper` **顺序无关**：先注册结构体时
+     `gCache.sqls == nil` 只跳过绑定不报错，XML 就绪后的 `RegisterMapper` 会触发 `bindSqls` 补绑；
+     若两者顺序颠倒且需要立即补绑，调用一次 `orm.ReloadMappers()`。
 2. `orm.RegisterModel(new(Model))` — 注册模型，缓存字段信息
 3. `orm.RegisterMapper(new(MapperStruct))` — 注册 Mapper，为函数字段注入代理
 4. `orm.NewMapper("Name").(MapperType)` — 创建 Mapper 实例

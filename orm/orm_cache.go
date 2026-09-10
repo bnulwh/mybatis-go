@@ -2,11 +2,13 @@ package orm
 
 import (
 	"fmt"
-	"github.com/bnulwh/mybatis-go/log"
-	"github.com/bnulwh/mybatis-go/types"
+	"io/fs"
 	"reflect"
 	"strings"
 	"sync/atomic"
+
+	"github.com/bnulwh/mybatis-go/log"
+	"github.com/bnulwh/mybatis-go/types"
 )
 
 type ormCache struct {
@@ -47,6 +49,19 @@ func (in *ormCache) createMapper(name string) (reflect.Value, error) {
 
 func (in *ormCache) initSqls(dir string) error {
 	in.sqls = types.NewSqlMappers(dir)
+	return in.bindSqls()
+}
+
+// initSqlsFromFS 从任意文件系统（如 go:embed 的 embed.FS）加载 Mapper XML。
+// patterns 为目录（递归）或单个 .xml 文件路径，语义与 mybatis.mapper-locations 一致。
+func (in *ormCache) initSqlsFromFS(fsys fs.FS, patterns ...string) error {
+	in.sqls = types.NewSqlMappersFrom(fsys, patterns...)
+	return in.bindSqls()
+}
+
+// initSqlsFromSources 合并磁盘目录与 embed.FS 等多来源加载（同 namespace 后者覆盖前者）。
+func (in *ormCache) initSqlsFromSources(sources []MapperSource) error {
+	in.sqls = types.NewSqlMappersFromSources(sources...)
 	return in.bindSqls()
 }
 

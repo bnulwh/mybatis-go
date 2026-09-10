@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="EmbedUserMapper">
+	<select id="selectEmbedUserById" parameterType="Long" resultType="map">
+		select * from embed_user where user_id = #{userId}
+	</select>
+
+	<update id="updateEmbedUser">
+		update embed_user set user_name = #{userName} where user_id = #{userId}
+	</update>
+</mapper>

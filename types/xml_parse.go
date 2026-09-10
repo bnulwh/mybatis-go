@@ -33,8 +33,12 @@ func parseXmlFile(filename string) (*xmlNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := bytes.NewReader(content)
-	return parseXmlNode(r)
+	return parseXmlContent(content)
+}
+
+// parseXmlContent 解析内存中的 XML 内容（embed.FS / 内存来源，无需落盘）。
+func parseXmlContent(content []byte) (*xmlNode, error) {
+	return parseXmlNode(bytes.NewReader(content))
 }
 
 func parseXmlNode(r io.Reader) (*xmlNode, error) {

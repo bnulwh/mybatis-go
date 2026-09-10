@@ -86,10 +86,17 @@ func (in *SqlMapper) generateContent(pkg string) []byte {
 }
 
 func loadMapper(filename string) *SqlMapper {
+	return loadMapperFrom(mapperInfo{name: filename})
+}
+
+// loadMapperFrom 从 mapperInfo 加载 Mapper：content 非空时直接解析（embed.FS / 内存来源），
+// 否则按 name 作为磁盘路径读取。
+func loadMapperFrom(info mapperInfo) *SqlMapper {
+	filename := info.name
 	log.Debugf("--------------------------------------------------")
 	log.Debugf("begin load mapper from %v", filename)
 	defer log.Debugf("finish load mapper from %v", filename)
-	node, err := parseXmlFile(filename)
+	node, err := parseXmlBytes(info)
 	if err != nil {
 		log.Errorf("parse xml file %v failed: %v", filename, err)
 		return nil
@@ -127,6 +134,15 @@ func loadMapper(filename string) *SqlMapper {
 	// M 系列：XML 有 resultMap（含基本类型列）但缺 MP 内置 CRUD 时，在内存中补生成（不落盘）
 	mp.ensureMPBuiltinCRUD()
 	return mp
+}
+
+// parseXmlBytes 取得 Mapper XML 内容并解析：
+// 优先使用已驻留内存的 content（embed.FS / 内存来源），否则按 name 从磁盘读取。
+func parseXmlBytes(info mapperInfo) (*xmlNode, error) {
+	if info.content != nil {
+		return parseXmlContent(info.content)
+	}
+	return parseXmlFile(info.name)
 }
 
 func filterResultMap(elems []xmlElement) []*ResultMap {
