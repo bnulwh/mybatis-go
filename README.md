@@ -14,6 +14,8 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **预编译缓存**：Prepared Statement 自动缓存和复用
 - **事务支持**：`orm.Begin()` / `Commit()` / `Rollback()`，事务开启后 Mapper 方法与 SQL 自动参与
 - **大结果集流式读取**：`orm.QueryStream` / Mapper 流式 select 方法返回 `*orm.RowStream`，`Next()` 逐行消费、内存 O(1)，百万行结果集也不会 OOM（配合全局行数上限 `orm.SetDefaultRowLimit` 兜底）
+- **内嵌 Mapper（go:embed）**：`orm.RegisterMapperFS` 直接读取 `embed.FS`，XML 无需解出到临时目录即可用于单文件二进制部署；亦支持「内嵌为基础 + 磁盘覆盖」合并加载（见「内嵌 Mapper」章节）
+- **零 CGO 依赖**：SQLite 走纯 Go 驱动（`modernc.org/sqlite`），交叉编译与静态链接无额外工具链要求
 
 ## 路线图
 
@@ -523,10 +525,12 @@ go run ./cmd/kingbasedemo    # KingbaseES
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
 │   ├── multi_datasource.go  # 多数据源注册表（InitializeDataSources / UseDataSource / AddDataSource）
 │   ├── row_stream.go    # 大结果集流式读取（QueryStream / RowStream，Mapper 流式 select）
+│   ├── embed_fs.go      # go:embed 内嵌 Mapper 加载（RegisterMapperFS / RegisterMapperSources / ReloadMappers）
 │   ├── mysql_dialector.go / postgres_dialector.go
 │   ├── sqlite_dialector.go / kingbase_dialector.go   # 数据库方言
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
 ├── types/               # XML 解析引擎和数据类型
+│   └── sql_mappers.go   # Mapper 加载（NewSqlMappers 磁盘 / NewSqlMappersFrom embed.FS 等任意 io/fs.FS）
 ├── utils/               # 工具函数
 ├── log/                 # 日志接口
 ├── mapper/              # 生成的 Mapper 示例
@@ -544,6 +548,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **v0.2.1（内嵌 Mapper，2026-09-05）**：支持 `go:embed` 内嵌 Mapper 加载 — 新增 `orm.RegisterMapperFS(fsys, patterns...)` / `orm.RegisterMapperSources(sources...)` / `orm.ReloadMappers()`，XML 可随二进制一起分发，部署时无需携带 `resources/mapper` 目录；底层 `types` 包新增 `NewSqlMappersFrom(fsys, patterns...)` / `NewSqlMappersFromSources(...)` 与 `MapperSource{FS, Patterns}`（`FS == nil` 保持原有磁盘语义）；磁盘 pattern 保持「目录递归 / 单文件精确」语义，内嵌 pattern 用 `/` 分隔并兼容误写 `\`；`<configuration>` 根或 namespace 缺失的 XML 自动跳过；同一 namespace 后注册的源覆盖先注册的源（磁盘可覆盖内嵌）；注册与初始化顺序解耦（先 `RegisterMapperFS` 后 `Initialize` 亦可，反之用 `ReloadMappers()` 补绑定）；顺带修复空 `mybatis.mapper-locations` 会退化为扫描当前目录 XML 的问题；`mybatis.mapper-locations` 与 `NewSqlMappers(dir)` 行为完全不变（回归测试 `Test_NewSqlMappers_DiskUnchanged`）；端到端覆盖 `orm/embed_fs_test.go` + `types/embed_fs_test.go`（SQLite 全流程、MapFS、多源覆盖、非法 XML）
 - **v0.2.0（优化改造，2026-09-04 起）**：共享 Java Mapper XML 零改造接入 + 多环境前缀切换免改 XML
   - **参数需求由语句占位符自动推导（1.1/M-06）**：`<select|insert|update|delete>` 含 `#{}`/`${}` 或 `<foreach>` 即自动识别为需要参数（无需 `parameterType`），有参函数 + 无 `parameterType` 语句不再注册失败（samples/RuoYi 共享 XML 直接可用）；`<if>/<choose>` 条件体占位符不视为必参（保持静态无参调用契约）
   - **多参数按占位符按位绑定（1.2）**：`SelectTableColumns(#{schema},#{tableName})` 传入两个实参时按语句占位符名/位置分别绑定，不再出现「所有占位符都绑 args[0]」
