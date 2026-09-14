@@ -172,7 +172,7 @@ rows2, _ := mp.SelectBatchIds([]int64{1, 2})
 2. **主键类型**：bigint/uint64 主键 → XML `parameterType="java.lang.Long"` → Go 签名 `int64`；int 主键 → `java.lang.Integer` → `int32`。
 3. **批量方法签名**：codegen 检测 `<foreach>` 自动生成 `[]T`（`parameterType="Long"` → `[]int64`），直接传切片即可；框架运行时对任意切片均可分派（S-05）。
 4. **`SelectCount` 返回 `[]int64`**（resultType="long"，沿用框架 select 统一返回切片约定，取 `rs[0]`）。
-5. **`selectPage` 无 limit**：MP 端分页由 `IPage` 追加；本框架 `SelectPage()` 与 `SelectList()` 等价（全表），分页需业务层处理（TODO P4-2/P22）。
+5. **`selectPage` 分页**（M-07）：codegen 生成签名 `func(*orm.PageParam) (*orm.Page, error)`；调用时传入 `&orm.PageParam{PageNum:1, PageSize:10}`，框架自动执行 COUNT 查询获取 Total + LIMIT/OFFSET 分页查询获取 Records；返回 `orm.Page{Total, Records, PageNum, PageSize}`。
 6. **自增主键回填**：`Insert` 走 `useGeneratedKeys` 需要 XML 加 `useGeneratedKeys="true" keyProperty="id"`（框架 S-11 已支持；PG/金仓 `LastInsertId` 不可用，见 TODO M-03）。
 7. **`-mp` 只影响 schema2code 产出**：手写 XML 不受影响；`TableStructure.SaveToFile`（旧 CRUD 风格）行为不变。
 8. **文件组织**：与普通 mapper 一样支持子目录（如 `mybatis/system/`），`mybatis-config.xml` 会被跳过（S-10）。

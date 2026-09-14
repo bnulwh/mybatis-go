@@ -119,6 +119,7 @@ func executeWithResult(ctx context.Context, sqlStr string, args ...interface{}) 
 }
 
 // queryRows 执行查询并返回行 map 列表；ctx 无 deadline 时叠加全局默认超时（P4-1）。
+// 自动从 SQL 提取表名，查询表结构缓存辅助列类型推断。
 func queryRows(ctx context.Context, sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
 	ctx, cancel := withExecTimeout(ctx)
 	defer cancel()
@@ -134,28 +135,50 @@ func queryRows(ctx context.Context, sqlStr string, args ...interface{}) ([]map[s
 		log.Errorf("fill sql %v result failed: %v", sqlStr, err)
 		return nil, err
 	}
-	results := fetchRows(rows, colTypes)
+	schemaHints := buildSchemaHints(sqlStr, colTypes)
+	results := fetchRows(rows, colTypes, schemaHints)
 	return results, nil
 }
-func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType) []map[string]interface{} {
-	//var results []interface{}
+
+// buildSchemaHints 从 SQL 中提取表名，查询表结构缓存，为列构建类型提示。
+func buildSchemaHints(sqlStr string, colTypes []*sql.ColumnType) map[string]*columnSchemaHint {
+	if gDbConn == nil {
+		return nil
+	}
+	tableNames := extractTableNamesFromSQL(sqlStr)
+	if len(tableNames) == 0 {
+		return nil
+	}
+	hints := make(map[string]*columnSchemaHint, len(colTypes))
+	for _, colType := range colTypes {
+		colName := colType.Name()
+		for _, tbl := range tableNames {
+			hint := gDbConn.lookupColumnSchema(tbl, colName)
+			if hint != nil {
+				hints[colName] = hint
+				break
+			}
+		}
+	}
+	if len(hints) == 0 {
+		return nil
+	}
+	return hints
+}
+
+func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint) []map[string]interface{} {
 	var results []map[string]interface{}
-	// P1-3：扫描目标与转换函数只建一次，跨行复用（Scan 覆盖值，NULL 由 Valid 标记）。
-	// 注意：部分驱动（如 modernc sqlite）在首行 Next() 之后才填充 ScanType，
-	// 因此延迟到首次进入循环后再构建，与旧实现的行为保持一致。
 	var tempItems []interface{}
 	var converters []convertFn
 	limit := DefaultRowLimit()
 	for rows.Next() {
-		// 全局行数上限（默认 1 万，负数不限制）：
-		// 达到上限即停止读取，避免大结果集拖垮内存/连接（调用方 rows.Close 负责清理游标）
 		if limit >= 0 && len(results) >= limit {
 			log.Warnf("row limit reached: %d, truncate result set (SetDefaultRowLimit(-1) to return all)", limit)
 			break
 		}
 		if tempItems == nil {
 			tempItems = prepareColumns(colTypes)
-			converters = buildConverters(colTypes)
+			converters = buildConverters(colTypes, schemaHints)
 		}
 		err := rows.Scan(tempItems...)
 		if err != nil {
@@ -165,7 +188,6 @@ func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType) []map[string]interfac
 		mp := createMapWithConverters(tempItems, colTypes, converters)
 		results = append(results, mp)
 	}
-	// 仅在调试日志开启时序列化，避免日志级别关闭时仍整结果集 ToJson
 	if log.IsDebugEnabled() {
 		log.Debugf("results: %v", types.ToJson(results))
 	}

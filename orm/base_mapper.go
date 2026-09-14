@@ -143,7 +143,7 @@ func backfillGeneratedKeyFromRows(arg ProxyArg, keyProperty string, rows *sql.Ro
 		return
 	}
 	scanTarget := newInstance(scanTargetType(colTypes[0]))
-	converters := buildConverters(colTypes)
+	converters := buildConvertersBasic(colTypes)
 	if err := rows.Scan(scanTarget); err != nil {
 		log.Warnf("RETURNING scan failed: %v", err)
 		return
@@ -221,6 +221,49 @@ func toInt64(v interface{}) (int64, bool) {
 		return int64(n), true
 	}
 	return 0, false
+}
+
+func (in *BaseMapper) executePage(sqlFunc *types.SqlFunction, arg ProxyArg) (val reflect.Value, err error) {
+	pp := arg.PageParam
+	if pp == nil || !pp.Valid() {
+		return reflect.Value{}, fmt.Errorf("PageParam is nil or invalid (PageNum=%d, PageSize=%d)", pp.PageNum, pp.PageSize)
+	}
+	start := time.Now()
+	defer sqlFunc.UpdateUsage(start, err == nil)
+	args := arg.buildArgs()
+	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
+	sqlStr = normalizeSQL(sqlStr)
+	if err != nil {
+		log.Warnf("generate sql failed: %v", err)
+		return reflect.Value{}, err
+	}
+	countSQL := normalizeSQL(buildCountSQL(sqlStr))
+	log.Debugf("page count sql: %v", countSQL)
+	var total int64
+	crows, cerr := queryRows(context.Background(), countSQL, sqlargs...)
+	if cerr != nil {
+		log.Warnf("page count query failed: %v", cerr)
+	} else if len(crows) > 0 {
+		for _, v := range crows[0] {
+			if n, ok := toInt64(v); ok {
+				total = n
+				break
+			}
+		}
+	}
+	pageSQL := applyPagination(sqlStr, pp.Limit(), pp.Offset())
+	log.Debugf("page sql: %v", pageSQL)
+	rows, err := queryRows(context.Background(), pageSQL, sqlargs...)
+	if err != nil {
+		return reflect.Value{}, err
+	}
+	page := &Page{
+		Total:    total,
+		Records:  rows,
+		PageNum:  pp.PageNum,
+		PageSize: pp.PageSize,
+	}
+	return reflect.ValueOf(page), nil
 }
 
 func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (val reflect.Value, err error) {

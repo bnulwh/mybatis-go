@@ -62,16 +62,53 @@ func (in *mapperInfo) bindSql(smp *types.SqlMapper) error {
 		err := in.Functions[i].bindSql(sf)
 		if err != nil {
 			if !IsStrictRegister() {
-				// 5.1 宽松模式：跳过失败函数，其余继续绑定（运行时该函数返回明确错误）
 				log.Errorf("lax register: skip %v.%v: %v", in.Name, fi.Name, err)
 				continue
 			}
 			errs = append(errs, err)
+		} else {
+			validateIfTestFields(in.Name, fi.Name, sf)
 		}
 	}
 	log.Debugf("%v bind sql mapper %v finished", in.Name, smp.Filename)
 	return combineErrors(errs...)
 }
+func validateIfTestFields(mapperName, funcName string, sf *types.SqlFunction) {
+	if len(sf.IfTestFields) == 0 {
+		return
+	}
+	typeName := sf.Param.TypeName
+	if typeName == "" {
+		return
+	}
+	sn := types.GetShortName(typeName)
+	if types.IsJdkType(sn) {
+		return
+	}
+	inst, err := gCache.createModel(sn)
+	if err != nil {
+		return
+	}
+	typ := reflect.Indirect(inst).Type()
+	fieldSet := make(map[string]bool, typ.NumField())
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		fieldSet[strings.ToLower(f.Name)] = true
+		snake := camelToSnake(f.Name)
+		fieldSet[strings.ToLower(snake)] = true
+	}
+	for _, name := range sf.IfTestFields {
+		lower := strings.ToLower(name)
+		if !fieldSet[lower] {
+			log.Warnf("[if-test] %s.%s: field %q not found in model %s, may produce empty WHERE clause",
+				mapperName, funcName, name, sn)
+		}
+	}
+}
+
 func getFunctions(typ reflect.Type) ([]*funcInfo, []error) {
 	var infos []*funcInfo
 	var errs []error

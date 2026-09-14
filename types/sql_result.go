@@ -6,8 +6,9 @@ import (
 )
 
 type SqlResult struct {
-	ResultM *ResultMap
-	ResultT reflect.Type
+	ResultM       *ResultMap
+	ResultT       reflect.Type
+	ResultTypeName string
 }
 
 func parseSqlResultFromXmlAttrs(attrs map[string]string, rms map[string]*ResultMap) SqlResult {
@@ -31,19 +32,22 @@ func parseSqlResult0(val string, rms map[string]*ResultMap) SqlResult {
 	r, ok := rms[buildKey(val)]
 	if ok {
 		return SqlResult{
-			ResultM: r,
-			ResultT: reflect.TypeOf(-1),
+			ResultM:       r,
+			ResultT:       reflect.TypeOf(-1),
+			ResultTypeName: r.TypeName,
 		}
 	}
 	log.Warnf("can not find result map: %v", val)
 	return SqlResult{
-		ResultM: nil,
-		ResultT: reflect.TypeOf(map[string]interface{}{}),
+		ResultM:       nil,
+		ResultT:       reflect.TypeOf(map[string]interface{}{}),
+		ResultTypeName: val,
 	}
 }
 func parseSqlResult1(val string) SqlResult {
 	return SqlResult{
-		ResultM: nil,
-		ResultT: parseResultTypeFrom(val),
+		ResultM:       nil,
+		ResultT:       parseResultTypeFrom(val),
+		ResultTypeName: val,
 	}
 }

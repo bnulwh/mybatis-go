@@ -139,6 +139,7 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 	// （失败时重取一次代价可忽略，且能覆盖事务内建表等无法感知的变更）
 	if isDDLStatement(query) {
 		defer db.invalidateTableNames()
+		defer db.invalidateTableStructures()
 	}
 	if t := db.currentTx(); t != nil {
 		defer db.updateExecStatement(start, true)

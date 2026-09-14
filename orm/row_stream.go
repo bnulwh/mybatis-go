@@ -38,17 +38,18 @@ var rowStreamType = reflect.TypeOf((*RowStream)(nil))
 //     负数不限制（返回全部）；上限在 QueryStream 打开时快照；
 //   - ctx 无 deadline 时叠加全局默认超时（P4-1）。
 type RowStream struct {
-	rows       *sql.Rows
-	colTypes   []*sql.ColumnType
-	tempItems  []interface{}
-	converters []convertFn
-	limit      int
-	count      int
-	row        map[string]interface{}
-	err        error
-	warned     bool
-	closed     bool
-	cancel     context.CancelFunc
+	rows        *sql.Rows
+	colTypes    []*sql.ColumnType
+	tempItems   []interface{}
+	converters  []convertFn
+	schemaHints map[string]*columnSchemaHint
+	limit       int
+	count       int
+	row         map[string]interface{}
+	err         error
+	warned      bool
+	closed      bool
+	cancel      context.CancelFunc
 }
 
 // QueryStream 执行查询并以流式方式逐行返回结果（P4-2）。
@@ -69,11 +70,13 @@ func QueryStream(ctx context.Context, sqlStr string, args ...interface{}) (*RowS
 		log.Errorf("fill sql %v result failed: %v", sqlStr, err)
 		return nil, err
 	}
+	schemaHints := buildSchemaHints(sqlStr, colTypes)
 	return &RowStream{
-		rows:     rows,
-		colTypes: colTypes,
-		limit:    DefaultRowLimit(),
-		cancel:   cancel,
+		rows:        rows,
+		colTypes:    colTypes,
+		limit:       DefaultRowLimit(),
+		cancel:      cancel,
+		schemaHints: schemaHints,
 	}, nil
 }
 
@@ -101,7 +104,7 @@ func (s *RowStream) Next() bool {
 	// 因此扫描目标延迟到首个成功 Next() 之后再构建。
 	if s.tempItems == nil {
 		s.tempItems = prepareColumns(s.colTypes)
-		s.converters = buildConverters(s.colTypes)
+		s.converters = buildConverters(s.colTypes, s.schemaHints)
 	}
 	if err := s.rows.Scan(s.tempItems...); err != nil {
 		// 流式场景不静默丢行（M-05 精神）：扫描失败立即终止，Err() 返回行号明细

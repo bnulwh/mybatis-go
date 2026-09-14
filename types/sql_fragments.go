@@ -753,3 +753,66 @@ func lookupParam(m map[string]interface{}, name string) (interface{}, bool) {
 	}
 	return cur, true
 }
+
+// CollectIfTestFieldNames 从 SQL 片段中递归提取所有 <if test> 条件引用的字段名（4.3）。
+// 去除 .length 后缀和 params. 前缀（通用 map 参数，无法静态校验），返回去重后的字段名列表。
+func CollectIfTestFieldNames(items []*sqlFragment) []string {
+	seen := map[string]bool{}
+	var names []string
+	var walk func(frags []*sqlFragment)
+	walk = func(frags []*sqlFragment) {
+		for _, f := range frags {
+			switch f.Type {
+			case ifTestSqlFragment:
+				if f.IfTest != nil {
+					for _, cond := range f.IfTest.Conditions {
+						name := cond.CheckName
+						name = strings.TrimSuffix(name, ".length")
+						if strings.HasPrefix(name, "params.") {
+							continue
+						}
+						if name != "" && !seen[name] {
+							seen[name] = true
+							names = append(names, name)
+						}
+					}
+					walk(f.IfTest.Sql)
+				}
+			case chooseSqlFragment:
+				if f.Choose != nil {
+					for _, w := range f.Choose.When {
+						if w != nil {
+							for _, cond := range w.Conditions {
+								name := cond.CheckName
+								name = strings.TrimSuffix(name, ".length")
+								if strings.HasPrefix(name, "params.") {
+									continue
+								}
+								if name != "" && !seen[name] {
+									seen[name] = true
+									names = append(names, name)
+								}
+							}
+							walk(w.Sql)
+						}
+					}
+				}
+			case whereSqlFragment:
+				if f.Where != nil {
+					walk(f.Where.Sql)
+				}
+			case setSqlFragment:
+				if f.Set != nil {
+					walk(f.Set.Sql)
+				}
+			case forLoopSqlFragment:
+				if f.ForLoop != nil && f.ForLoop.Sql != nil {
+				}
+			case includeSqlFragment:
+			case simpleSqlFragment:
+			}
+		}
+	}
+	walk(items)
+	return names
+}

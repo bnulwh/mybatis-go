@@ -224,6 +224,7 @@ func Test_TableStruct_MPCodegen(t *testing.T) {
 		"SelectBatchIds \tfunc ([]int64)",
 		"DeleteBatchIds \tfunc ([]int64)",
 		"SelectCount \tfunc () ([]int64",
+		"SelectPage \tfunc (*orm.PageParam) (*orm.Page,error)",
 	} {
 		if !strings.Contains(content, sig) {
 			t.Errorf("generated mapper missing signature %q", sig)

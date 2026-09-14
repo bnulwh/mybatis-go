@@ -28,6 +28,11 @@ var jdkTypeNames = map[string]bool{
 	"time": true, "timestamp": true, "datetime": true, "date": true,
 }
 
+// IsJdkType 判断短类名是否为 JDK 基础类型（4.3：跳过对基础类型的 <if test> 字段校验）。
+func IsJdkType(name string) bool {
+	return jdkTypeNames[strings.ToLower(strings.TrimSpace(name))]
+}
+
 // ensureMPBuiltinCRUD：Mapper 缺少 MP 内置 CRUD 时，若存在可推导表结构的 resultMap
 // （含基本类型列 id/result，type 为业务模型），则在内存中补生成缺失的内置方法
 // （insert/deleteById/updateById/selectById/selectOne/selectList/selectPage/

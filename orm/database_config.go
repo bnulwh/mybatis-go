@@ -41,7 +41,8 @@ type MyBatisSetting struct {
 	MaxRows            int64
 	TablePrefix        string            // 数据表名前缀（如 test_），SQL 执行时自动拼接到表名前，空串不启用
 	TablePrefixMap     map[string]string // 前缀映射：oldprefix→newprefix（空值=移除），配置键 mybatis.table-prefix-map（2.1）
-	TablePrefixSetTTL  time.Duration     // 真实表集合缓存 TTL（0=永不过期），配置键 mybatis.table-prefix-set-ttl（2.4）
+	TablePrefixSetTTL    time.Duration     // 真实表集合缓存 TTL（0=永不过期），配置键 mybatis.table-prefix-set-ttl（2.4）
+	TableStructureTTL    time.Duration     // 表结构缓存 TTL（0=永不过期），配置键 mybatis.table-structure-ttl
 }
 
 type Config struct {
@@ -216,6 +217,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			TablePrefix:       parseTablePrefix(m),
 			TablePrefixMap:    parseTablePrefixMap(m),
 			TablePrefixSetTTL: parseTablePrefixSetTTL(m),
+			TableStructureTTL: parseTableStructureTTL(m),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,
@@ -328,6 +330,19 @@ func parseTablePrefixSetTTL(m map[string]string) time.Duration {
 	d, err := time.ParseDuration(raw)
 	if err != nil {
 		log.Warnf("bad table-prefix-set-ttl %q: %v", raw, err)
+		return 0
+	}
+	return d
+}
+
+func parseTableStructureTTL(m map[string]string) time.Duration {
+	raw := strings.TrimSpace(m["mybatis.table-structure-ttl"])
+	if raw == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		log.Warnf("bad table-structure-ttl %q: %v", raw, err)
 		return 0
 	}
 	return d

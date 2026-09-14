@@ -18,9 +18,14 @@ type ReturnType struct {
 func (in *ReturnType) checkSql(f *types.SqlFunction, name string) error {
 	typ := *in.ReturnOutType
 	if typ == rowStreamType {
-		// P4-2：流式 select 的返回类型与 XML resultType 解耦（逐行 map / Scan 由调用方决定）
 		if f.Type != types.SelectFunction {
 			return fmt.Errorf("%v check sql function %v failed, stream return type (*RowStream) only support select", name, f.Id)
+		}
+		return nil
+	}
+	if typ == pageType {
+		if f.Type != types.SelectFunction {
+			return fmt.Errorf("%v check sql function %v failed, page return type (*Page) only support select", name, f.Id)
 		}
 		return nil
 	}
@@ -33,6 +38,23 @@ func (in *ReturnType) checkSql(f *types.SqlFunction, name string) error {
 		if strings.Compare(strings.ToLower(rname), strings.ToLower(sname)) != 0 {
 			return fmt.Errorf("%v check sql function %v failed, return type valid failed `%v` != `%v` ",
 				name, f.Id, f.Result.ResultM.TypeName, typ.String())
+		}
+	} else if f.Result.ResultTypeName != "" && typ.Kind() == reflect.Struct {
+		rname := types.GetShortName(f.Result.ResultTypeName)
+		sname := types.GetShortName(typ.Name())
+		if strings.Compare(strings.ToLower(rname), strings.ToLower(sname)) == 0 {
+			return nil
+		}
+		inst, err := gCache.createModel(rname)
+		if err == nil {
+			resolved := reflect.Indirect(inst).Type()
+			if utils.SameTypeCheck(resolved, typ) {
+				return nil
+			}
+		}
+		if !utils.SameTypeCheck(f.Result.ResultT, typ) {
+			return fmt.Errorf("%v check sql function %v failed, return type valid failed `%v`(%v) != `%v`",
+				name, f.Id, f.Result.ResultTypeName, f.Result.ResultT.String(), typ.String())
 		}
 	} else {
 		if !utils.SameTypeCheck(f.Result.ResultT, typ) {
@@ -57,10 +79,8 @@ func makeReturnType(funcName string, funcType reflect.Type) *ReturnType {
 	}
 	for f := 0; f < numOut; f++ {
 		var outType = funcType.Out(f)
-		//过滤NewSession方法
 		if outType.Kind() == reflect.Ptr || (outType.Kind() == reflect.Interface && outType.String() != "error") {
-			if outType == rowStreamType {
-				// P4-2：允许 select 方法返回 *RowStream 流式读取大结果集
+			if outType == rowStreamType || outType == pageType {
 			} else {
 				panic("[mybatis-go] func '" + funcName + "()' return '" + outType.String() + "' can not be a 'ptr' or 'interface'!")
 			}

@@ -109,7 +109,7 @@ func parseResultTypeFrom(tps string) reflect.Type {
 		// 1.4：map 为合法通用 resultType，不再落入 default warn
 		return reflect.TypeOf(map[string]interface{}{})
 	default:
-		log.Warnf("unsupport type to parse: %v", tps)
+		log.Debugf("result type %q not a JDBC builtin, will resolve lazily via model cache (M-04)", tps)
 	}
 	return reflect.TypeOf(map[string]interface{}{})
 }

@@ -4,20 +4,33 @@ import (
 	"reflect"
 )
 
-// 代理数据
 type ProxyArg struct {
 	TagArgs    []TagArg
 	TagArgsLen int
 	Args       []reflect.Value
 	ArgsLen    int
+	PageParam  *PageParam
 }
 
 func NewProxyArg(tagArgs []TagArg, args []reflect.Value) ProxyArg {
+	var pp *PageParam
+	var filtered []reflect.Value
+	for _, arg := range args {
+		if arg.Type() == pageParamType {
+			pp = arg.Interface().(*PageParam)
+			continue
+		}
+		filtered = append(filtered, arg)
+	}
+	if filtered == nil {
+		filtered = []reflect.Value{}
+	}
 	return ProxyArg{
 		TagArgs:    tagArgs,
-		Args:       args,
+		Args:       filtered,
+		ArgsLen:    len(filtered),
 		TagArgsLen: len(tagArgs),
-		ArgsLen:    len(args),
+		PageParam:  pp,
 	}
 }
 

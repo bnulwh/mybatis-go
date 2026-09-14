@@ -1,6 +1,6 @@
 # 项目待办事项
 
-> 整理时间：2026-08-20（基于 `main` 分支当前工作区状态，含 v0.1.11）
+> 整理时间：2026-08-20（基于 `main` 分支当前工作区状态，含 v0.2.0）
 > 验证基线：`go build ./...` ✅ · `go vet ./...` ✅ · `go test -count=1 ./...` ✅（全绿）
 
 ---
@@ -16,6 +16,9 @@
 - **4.1 codegen parameterType 不变式验证**：生成 XML「含占位符/foreach 必有 parameterType，纯静态无」；修复旧 `countByPrimaryKey` 静态语句误声明 parameterType
 - **5.1 宽松注册**：`orm.SetStrictRegister(bool)`，lax 模式下失败函数跳过；`bindMapper` 对未绑定函数返回错误代理而非 panic
 - **1.4 / 4.2 / 5.2 / 5.3 / 2.2~2.5 / 3.1 / 3.2**：map resultType 合法化；生成 Go 文件 gofmt（修复 resultType=map→`models.map[...]`、无 parameterType→`models.` 两类非法签名）；每文件解析汇总日志；表集合缓存 TTL；改写 debug 日志 + prepared 降级计数/一次性告警；MERGE USING / CREATE INDEX ON / RENAME TO 表位置；schema 逐源验证 + 文档矩阵；嵌套 CTE 验证（已支持）
+- **M-04 自定义 resultType 短类名延迟解析**：`SqlResult` 新增 `ResultTypeName` 保留原始类名；`getResultType` 在 `ResultTypeName` 非空时通过 `gCache.createModel` 延迟解析，解析失败 fallback 到 `ResultT`；`checkSql` 对 resultType 路径增加短类名比较降级（与 resultMap 路径对称）；`convertMap2Result` 增加自定义 struct 字段自动映射（`buildAutoFieldMap`：snake_case→PascalCase）；`parseResultTypeFrom` default 分支日志降为 debug。端到端验证：`resultType="M04CustomModel"` + `RegisterModel` → 注册通过 + 查询返回正确类型
+- **M-07 分页支持**：新增 `orm.PageParam`（PageNum/PageSize + Offset/Limit/Valid）与 `orm.Page`（Total/Records/PageNum/PageSize）；`ProxyArg.buildArgs()` 自动提取 `*PageParam` 并从 SQL 参数中移除；代理闭包检测 `PageParam` 路由到 `executePage`；新增 `orm/sql_rewrite.go`（`applyPagination` 注入 LIMIT/OFFSET + `buildCountSQL` 构造 COUNT 查询）；`executePage` 先执行 COUNT 获取 Total 再执行分页查询获取 Records；codegen `selectPage` 签名从 `func() ([]T, error)` 改为 `func(*orm.PageParam) (*orm.Page, error)`；`makeReturnType` 允许 `*Page` 返回类型。SQLite 端到端：25 条数据 → Page 1 (10 records, total=25) / Page 3 (5 records) / 带参数过滤分页
+- **4.3 `<if test>` 字段引用注册期校验**：`CollectIfTestFieldNames` 从 SQL 片段递归提取 `<if test>` 条件字段名（去除 `.length` 后缀、跳过 `params.` 前缀）；`SqlFunction.IfTestFields` 在 parse 时填充；`validateIfTestFields` 在 `bindSql` 成功后校验字段是否存在于已注册 model（snake_case/PascalCase/lowercase 匹配），缺失字段打 `[if-test]` warning 日志（不阻塞注册）；新增 `types.IsJdkType` 跳过基础类型校验
 
 ### v0.1.15（2026-09-04，表名前缀真实表集合匹配）
 
@@ -92,8 +95,7 @@
 
 ### 框架功能（M 系列）
 
-- **M-04 自定义 `resultType` 短类名不解析（P12）**：`parseResultTypeFrom`（`types/common.go`）只认 JDBC 基础类型，未知类型返回 `map[string]interface{}` → 注册校验失败。应在已注册 model 中按短类名解析
-- **M-07 分页支持（P22）**：无 PageHelper 等价物，`selectList` 类操作无 limit；现仅内存分页。建议提供分页参数约定或 SQL 层分页助手（与 P4-2 流式读取互补）
+（暂无待完成框架功能）
 
 ---
 
@@ -104,7 +106,7 @@
 - **P8/P10**：model 字段全部值类型（`time.Time`/`int64`，杜绝 `*T`）；查询参数统一 `map[string]interface{}` + `QueryMap()` 排除零值（规避 M-02；M-01 已修复，`*T` 字段不再 panic，但值类型仍是更稳妥的约定）
 - **P9**：Java 泛型映射（`Set<X>`/`X[]`/`Map<String,Object>`）由生成器 j2g 处理
 - **P11**：嵌套 association/collection 的联表列由生成器补平铺映射（S-06 已修 codegen 类型，运行时平铺靠生成器）
-- **P13**：select 一律 `([]T, error)`（单对象取 `rs[0]`），insert/update/delete 为 `(int64, error)`；流式 select 可返回 `(*orm.RowStream, error)`
+- **P13**：select 一律 `([]T, error)`（单对象取 `rs[0]`），insert/update/delete 为 `(int64, error)`；流式 select 可返回 `(*orm.RowStream, error)`；分页 select 可返回 `(*orm.Page, error)`（M-07）
 - **P16**：MyBatis-Plus 内置操作由 `GoExtraMapper` 手写补充。**框架已支持两条免手写路径**：① `schema2code -mp` / `TableStructure.SaveMPToFile` 产出 BaseMapper 标准方法名 XML；② XML 含 resultMap 且缺 MP 内置方法时加载期内存自动补生成（`ensureMPBuiltinCRUD`，不落盘、不覆盖手写）。仅当 Java 端存在无 XML 的自定义方法时才需手写 GoExtraMapper
 - **P17**：所有 RuoYi 数据权限查询入参带 `params:{"dataScope":""}` 默认值（`${...}` 字符串原样替换，注意 SQL 注入面）
 - **P19**：if 表达式支持 null/empty/bool/数值比较四类（M-02 已加 `!= 0`/`> 0`/`== 0` 及 `x.length > 0` 集合长度；不期望任意 OGNL：三元/方法调用/字符串比较均不支持）

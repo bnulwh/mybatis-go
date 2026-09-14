@@ -204,10 +204,19 @@ func convertToConvertFn[T any](fn func(ptr interface{}) (T, error)) convertFn {
 }
 
 // resolveConverter 根据列类型解析单列转换函数。
-func resolveConverter(colType *sql.ColumnType) convertFn {
+// 当 schemaHint 非空且驱动 ScanType 不可靠时，用缓存的表结构类型作为补充推断。
+func resolveConverter(colType *sql.ColumnType, schemaHint *columnSchemaHint) convertFn {
 	typ := colType.ScanType()
+	needSchemaFallback := false
 	if typ == nil {
-		// 驱动未填充 ScanType 时回退到字符串转换
+		needSchemaFallback = true
+	} else if typ.String() == "interface {}" || typ.String() == "[]uint8" || typ.String() == "[]byte" || typ.String() == "sql.RawBytes" {
+		needSchemaFallback = true
+	}
+	if needSchemaFallback && schemaHint != nil && schemaHint.goType != nil {
+		return resolveConverterByGoType(colType, schemaHint.goType)
+	}
+	if typ == nil {
 		return convertToConvertFn(convertSqlString2String)
 	}
 	switch typ.String() {
@@ -251,8 +260,6 @@ func resolveConverter(colType *sql.ColumnType) convertFn {
 	case "interface {}":
 		return convertToConvertFn(convertSqlString2String)
 	case "[]uint8", "[]byte":
-		// 部分驱动/配置（如 MySQL 未开 parseTime）对 DATETIME/文本列报告 []uint8，
-		// 按原始字节转字符串兜底（change2Time 可再把时间串解析回 time.Time）
 		return convertToConvertFn(convertRawBytes2String)
 	}
 	log.Warnf("not support convert type: %v", typ)
@@ -261,17 +268,139 @@ func resolveConverter(colType *sql.ColumnType) convertFn {
 	}
 }
 
+// resolveConverterByGoType 当驱动 ScanType 不可靠时，使用表结构缓存中的 Go 类型来选择扫描策略。
+// 扫描目标仍按 sql.Null* 分配（兼容 NULL），但转换函数按表结构声明的 Go 类型输出。
+func resolveConverterByGoType(colType *sql.ColumnType, goType reflect.Type) convertFn {
+	dbTypeName := colType.DatabaseTypeName()
+	switch goType.String() {
+	case "string":
+		return func(ptr interface{}) (interface{}, error) {
+			if pval, ok := ptr.(*sql.NullString); ok && pval.Valid {
+				return pval.String, nil
+			}
+			if pval, ok := ptr.(*sql.RawBytes); ok {
+				return string(*pval), nil
+			}
+			return convertSqlString2String(ptr)
+		}
+	case "bool":
+		if dbTypeName == "BIT" {
+			return convertToConvertFn(convertRawBytes2Bool)
+		}
+		return func(ptr interface{}) (interface{}, error) {
+			if pval, ok := ptr.(*sql.NullBool); ok && pval.Valid {
+				return pval.Bool, nil
+			}
+			s, err := convertSqlString2String(ptr)
+			if err != nil || s == "" {
+				return false, nil
+			}
+			return strconv.ParseBool(s)
+		}
+	case "int":
+		return func(ptr interface{}) (interface{}, error) {
+			if pval, ok := ptr.(*sql.NullInt32); ok && pval.Valid {
+				return int(pval.Int32), nil
+			}
+			if pval, ok := ptr.(*sql.RawBytes); ok {
+				s := string(*pval)
+				n, err := strconv.Atoi(s)
+				if err != nil {
+					return 0, err
+				}
+				return n, nil
+			}
+			return convertSqlInt32ToInt(ptr)
+		}
+	case "int64":
+		return func(ptr interface{}) (interface{}, error) {
+			if pval, ok := ptr.(*sql.NullInt64); ok && pval.Valid {
+				return pval.Int64, nil
+			}
+			if pval, ok := ptr.(*sql.RawBytes); ok {
+				s := string(*pval)
+				n, err := strconv.ParseInt(s, 10, 64)
+				if err != nil {
+					return int64(0), err
+				}
+				return n, nil
+			}
+			return convertSqlInt64ToInt64(ptr)
+		}
+	case "float64":
+		return func(ptr interface{}) (interface{}, error) {
+			if pval, ok := ptr.(*sql.NullFloat64); ok && pval.Valid {
+				return pval.Float64, nil
+			}
+			if pval, ok := ptr.(*sql.RawBytes); ok {
+				s := string(*pval)
+				f, err := strconv.ParseFloat(s, 64)
+				if err != nil {
+					return 0.0, err
+				}
+				return f, nil
+			}
+			return convertSqlFloat64ToFloat64(ptr)
+		}
+	case "time.Time":
+		return func(ptr interface{}) (interface{}, error) {
+			if pval, ok := ptr.(*sql.NullTime); ok && pval.Valid {
+				return pval.Time, nil
+			}
+			if pval, ok := ptr.(*mysql.NullTime); ok && pval.Valid {
+				return pval.Time, nil
+			}
+			if pval, ok := ptr.(*time.Time); ok {
+				return *pval, nil
+			}
+			if pval, ok := ptr.(*sql.RawBytes); ok {
+				s := string(*pval)
+				for _, layout := range []string{
+					time.RFC3339Nano, time.RFC3339,
+					"2006-01-02 15:04:05.999999999",
+					"2006-01-02 15:04:05",
+					"2006-01-02",
+				} {
+					if t, err := time.Parse(layout, s); err == nil {
+						return t, nil
+					}
+				}
+				return time.Time{}, fmt.Errorf("cannot parse time from %q", s)
+			}
+			return convertTimeToTime(ptr)
+		}
+	}
+	log.Debugf("schema hint: unsupported go type %v for column %s, fallback to string", goType, colType.Name())
+	return func(ptr interface{}) (interface{}, error) {
+		if pval, ok := ptr.(*sql.RawBytes); ok {
+			return string(*pval), nil
+		}
+		return convertSqlString2String(ptr)
+	}
+}
+
 // buildConverters 为一次查询的列预编译转换函数表。
-func buildConverters(colTypes []*sql.ColumnType) []convertFn {
+// schemaHints 按列名提供表结构缓存的类型提示，当驱动 ScanType 不可靠时用于补充推断。
+func buildConverters(colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint) []convertFn {
 	converters := make([]convertFn, len(colTypes))
 	for i, colType := range colTypes {
-		converters[i] = resolveConverter(colType)
+		hint := schemaHints[colType.Name()]
+		converters[i] = resolveConverter(colType, hint)
+	}
+	return converters
+}
+
+// buildConvertersBasic 为无 schema hint 的场景构建转换函数（保持旧行为）。
+func buildConvertersBasic(colTypes []*sql.ColumnType) []convertFn {
+	converters := make([]convertFn, len(colTypes))
+	for i, colType := range colTypes {
+		converters[i] = resolveConverter(colType, nil)
 	}
 	return converters
 }
 
 func convertInstanceType(ptr interface{}, colType *sql.ColumnType) (interface{}, error) {
-	return resolveConverter(colType)(ptr)
+	return resolveConverter(colType, nil)(ptr)
 }
 
 func combineErrors(errs ...error) error {

@@ -7,6 +7,8 @@ import (
 	"github.com/bnulwh/mybatis-go/types"
 	"github.com/bnulwh/mybatis-go/utils"
 	"reflect"
+	"strings"
+	"unicode"
 )
 
 // ResultConvertReport 汇总结果集转换期间的错误明细（M-05）。
@@ -75,7 +77,7 @@ func prepareColumns(colTypes []*sql.ColumnType) []interface{} {
 	return ptrs
 }
 func createMap(ptrs []interface{}, colTypes []*sql.ColumnType) map[string]interface{} {
-	return createMapWithConverters(ptrs, colTypes, buildConverters(colTypes))
+	return createMapWithConverters(ptrs, colTypes, buildConvertersBasic(colTypes))
 }
 
 // createMapWithConverters 使用预编译的转换函数表构造行 map（P1-4）。
@@ -108,11 +110,28 @@ func getResultType(resInfo types.SqlResult) reflect.Type {
 		inst, _ := gCache.createModel(name)
 		return reflect.Indirect(inst).Type()
 	}
+	if resInfo.ResultTypeName != "" {
+		name := types.GetShortName(resInfo.ResultTypeName)
+		inst, err := gCache.createModel(name)
+		if err == nil {
+			return reflect.Indirect(inst).Type()
+		}
+		log.Debugf("M-04: model %q not registered, fallback to parseResultTypeFrom result %v", name, resInfo.ResultT)
+	}
 	return resInfo.ResultT
 }
 func convertMap2Result(mp map[string]interface{}, resInfo types.SqlResult, fieldIdx map[string][]int, row int) (interface{}, []ResultConvertError, error) {
 	if resInfo.ResultM != nil {
 		return convert2Result(mp, resInfo.ResultM, fieldIdx, row)
+	}
+	if resInfo.ResultTypeName != "" {
+		name := types.GetShortName(resInfo.ResultTypeName)
+		inst, err := gCache.createModel(name)
+		if err == nil {
+			typ := reflect.Indirect(inst).Type()
+			colErrs := setModelFieldValues(inst, mp, typ)
+			return reflect.Indirect(inst).Interface(), colErrs, nil
+		}
 	}
 	if resInfo.ResultT.Kind() != reflect.Map {
 		for col, v := range mp {
@@ -141,6 +160,69 @@ func buildFieldIndexMap(outTyp reflect.Type, rmp *types.ResultMap) map[string][]
 		}
 	}
 	return idxMap
+}
+
+// setModelFieldValues 按 resultType 推导的 struct 填充行对象（M-04）；
+// 列名自动匹配导出字段：先按 PascalCase（id→Id, create_time→CreateTime），再按原名。
+func setModelFieldValues(value reflect.Value, mp map[string]interface{}, typ reflect.Type) []ResultConvertError {
+	outVal := value.Elem()
+	fieldMap := buildAutoFieldMap(typ)
+	var errs []ResultConvertError
+	for col, val := range mp {
+		idx, ok := fieldMap[col]
+		if !ok {
+			continue
+		}
+		fval := outVal.FieldByIndex(idx)
+		rval, err := utils.ChangeType(val, fval.Type())
+		if err != nil {
+			errs = append(errs, ResultConvertError{
+				Column:  col,
+				Message: fmt.Sprintf("change `%v` to type %v failed: %v", val, fval.Type(), err),
+			})
+			continue
+		}
+		fval.Set(reflect.ValueOf(rval))
+	}
+	return errs
+}
+
+// buildAutoFieldMap 构建列名→字段索引映射（resultType 自动映射，M-04）：
+// snake_case 列名映射为 PascalCase 字段名（create_time → CreateTime），原列名也注册。
+func buildAutoFieldMap(typ reflect.Type) map[string][]int {
+	m := make(map[string][]int, typ.NumField())
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		m[f.Name] = f.Index
+		snake := camelToSnake(f.Name)
+		if snake != f.Name {
+			m[snake] = f.Index
+		}
+		lower := strings.ToLower(f.Name)
+		if lower != f.Name && lower != snake {
+			m[lower] = f.Index
+		}
+	}
+	return m
+}
+
+// camelToSnake PascalCase → snake_case（同 types/mp_builtin.go 的实现，orm 包内可见）
+func camelToSnake(s string) string {
+	var buf strings.Builder
+	for i, r := range s {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				buf.WriteByte('_')
+			}
+			buf.WriteRune(unicode.ToLower(r))
+		} else {
+			buf.WriteRune(r)
+		}
+	}
+	return buf.String()
 }
 
 func setColumnValues(value reflect.Value, rmp *types.ResultMap, mp map[string]interface{}) {
