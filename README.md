@@ -9,7 +9,8 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap`（含 `<association>` / `<collection>` 嵌套关联类型生成）
 - **自增主键回填**：`useGeneratedKeys` / `keyProperty` 支持，Insert 后自动回填自增主键到入参 struct 指针
 - **MyBatis-Plus 内置 CRUD**：`schema2code -mp` 从表结构直接生成 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）的 XML，原生加载、无需手写 GoExtraMapper；亦可在 **XML 含 resultMap 时加载期内存自动补生成**（无需落盘 CRUD XML），使用说明见 **docs/agents/mybatis-plus.md**
-- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES
+- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES，国产数据库适配进行中（TiDB/TDSQL/PolarDB/openGauss/GaussDB/HighGo/Vastbase/OceanBase/达梦等）
+- **Schema 缓存列类型推断**：查询结果列类型自动从 `information_schema` 推断（无需手写 resultMap 即可正确映射 time/bool/数字类型），可配置 TTL，DDL 后自动失效
 - **代码生成**：内置 `generator`（XML → Go）和 `schema2code`（数据库表 → Go）工具
 - **预编译缓存**：Prepared Statement 自动缓存和复用
 - **事务支持**：`orm.Begin()` / `Commit()` / `Rollback()`，事务开启后 Mapper 方法与 SQL 自动参与
@@ -25,6 +26,31 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - [x] KingbaseES 支持 — 已实现（人大金仓，兼容 PostgreSQL 线协议，复用 `lib/pq` 驱动，`cmd/kingbasedemo` 示例）
 - [x] 事务支持 — 已实现（`orm.Begin()` / `Commit()` / `Rollback()`）
 - [x] 多数据源支持 — 已实现（`orm.InitializeDataSources` / `orm.UseDataSource`）
+
+### 国产数据库适配计划
+
+**P0 — MySQL 兼容族**（零成本，复用 MySQL dialector）：
+
+- [ ] TiDB（PingCAP）— MySQL 协议高度兼容，复用 `go-sql-driver/mysql`，默认端口 4000
+- [ ] TDSQL（腾讯云）— MySQL 兼容，复用 `go-sql-driver/mysql`
+- [ ] PolarDB-MySQL（阿里云）— MySQL 兼容，复用 `go-sql-driver/mysql`
+
+**P1 — PostgreSQL 兼容族**（低难度，复用 KingbaseES 模式）：
+
+- [ ] openGauss（华为开源）— PG 兼容，`openGauss-connector-go-pq` 驱动（lib/pq fork）
+- [ ] GaussDB（华为云）— PG 兼容，官方 `gaussdb-go` 驱动（基于 pgx）
+- [ ] HighGo DB（瀚高）— PG 兼容，`highgo-lib` 驱动（lib/pq fork）
+- [ ] Vastbase（海量数据）— PG 兼容，直接使用 `lib/pq`
+
+**P2 — Oracle 方言族**（中高难度，需独立 dialector）：
+
+- [ ] OceanBase-MySQL（蚂蚁集团）— MySQL 模式零成本适配
+- [ ] OceanBase-Oracle（蚂蚁集团）— Oracle 模式，官方 `go-oceanbase-driver`
+- [ ] DM8 / 达梦 — 自有协议（Oracle 风格），官方 `sql-driver/dameng`
+
+**P3 — Informix 方言族**：
+
+- [ ] GBase 8s（南大通用）— Informix 兼容，社区 Go 驱动
 
 ## 安装
 

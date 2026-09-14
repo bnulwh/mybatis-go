@@ -62,11 +62,7 @@ func needsReturning() bool {
 	if gDbConn == nil || gDbConn.Dialector == nil {
 		return false
 	}
-	switch gDbConn.Dialector.Name() {
-	case "postgres", "kingbase":
-		return true
-	}
-	return false
+	return gDbConn.Dialector.NeedsReturning()
 }
 
 // keyColumnToSnake 把 keyProperty 驼峰名转为下划线列名（id → id, jobId → job_id, CreateTime → create_time）。

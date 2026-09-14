@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 )
 
 // p0-0：预编译语句缓存接通后的回归测试。
@@ -97,19 +99,18 @@ func Test_PreparedStmtBypassedInTx(t *testing.T) {
 
 // formatSQL 按方言转换占位符：PG/Kingbase ? -> $n，MySQL/SQLite 保留 ?
 func Test_DBFormatSQLDialect(t *testing.T) {
-	pg := &DB{Config: &Config{Dialector: NewPostgresDialector(&Config{})}}
+	pg := &DB{Config: &Config{Dialector: dialector.NewPostgresDialector(&Config{})}}
 	if got := pg.formatSQL("select * from t where a = ? and b = ?", []interface{}{1, 2}); got != "select * from t where a = $1 and b = $2" {
 		t.Errorf("postgres formatSQL failed, got: %q", got)
 	}
-	// 无参数 SQL 原样返回，避免误伤字面量 '?'
 	if got := pg.formatSQL("select '?' as q", nil); got != "select '?' as q" {
 		t.Errorf("no-arg formatSQL should be unchanged, got: %q", got)
 	}
-	my := &DB{Config: &Config{Dialector: NewMySqlDialector(&Config{})}}
+	my := &DB{Config: &Config{Dialector: dialector.NewMySqlDialector(&Config{})}}
 	if got := my.formatSQL("select * from t where a = ?", []interface{}{1}); got != "select * from t where a = ?" {
 		t.Errorf("mysql formatSQL should keep ?, got: %q", got)
 	}
-	sq := &DB{Config: &Config{Dialector: NewSqliteDialector(&Config{})}}
+	sq := &DB{Config: &Config{Dialector: dialector.NewSqliteDialector(&Config{})}}
 	if got := sq.formatSQL("select * from t where a = ?", []interface{}{1}); got != "select * from t where a = ?" {
 		t.Errorf("sqlite formatSQL should keep ?, got: %q", got)
 	}

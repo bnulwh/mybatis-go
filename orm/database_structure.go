@@ -41,7 +41,10 @@ func newDatabaseStructure(dbName, tables string) (*types.DatabaseStructure, erro
 }
 
 func fetchTables(dbName string) ([]string, error) {
-	sqlStr := tableListSQL(gDbConn.Setting, dbName)
+	if gDbConn == nil || gDbConn.Dialector == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+	sqlStr := gDbConn.Dialector.TableListSQL()
 	if sqlStr == "" {
 		log.Errorf("unsupport database type %v to get table list", gDbConn.Setting.Type)
 		return nil, fmt.Errorf("unsupport database type %v to get table list", gDbConn.Setting.Type)

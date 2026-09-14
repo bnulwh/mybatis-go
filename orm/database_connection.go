@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 	"sync"
 	"time"
 )
@@ -26,17 +27,8 @@ type DB struct {
 }
 
 func Open(cfg *Config) (db *DB, err error) {
-	var dialector Dialector
-	switch cfg.DriverName() {
-	case "postgres":
-		dialector = NewPostgresDialector(cfg)
-	case "kingbase":
-		dialector = NewKingbaseDialector(cfg)
-	case "mysql":
-		dialector = NewMySqlDialector(cfg)
-	case "sqlite":
-		dialector = NewSqliteDialector(cfg)
-	default:
+	d, err := dialector.NewForType(cfg.Setting.Type, cfg)
+	if err != nil {
 		return nil, ErrInvalidDB
 	}
 	db = &DB{
@@ -45,11 +37,15 @@ func Open(cfg *Config) (db *DB, err error) {
 		Statement: &Statement{},
 	}
 	db.Statement.init()
-	if dialector != nil {
-		db.Dialector = dialector
+	if d != nil {
+		db.Dialector = d
 	}
 	if db.Dialector != nil {
-		err = db.Dialector.Initialize(db)
+		pool, initErr := db.Dialector.Initialize()
+		if initErr != nil {
+			return nil, initErr
+		}
+		db.ConnPool = pool
 	}
 
 	preparedStmt := &PreparedStmtDB{
@@ -78,7 +74,6 @@ func (db *DB) close() {
 		preparedStmt.Close()
 	}
 
-	// PreparedStmt 模式下 ConnPool 是 PreparedStmtDB 包装，需通过 DB() 解包关闭底层连接
 	if sqldb, err := db.DB(); err == nil && sqldb != nil {
 		if err := sqldb.Close(); err != nil {
 			log.Errorf("close db error: %v", err)
@@ -86,9 +81,6 @@ func (db *DB) close() {
 	}
 }
 
-// formatSQL 按方言转换参数化 SQL 的占位符：
-// PostgreSQL/KingbaseES 需要 ? -> $n（lib/pq 不支持 ?），MySQL/SQLite 原样保留。
-// 仅在存在参数时转换，避免误伤无参数 SQL（如 DDL）中的字面量 '?'。
 func (db *DB) formatSQL(query string, args []interface{}) string {
 	if len(args) == 0 || db.Dialector == nil {
 		return query
@@ -135,8 +127,6 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 	start := time.Now()
 	query = db.applyTablePrefix(query)
 	query = db.formatSQL(query, args)
-	// DDL 可能改变表集合：无论执行成败都使表名缓存失效，下一条 SQL 重新获取真实表集合
-	// （失败时重取一次代价可忽略，且能覆盖事务内建表等无法感知的变更）
 	if isDDLStatement(query) {
 		defer db.invalidateTableNames()
 		defer db.invalidateTableStructures()
@@ -154,8 +144,6 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 	defer db.updateExecStatement(start, true)
 	cur := time.Now()
 	defer db.Statement.updateDBExecStatement(cur)
-	// 直接走 ConnPool：PreparedStmt 模式下为 PreparedStmtDB 包装（预编译缓存），
-	// 普通模式为 *sql.DB。不要用 db.DB() 解包，否则会绕过预编译缓存。
 	return db.ConnPool.ExecContext(ctx, query, args...)
 }
 func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {

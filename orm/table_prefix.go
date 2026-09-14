@@ -2,7 +2,6 @@ package orm
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -189,10 +188,10 @@ func (db *DB) invalidateTableNames() {
 // 使用底层 ConnPool 直接执行，绕过 applyTablePrefix（集合查询本身只访问
 // information_schema / sqlite_master / pg_class 等系统表，无需改写）。
 func (db *DB) fetchTableNames() (map[string]struct{}, error) {
-	if db == nil || db.ConnPool == nil {
+	if db == nil || db.ConnPool == nil || db.Dialector == nil {
 		return nil, nil
 	}
-	sqlStr := tableListSQL(db.Setting, db.Setting.Name)
+	sqlStr := db.Dialector.TableListSQL()
 	if sqlStr == "" {
 		return map[string]struct{}{}, nil
 	}
@@ -215,26 +214,6 @@ func (db *DB) fetchTableNames() (map[string]struct{}, error) {
 		return nil, err
 	}
 	return names, nil
-}
-
-// tableListSQL 返回列出指定 schema 真实表名的 SQL（按方言区分）；
-// 与框架内建的表结构探查（database_structure.go）共用同一套查询。
-func tableListSQL(setting MyBatisSetting, dbName string) string {
-	switch setting.Type {
-	case MySqlDb:
-		// MySQL 下 schema 即数据库名；显式配置 spring.datasource.schema 时以它为准
-		return fmt.Sprintf("select DISTINCT TABLE_NAME as table_name from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s'", setting.effectiveSchema(dbName))
-	case PostgresDb, KingbaseDb:
-		// 配置了 schema 时仅列该 schema 的表；未配置保持历史行为（列出所有 schema）
-		if schema := setting.Schema; schema != "" {
-			return fmt.Sprintf("select relname as TABLE_NAME from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind = 'r' and n.nspname = '%s' and c.relname not like 'pg_%%' and c.relname not like 'sql_%%'", schema)
-		}
-		return "select relname as TABLE_NAME from pg_class where  relkind = 'r' and relname not like 'pg_%' and relname not like 'sql_%'"
-	case SqliteDb:
-		return "select name as table_name from sqlite_master where type='table' and name not like 'sqlite_%'"
-	}
-	log.Errorf("unsupport database type %v to get table list", setting.Type)
-	return ""
 }
 
 // isDDLStatement 判断 SQL 是否属于可能改变表集合的 DDL（CREATE/DROP/ALTER/RENAME/TRUNCATE）。
@@ -445,6 +424,19 @@ func isSystemTable(name string) bool {
 		strings.HasPrefix(n, "pg_") ||
 		strings.HasPrefix(n, "sqlite_") ||
 		strings.HasPrefix(n, "pragma_")
+}
+
+func isSystemTableForPrefixes(name string, extraPrefixes []string) bool {
+	if isSystemTable(name) {
+		return true
+	}
+	n := strings.ToLower(name)
+	for _, p := range extraPrefixes {
+		if strings.HasPrefix(n, strings.ToLower(p)) {
+			return true
+		}
+	}
+	return false
 }
 
 // prefixable 判断该标识符是否应加前缀：排除系统表与已带前缀的表名。

@@ -82,10 +82,10 @@ func (db *DB) tableStructureSet() map[string]*types.TableStructure {
 }
 
 func (db *DB) fetchTableStructures() (map[string]*types.TableStructure, error) {
-	if db == nil || db.ConnPool == nil {
+	if db == nil || db.ConnPool == nil || db.Dialector == nil {
 		return nil, nil
 	}
-	sqlStr := tableListSQL(db.Setting, db.Setting.Name)
+	sqlStr := db.Dialector.TableListSQL()
 	if sqlStr == "" {
 		return map[string]*types.TableStructure{}, nil
 	}
@@ -120,33 +120,11 @@ func (db *DB) fetchTableStructures() (map[string]*types.TableStructure, error) {
 }
 
 func (db *DB) fetchSingleTableStructure(table string) (*types.TableStructure, error) {
-	var sqlStr string
-	switch db.Setting.Type {
-	case PostgresDb, KingbaseDb:
-		schema := db.Setting.effectiveSchema(db.Setting.Name)
-		attrelid := table
-		if schema != "public" {
-			attrelid = schema + "." + table
-		}
-		sqlStr = fmt.Sprintf(`SELECT
-    A.ordinal_position,A.table_name,A.column_name,CASE A.is_nullable WHEN 'NO' THEN 0 ELSE 1 END AS is_nullable,
-    col_description(B.attrelid,B.attnum) as column_comment,
-    A.data_type as column_type,coalesce(A.character_maximum_length, A.numeric_precision, -1) as length,
-    A.numeric_scale,CASE WHEN length(B.attname) > 0 THEN 'PRI' ELSE '' END AS column_key
-    FROM information_schema.columns A,pg_attribute B
-    WHERE A.column_name = B.attname AND B.attrelid = '%s' :: regclass   
-          AND  A.table_schema = '%s'  AND A.table_name = '%s'
-    ORDER BY A.ordinal_position ASC`, attrelid, schema, table)
-	case MySqlDb:
-		sqlStr = fmt.Sprintf(`select TABLE_NAME as table_name,COLUMN_NAME as column_name,
-    COLUMN_TYPE as column_type,COLUMN_COMMENT as column_comment,COLUMN_KEY as column_key 
-    from information_schema.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'
-    ORDER BY ORDINAL_POSITION ASC`, db.Setting.effectiveSchema(db.Setting.Name), table)
-	case SqliteDb:
-		sqlStr = fmt.Sprintf(`SELECT name AS column_name, type AS column_type,
-    '' AS column_comment, CASE WHEN pk > 0 THEN 'PRI' ELSE '' END AS column_key
-    FROM pragma_table_info('%s')`, table)
-	default:
+	if db == nil || db.Dialector == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+	sqlStr := db.Dialector.TableStructureSQL(table)
+	if sqlStr == "" {
 		return nil, fmt.Errorf("unsupport database type %v", db.Setting.Type)
 	}
 	ctx, cancel := withExecTimeout(context.Background())

@@ -1,24 +1,38 @@
 package orm
 
 import (
-	"context"
-	"database/sql"
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 )
 
-type ConnPool interface {
-	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
-	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
-	Stats() sql.DBStats
-}
+type ConnPool = dialector.ConnPool
 
-type Dialector interface {
-	Name() string
-	Initialize(*DB) error
-	FormatPrepareSQL(src string) string
-}
+type PlaceholderStyle = dialector.PlaceholderStyle
 
-type GetDBConnector interface {
-	GetDBConn() (*sql.DB, error)
-}
+const (
+	PlaceholderQuestion = dialector.PlaceholderQuestion
+	PlaceholderDollar   = dialector.PlaceholderDollar
+	PlaceholderColon    = dialector.PlaceholderColon
+)
+
+type DatabaseFamily = dialector.DatabaseFamily
+
+const (
+	FamilyPostgres = dialector.FamilyPostgres
+	FamilyMySQL    = dialector.FamilyMySQL
+	FamilySQLite   = dialector.FamilySQLite
+	FamilyOracle   = dialector.FamilyOracle
+	FamilyInformix = dialector.FamilyInformix
+)
+
+type DatabaseType = dialector.DatabaseType
+
+const (
+	MySqlDb    = dialector.MySqlDb
+	PostgresDb = dialector.PostgresDb
+	KingbaseDb = dialector.KingbaseDb
+	SqliteDb   = dialector.SqliteDb
+)
+
+type Dialector = dialector.Dialector
+
+type GetDBConnector = dialector.GetDBConnector

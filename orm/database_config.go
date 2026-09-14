@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -12,16 +13,10 @@ import (
 	"time"
 )
 
-type DatabaseType string
-
 const (
-	MySqlDb           DatabaseType = "mysql"
-	PostgresDb        DatabaseType = "postgres"
-	KingbaseDb        DatabaseType = "kingbase"
-	SqliteDb          DatabaseType = "sqlite"
-	DefaultMaxIdle                 = 100
-	DefaultMaxOpen                 = 100
-	DefaultMaxTimeout              = 300
+	DefaultMaxIdle    = dialector.DefaultMaxIdle
+	DefaultMaxOpen    = dialector.DefaultMaxOpen
+	DefaultMaxTimeout = dialector.DefaultMaxTimeout
 )
 
 type DatabaseSetting struct {
@@ -30,7 +25,7 @@ type DatabaseSetting struct {
 	Username string
 	Password string
 	Name     string
-	Schema   string // 模式：PG/Kingbase 的 schema（默认 public）；MySQL 下 schema 即数据库名，为空时等价于 Name
+	Schema   string
 	Type     DatabaseType
 }
 
@@ -39,10 +34,10 @@ type MyBatisSetting struct {
 	MapperLocations    string
 	TypeAliasPackage   string
 	MaxRows            int64
-	TablePrefix        string            // 数据表名前缀（如 test_），SQL 执行时自动拼接到表名前，空串不启用
-	TablePrefixMap     map[string]string // 前缀映射：oldprefix→newprefix（空值=移除），配置键 mybatis.table-prefix-map（2.1）
-	TablePrefixSetTTL    time.Duration     // 真实表集合缓存 TTL（0=永不过期），配置键 mybatis.table-prefix-set-ttl（2.4）
-	TableStructureTTL    time.Duration     // 表结构缓存 TTL（0=永不过期），配置键 mybatis.table-structure-ttl
+	TablePrefix        string
+	TablePrefixMap     map[string]string
+	TablePrefixSetTTL  time.Duration
+	TableStructureTTL  time.Duration
 }
 
 type Config struct {
@@ -54,8 +49,36 @@ type Config struct {
 	SpringConfig bool
 	Dialector
 	ConnPool   ConnPool
-	DSN        string // 自定义 DSN：非空时优先于 GenerateDSN()（注入自定义连接串）
+	DSN        string
 	cacheStore *sync.Map
+}
+
+func (c *Config) GetDSN() string                      { return c.DSN }
+func (c *Config) GetConnPool() dialector.ConnPool      { return c.ConnPool }
+func (c *Config) GetMaxTimeout() int                   { return c.MaxTimeout }
+func (c *Config) GetMaxOpen() int                      { return c.MaxOpen }
+func (c *Config) GetConnectParams() dialector.ConnectParams {
+	return dialector.ConnectParams{
+		Host:     c.Setting.Host,
+		Port:     c.Setting.Port,
+		Username: c.Setting.Username,
+		Password: c.Setting.Password,
+		DBName:   c.Setting.Name,
+		Schema:   c.Setting.Schema,
+		Type:     c.Setting.Type,
+	}
+}
+
+func (c *Config) GenerateDSN() string {
+	return dialector.GenerateDSN(c.GetConnectParams())
+}
+
+func (c *Config) DriverName() string {
+	return dialector.GetDriverName(c.Setting.Type)
+}
+
+func (c *Config) EffectiveSchema() string {
+	return dialector.EffectiveSchema(c.GetConnectParams())
 }
 
 func NewConfig(filename string) *Config {
@@ -69,7 +92,7 @@ func NewConfigFromSettings(cm map[string]string) *Config {
 	return cfg
 }
 func newDatabaseConfig(dbType, host string, port int, user, pwd, dbName string) *Config {
-	dt, err := parseDatabaseType(dbType)
+	dt, err := dialector.ParseDatabaseType(dbType)
 	if err != nil {
 		log.Errorf("parse datbase type failed.")
 		panic("parse datbase type failed.")
@@ -96,90 +119,13 @@ func newDatabaseConfig(dbType, host string, port int, user, pwd, dbName string) 
 	}
 }
 
-func (ds *DatabaseSetting) generateConn() string {
-	switch ds.Type {
-	case PostgresDb, KingbaseDb:
-		// KingbaseES 兼容 PostgreSQL 连接串格式；
-		// search_path 为 lib/pq 支持的运行时参数，连接建立后自动 SET，避免依赖库默认搜索路径
-		dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			ds.Host, ds.Port, ds.Username, ds.Password, ds.Name)
-		if ds.Schema != "" {
-			dsn += " search_path=" + ds.Schema
-		}
-		return dsn
-	case MySqlDb:
-		// parseTime=true 使 DATETIME/TIMESTAMP 列直接扫描为 time.Time
-		// （否则 go-sql-driver 返回 []byte 原始字节，无法 Scan 到时间字段）；
-		// loc=Local 按本机时区解析，与 SQLite 的 _loc=auto 语义一致。
-		if strings.Contains(ds.Name, "?") {
-			return fmt.Sprintf("%s:%s@tcp(%s)/%s&parseTime=true&loc=Local",
-				ds.Username, ds.Password, joinHostPort(ds.Host, ds.Port), ds.Name)
-		}
-		return fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&loc=Local",
-			ds.Username, ds.Password, joinHostPort(ds.Host, ds.Port), ds.Name)
-	case SqliteDb:
-		// Name 为 sqlite 文件路径；_loc=auto 使 DATETIME 列返回 time.Time
-		if strings.Contains(ds.Name, "?") {
-			return ds.Name
-		}
-		return fmt.Sprintf("%s?_loc=auto", ds.Name)
-	}
-	return ""
-}
-
-// joinHostPort 拼接 host:port；IPv6 地址（含冒号）需加方括号，驱动才能正确解析
-func joinHostPort(host string, port int64) string {
-	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
-		host = "[" + host + "]"
-	}
-	return fmt.Sprintf("%s:%d", host, port)
-}
-
-func (ds *DatabaseSetting) getDriver() string {
-	switch ds.Type {
-	case MySqlDb:
-		return "mysql"
-	case PostgresDb:
-		return "postgres"
-	case KingbaseDb:
-		return "kingbase"
-	case SqliteDb:
-		return "sqlite"
-	}
-	return ""
-}
-
-// effectiveSchema 返回表结构查询使用的 schema：
-//   - MySQL 下 schema 即数据库名，显式配置时优先，否则回退 dbName；
-//   - PG/Kingbase 未配置时默认 public（与历史硬编码行为一致）；
-//   - SQLite 无 schema 概念，返回空串。
-func (ds *DatabaseSetting) effectiveSchema(dbName string) string {
-	if ds.Schema != "" {
-		return ds.Schema
-	}
-	if ds.Type == MySqlDb {
-		return dbName
-	}
-	if ds.Type == SqliteDb {
-		return ""
-	}
-	return "public"
-}
-
-func (in *Config) GenerateDSN() string {
-	return in.Setting.generateConn()
-}
-func (in *Config) DriverName() string {
-	return in.Setting.getDriver()
-}
-
 func parseDatabaseConfig(m map[string]string) *Config {
 	tp, h, P, d, err := parseAddr(m)
 	if err != nil {
 		log.Errorf("parse postgres addr failed: %v", err)
 		panic(err)
 	}
-	dt, err := parseDatabaseType(tp)
+	dt, err := dialector.ParseDatabaseType(tp)
 	if err != nil {
 		log.Errorf("parse datbase type failed.")
 		panic("parse datbase type failed.")
@@ -230,8 +176,6 @@ func parseDatabaseConfig(m map[string]string) *Config {
 	}
 }
 
-// parseSchema 解析 schema 配置，按优先级：
-// spring.datasource.schema 键 > JDBC URL query 参数（currentSchema / search_path / schema）。
 func parseSchema(m map[string]string) string {
 	if v, ok := m["spring.datasource.schema"]; ok && strings.TrimSpace(v) != "" {
 		return strings.TrimSpace(v)
@@ -244,8 +188,6 @@ func parseSchema(m map[string]string) string {
 	return ""
 }
 
-// schemaFromURL 从 JDBC URL 的 query 参数提取 schema，兼容 PostgreSQL JDBC 的
-// currentSchema 与通用的 search_path / schema 两种写法（search_path 可含逗号多值）。
 func schemaFromURL(rawURL string) string {
 	q := rawURL
 	if i := strings.IndexByte(q, '?'); i >= 0 {
@@ -274,8 +216,6 @@ func schemaFromURL(rawURL string) string {
 	return ""
 }
 
-// parseTablePrefix 解析数据表名前缀，按优先级：
-// mybatis.table-prefix > mybatis-plus.global-config.db-config.table-prefix > spring.datasource.table-prefix。
 func parseTablePrefix(m map[string]string) string {
 	for _, key := range []string{
 		"mybatis.table-prefix",
@@ -289,9 +229,6 @@ func parseTablePrefix(m map[string]string) string {
 	return ""
 }
 
-// parseTablePrefixMap 解析前缀映射：mybatis.table-prefix-map = threedb_:,app_:subsp_
-// 逗号分隔多个 old:new；new 为空表示移除（剥离该前缀）；无冒号条目等价 old:（移除该前缀）；
-// 旧前缀为空（如输入 ":x" / ","）则忽略。
 func parseTablePrefixMap(m map[string]string) map[string]string {
 	raw := strings.TrimSpace(m["mybatis.table-prefix-map"])
 	if raw == "" {
@@ -320,8 +257,6 @@ func parseTablePrefixMap(m map[string]string) map[string]string {
 	return out
 }
 
-// parseTablePrefixSetTTL 解析表集合缓存 TTL：mybatis.table-prefix-set-ttl=1h（2.4）。
-// 0（默认）表示永不过期（保持历史行为：仅本进程 DDL 后失效）。
 func parseTablePrefixSetTTL(m map[string]string) time.Duration {
 	raw := strings.TrimSpace(m["mybatis.table-prefix-set-ttl"])
 	if raw == "" {
@@ -348,7 +283,6 @@ func parseTableStructureTTL(m map[string]string) time.Duration {
 	return d
 }
 
-// parseBool 解析布尔配置项；key 不存在或值非法时返回默认值。
 func parseBool(m map[string]string, key string, def bool) bool {
 	v, ok := m[key]
 	if !ok {
@@ -363,20 +297,6 @@ func parseBool(m map[string]string, key string, def bool) bool {
 	return def
 }
 
-func parseDatabaseType(tps string) (DatabaseType, error) {
-	switch strings.ToLower(tps) {
-	case "mysql":
-		return MySqlDb, nil
-	case "postgres", "postgresql":
-		return PostgresDb, nil
-	case "kingbase", "kingbase8", "kingbase7", "kingbase6", "kingbase5":
-		return KingbaseDb, nil
-	case "sqlite", "sqlite3":
-		return SqliteDb, nil
-	default:
-		return "", fmt.Errorf("not support database type %v", tps)
-	}
-}
 func parseAddr(m map[string]string) (string, string, int64, string, error) {
 	val, ok := m["spring.datasource.url"]
 	if !ok {
@@ -384,7 +304,6 @@ func parseAddr(m map[string]string) (string, string, int64, string, error) {
 	}
 	val = strings.TrimSpace(val)
 	if strings.HasPrefix(strings.ToLower(val), "jdbc:sqlite:") {
-		// jdbc:sqlite:path 或 jdbc:sqlite:file:path
 		path := val[len("jdbc:sqlite:"):]
 		path = strings.TrimPrefix(path, "file:")
 		return "sqlite", "", 0, path, nil
@@ -394,7 +313,6 @@ func parseAddr(m map[string]string) (string, string, int64, string, error) {
 	if len(matched) < 6 {
 		return "", "", 0, "", errors.New("unsupport format of spring.datasource.url")
 	}
-	// matched[2] 为 IPv6（方括号内），matched[3] 为 IPv4/域名
 	host := matched[2]
 	if host == "" {
 		host = matched[3]

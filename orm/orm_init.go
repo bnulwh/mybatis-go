@@ -42,9 +42,11 @@ func ReConnect() error {
 // Reconnect 重连当前 DB 的连接池（预编译缓存重建、旧连接关闭、Ping 验证）。
 func (db *DB) Reconnect() error {
 	oldSQLDB, _ := db.DB()
-	if err := db.Dialector.Initialize(db); err != nil {
+	pool, err := db.Dialector.Initialize()
+	if err != nil {
 		return err
 	}
+	db.ConnPool = pool
 	// 预编译缓存绑定的是旧连接，重连后必须重置缓存并指向新连接池
 	if v, ok := db.cacheStore.Load(preparedStmtDBKey); ok {
 		preparedStmt := v.(*PreparedStmtDB)

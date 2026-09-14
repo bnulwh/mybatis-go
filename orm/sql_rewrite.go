@@ -1,9 +1,10 @@
 package orm
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 )
 
 var (
@@ -16,16 +17,7 @@ var (
 )
 
 func applyPagination(query string, limit, offset int) string {
-	if limit <= 0 {
-		return query
-	}
-	q := strings.TrimRight(query, " \t\n\r;")
-	q = reLimit.ReplaceAllString(q, "")
-	q = reOffset.ReplaceAllString(q, "")
-	if offset > 0 {
-		return fmt.Sprintf("%s LIMIT %d OFFSET %d", q, limit, offset)
-	}
-	return fmt.Sprintf("%s LIMIT %d", q, limit)
+	return dialector.ApplyPagination(query, limit, offset)
 }
 
 func buildCountSQL(query string) string {

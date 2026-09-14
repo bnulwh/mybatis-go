@@ -3,26 +3,28 @@ package orm
 import (
 	"strings"
 	"testing"
+
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 )
 
 func Test_parseDatabaseType(t *testing.T) {
-	r, err := parseDatabaseType("Mysql")
+	r, err := dialector.ParseDatabaseType("Mysql")
 	if r != MySqlDb || err != nil {
 		t.Error("test parseDatabaseType failed.")
 	}
-	r1, err := parseDatabaseType("POSTGRES")
+	r1, err := dialector.ParseDatabaseType("POSTGRES")
 	if r1 != PostgresDb || err != nil {
 		t.Error("test parseDatabaseType failed.")
 	}
-	r2, err := parseDatabaseType("test")
+	r2, err := dialector.ParseDatabaseType("test")
 	if r2 != "" || err == nil {
 		t.Error("test parseDatabaseType failed.")
 	}
-	r3, err := parseDatabaseType("kingbase8")
+	r3, err := dialector.ParseDatabaseType("kingbase8")
 	if r3 != KingbaseDb || err != nil {
 		t.Error("test parseDatabaseType kingbase8 failed.")
 	}
-	r4, err := parseDatabaseType("Kingbase")
+	r4, err := dialector.ParseDatabaseType("Kingbase")
 	if r4 != KingbaseDb || err != nil {
 		t.Error("test parseDatabaseType kingbase failed.")
 	}
@@ -118,19 +120,19 @@ func Test_generateConn_MySQLParseTime(t *testing.T) {
 func Test_Config_CustomDSN(t *testing.T) {
 	cfg := newDatabaseConfig("mysql", "localhost", 3306, "root", "123456", "testdb")
 	cfg.DSN = "root:pwd@tcp(10.0.0.1:3307)/custom?parseTime=true&charset=utf8mb4&loc=Local"
-	d := NewMySqlDialector(cfg)
-	if d.DSN != cfg.DSN {
-		t.Errorf("mysql custom DSN not honored, got: %q", d.DSN)
+	d := dialector.NewMySqlDialector(cfg)
+	if d.DSN() != cfg.DSN {
+		t.Errorf("mysql custom DSN not honored, got: %q", d.DSN())
 	}
 	cfg2 := newDatabaseConfig("postgres", "localhost", 5432, "root", "123456", "testdb")
 	cfg2.DSN = "host=10.0.0.2 port=5433 user=root password=pwd dbname=custom sslmode=disable"
-	if d2 := NewPostgresDialector(cfg2); d2.DSN != cfg2.DSN {
-		t.Errorf("postgres custom DSN not honored, got: %q", d2.DSN)
+	if d2 := dialector.NewPostgresDialector(cfg2); d2.DSN() != cfg2.DSN {
+		t.Errorf("postgres custom DSN not honored, got: %q", d2.DSN())
 	}
 	cfg3 := newDatabaseConfig("sqlite", "", 0, "", "", "test.db")
 	cfg3.DSN = "/abs/custom.db?_loc=auto&_pragma=busy_timeout(5000)"
-	if d3 := NewSqliteDialector(cfg3); d3.DSN != cfg3.DSN {
-		t.Errorf("sqlite custom DSN not honored, got: %q", d3.DSN)
+	if d3 := dialector.NewSqliteDialector(cfg3); d3.DSN() != cfg3.DSN {
+		t.Errorf("sqlite custom DSN not honored, got: %q", d3.DSN())
 	}
 }
 
@@ -227,27 +229,24 @@ func Test_generateConn_schema(t *testing.T) {
 
 // Test_effectiveSchema 表结构查询的 schema 取值规则
 func Test_effectiveSchema(t *testing.T) {
-	// PG/Kingbase：默认 public
 	pg := newDatabaseConfig("postgres", "h", 1, "u", "p", "db")
-	if got := pg.Setting.effectiveSchema("db"); got != "public" {
+	if got := pg.EffectiveSchema(); got != "public" {
 		t.Errorf("pg effectiveSchema default failed, got: %q", got)
 	}
 	pg.Setting.Schema = "scm"
-	if got := pg.Setting.effectiveSchema("db"); got != "scm" {
+	if got := pg.EffectiveSchema(); got != "scm" {
 		t.Errorf("pg effectiveSchema configured failed, got: %q", got)
 	}
-	// MySQL：显式 schema 优先，否则回退库名
 	my := newDatabaseConfig("mysql", "h", 1, "u", "p", "mydb")
-	if got := my.Setting.effectiveSchema("mydb"); got != "mydb" {
+	if got := my.EffectiveSchema(); got != "mydb" {
 		t.Errorf("mysql effectiveSchema fallback failed, got: %q", got)
 	}
 	my.Setting.Schema = "otherdb"
-	if got := my.Setting.effectiveSchema("mydb"); got != "otherdb" {
+	if got := my.EffectiveSchema(); got != "otherdb" {
 		t.Errorf("mysql effectiveSchema override failed, got: %q", got)
 	}
-	// SQLite：无 schema
 	sq := newDatabaseConfig("sqlite", "", 0, "", "", "t.db")
-	if got := sq.Setting.effectiveSchema("t.db"); got != "" {
+	if got := sq.EffectiveSchema(); got != "" {
 		t.Errorf("sqlite effectiveSchema failed, got: %q", got)
 	}
 }

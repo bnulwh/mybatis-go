@@ -97,6 +97,71 @@
 
 （暂无待完成框架功能）
 
+### 国产数据库适配路线图
+
+> 基于现有 `Dialector` 接口（`orm/interfaces.go`）与 `DatabaseType` 常量（`orm/database_config.go`）扩展，
+> 参考已有 `sqlite_dialector.go` / `kingbase_dialector.go` 实现模式。
+> `newTableStruct()`（`orm/table_structure.go`）与 `tableListSQL()`（`orm/table_prefix.go`）
+> 已有按 DB 类型分支的 schema 查询 SQL，新增 DB 类型需补对应分支。
+
+#### P0 — MySQL 兼容族（零成本，复用 MySQL dialector）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 适配方式 | Go 驱动 |
+|--------|------|------|----------|----------|---------|
+| **TiDB** | PingCAP | MySQL 兼容 | 4000 | 复用 MySQL dialector，改默认端口 | `go-sql-driver/mysql`（完全兼容） |
+| **TDSQL** | 腾讯云 | MySQL 兼容 | 3306 | 复用 MySQL dialector | `go-sql-driver/mysql` |
+| **PolarDB-MySQL** | 阿里云 | MySQL 兼容 | 3306 | 复用 MySQL dialector | `go-sql-driver/mysql` |
+
+实现要点：在 `DatabaseType` 新增常量（`DBTiDB`/`DBTDSQL`/`DBPolarDBMySQL`），
+`Open()` switch 走 MySQL 分支，`JDBC URL` 解析识别 `jdbc:tidb`/`jdbc:tdsql`/`jdbc:polardb`，
+仅改默认端口映射。`information_schema` 查询复用 MySQL 分支。
+
+#### P1 — PostgreSQL 兼容族（低难度，复用 KingbaseES 策略）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 适配方式 | Go 驱动 |
+|--------|------|------|----------|----------|---------|
+| **openGauss** | 华为开源 | PG 兼容 | 5432 | 复用 `lib/pq` 注册别名 | `openGauss-connector-go-pq`（lib/pq fork，注册名 `opengauss`） |
+| **GaussDB** | 华为云 | PG 兼容 | 5432/8000 | 独立驱动 `gaussdb-go` | `github.com/HuaweiCloudDeveloper/gaussdb-go`（官方，基于 pgx） |
+| **HighGo DB** | 瀚高 | PG 兼容 | 5866 | 复用 `lib/pq` 注册别名 | `github.com/melf-xyzh/highgo-lib`（lib/pq fork） |
+| **Vastbase** | 海量数据 | PG 兼容 | 5432 | 复用 `lib/pq` | 直接使用 `lib/pq` |
+
+实现要点：
+- openGauss/HighGo/Vastbase：同 KingbaseES 模式，`init()` 中 `sql.Register("opengauss"/"highgo"/"vastbase", &pq.Driver{})`，
+  `FormatPrepareSQL()` 返回 `$1/$2` 风格，`information_schema` 查询复用 PG 分支
+- GaussDB：使用官方 `gaussdb-go` 驱动（基于 pgx 架构，含 `database/sql` 适配层 `stdlib`），
+  连接串格式 `gaussdb://user:pass@host:5432/db`，占位符 `$1/$2`
+
+#### P2 — Oracle 方言族（中高难度，需独立 dialector）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 适配方式 | Go 驱动 |
+|--------|------|------|----------|----------|---------|
+| **OceanBase-MySQL** | 蚂蚁集团 | MySQL 兼容 | 2881/2883 | 复用 MySQL dialector | `go-sql-driver/mysql` |
+| **OceanBase-Oracle** | 蚂蚁集团 | Oracle 兼容 | 2881/2883 | 独立 dialector | `github.com/oceanbase-driver/go-oceanbase-driver`（官方） |
+| **DM8/达梦** | 达梦公司 | 自有（Oracle 风格） | 5236 | 独立 dialector | `github.com/sophon-zt/sql-driver/dameng`（官方） |
+
+实现要点：
+- OceanBase-MySQL：同 P0 零成本适配
+- OceanBase-Oracle / DM8：占位符 `:1/:2` 或 `?`（DM8 模式依赖）；SQL 方言偏 Oracle（`DUAL`/`SYSDATE`/`SEQUENCE`/`ROWNUM`）；
+  自增用 `IDENTITY` 或 `SEQUENCE`；`LastInsertId` 支持有限；标识符引用用双引号而非反引号；
+  `useGeneratedKeys` RETURNING 路径需改为 Oracle 风格（`RETURNING ... INTO ...`）；
+  GORM 已有 `gorm-dameng` 可参考实现
+- `information_schema` 查询需改为 DM8/OceanBase 系统视图（`ALL_TAB_COLUMNS`/`USER_TABLES` 等）
+
+#### P3 — Informix 方言族（高难度，生态较小）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 适配方式 | Go 驱动 |
+|--------|------|------|----------|----------|---------|
+| **GBase 8s** | 南大通用 | Informix 兼容 | 9088 | 独立 dialector | `github.com/team-ide/go-driver/db_gbase`（社区） |
+
+实现要点：`SERIAL` 自增、`FIRST n` 分页（无 `LIMIT`）、`::` 类型转换；
+GORM 有社区驱动 `gitee.com/GBase8s/gorm-gbase` 可参考
+
+#### P4 — 暂不可行（无 Go 驱动）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 状态 |
+|--------|------|------|----------|------|
+| **神通/Oscar** | 神舟通用 | 自有（类 Oracle） | 2003 | 无 Go 驱动，需厂商提供 CGo 绑定或 ODBC 桥接 |
+
 ---
 
 ## 📌 业务侧约定（非框架改动，生成器/业务层处理）
