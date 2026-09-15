@@ -43,6 +43,7 @@ const (
 	OceanBaseDb      DatabaseType = "oceanbase"
 	OceanBaseOracleDb DatabaseType = "oceanbase-oracle"
 	DamengDb         DatabaseType = "dameng"
+	GBase8sDb        DatabaseType = "gbase8s"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
@@ -55,6 +56,8 @@ func (dt DatabaseType) Family() DatabaseFamily {
 		return FamilySQLite
 	case OceanBaseOracleDb, DamengDb:
 		return FamilyOracle
+	case GBase8sDb:
+		return FamilyInformix
 	default:
 		return DatabaseFamily("")
 	}
@@ -90,6 +93,8 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return OceanBaseOracleDb, nil
 	case "dameng", "dm", "dm8":
 		return DamengDb, nil
+	case "gbase8s", "gbase", "gbase-8s":
+		return GBase8sDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -125,6 +130,8 @@ func GetDriverName(dbType DatabaseType) string {
 		return "oceanbase-oracle"
 	case DamengDb:
 		return "dameng"
+	case GBase8sDb:
+		return "gbase8s"
 	default:
 		return string(dbType)
 	}
@@ -151,6 +158,8 @@ func EffectiveSchema(params ConnectParams) string {
 		return ""
 	case FamilyOracle:
 		return strings.ToUpper(params.Username)
+	case FamilyInformix:
+		return strings.ToUpper(params.Username)
 	default:
 		return "public"
 	}
@@ -166,6 +175,8 @@ func GenerateDSN(params ConnectParams) string {
 		return generateSQLiteDSN(params)
 	case FamilyOracle:
 		return generateOracleDSN(params)
+	case FamilyInformix:
+		return generateInformixDSN(params)
 	}
 	return ""
 }
@@ -204,6 +215,10 @@ func joinHostPort(host string, port int64) string {
 
 func generateOracleDSN(p ConnectParams) string {
 	return fmt.Sprintf("%s/%s@%s:%d/%s", p.Username, p.Password, p.Host, p.Port, p.DBName)
+}
+
+func generateInformixDSN(p ConnectParams) string {
+	return fmt.Sprintf("%s:%s@%s:%d/%s", p.Username, p.Password, p.Host, p.Port, p.DBName)
 }
 
 var ErrUnsupportedDatabase = errors.New("unsupported database type")
@@ -268,6 +283,8 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewOceanBaseOracleDialector(cfg), nil
 	case DamengDb:
 		return NewDamengDialector(cfg), nil
+	case GBase8sDb:
+		return NewGBase8sDialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

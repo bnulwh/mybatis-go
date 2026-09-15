@@ -129,6 +129,9 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"dameng", DamengDb},
 		{"dm", DamengDb},
 		{"dm8", DamengDb},
+		{"gbase8s", GBase8sDb},
+		{"gbase", GBase8sDb},
+		{"gbase-8s", GBase8sDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -184,6 +187,9 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if DamengDb.Family() != FamilyOracle {
 		t.Errorf("DamengDb.Family() = %q, want %q", DamengDb.Family(), FamilyOracle)
 	}
+	if GBase8sDb.Family() != FamilyInformix {
+		t.Errorf("GBase8sDb.Family() = %q, want %q", GBase8sDb.Family(), FamilyInformix)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -205,6 +211,7 @@ func Test_GetDriverName(t *testing.T) {
 		{OceanBaseDb, "oceanbase"},
 		{OceanBaseOracleDb, "oceanbase-oracle"},
 		{DamengDb, "dameng"},
+		{GBase8sDb, "gbase8s"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -418,6 +425,7 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Username: "root", Type: OceanBaseDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Username: "SYS", Type: OceanBaseOracleDb}, "SYS"},
 		{ConnectParams{DBName: "mydb", Username: "SYSDBA", Type: DamengDb}, "SYSDBA"},
+		{ConnectParams{DBName: "mydb", Username: "informix", Type: GBase8sDb}, "INFORMIX"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -479,6 +487,10 @@ func Test_GenerateDSN(t *testing.T) {
 	if got := GenerateDSN(damengParams); got != "SYSDBA/123456@10.0.0.1:5236/testdb" {
 		t.Errorf("GenerateDSN dameng = %q", got)
 	}
+	gbase8sParams := ConnectParams{Host: "10.0.0.1", Port: 9088, Username: "informix", Password: "123456", DBName: "testdb", Type: GBase8sDb}
+	if got := GenerateDSN(gbase8sParams); got != "informix:123456@10.0.0.1:9088/testdb" {
+		t.Errorf("GenerateDSN gbase8s = %q", got)
+	}
 }
 
 func Test_NewForType(t *testing.T) {
@@ -533,6 +545,10 @@ func Test_NewForType(t *testing.T) {
 	d13, err := NewForType(DamengDb, &testConfig{dbType: DamengDb})
 	if err != nil || d13.Name() != "dameng" {
 		t.Errorf("NewForType dameng failed: %v, name=%q", err, d13.Name())
+	}
+	d14, err := NewForType(GBase8sDb, &testConfig{dbType: GBase8sDb})
+	if err != nil || d14.Name() != "gbase8s" {
+		t.Errorf("NewForType gbase8s failed: %v, name=%q", err, d14.Name())
 	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")
@@ -653,5 +669,42 @@ func Test_DamengPlaceholderStyle(t *testing.T) {
 	d := NewDamengDialector(&testConfig{dbType: DamengDb})
 	if d.PlaceholderStyle() != PlaceholderColon {
 		t.Errorf("dameng placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderColon)
+	}
+}
+
+func Test_GBase8sFormatPrepareSQL(t *testing.T) {
+	d := NewGBase8sDialector(&testConfig{dbType: GBase8sDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	if got != src {
+		t.Errorf("gbase8s format prepare sql should keep ?, got: %q", got)
+	}
+}
+
+func Test_GBase8sNeedsReturning(t *testing.T) {
+	d := NewGBase8sDialector(&testConfig{dbType: GBase8sDb})
+	if d.NeedsReturning() {
+		t.Error("gbase8s should not need RETURNING")
+	}
+}
+
+func Test_GBase8sDialectorName(t *testing.T) {
+	d := NewGBase8sDialector(&testConfig{dbType: GBase8sDb})
+	if d.Name() != "gbase8s" {
+		t.Errorf("gbase8s dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_GBase8sFamily(t *testing.T) {
+	d := NewGBase8sDialector(&testConfig{dbType: GBase8sDb})
+	if d.Family() != FamilyInformix {
+		t.Errorf("gbase8s family failed, got: %q want: %q", d.Family(), FamilyInformix)
+	}
+}
+
+func Test_GBase8sPlaceholderStyle(t *testing.T) {
+	d := NewGBase8sDialector(&testConfig{dbType: GBase8sDb})
+	if d.PlaceholderStyle() != PlaceholderQuestion {
+		t.Errorf("gbase8s placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderQuestion)
 	}
 }

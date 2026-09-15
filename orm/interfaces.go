@@ -41,6 +41,7 @@ const (
 	OceanBaseDb      = dialector.OceanBaseDb
 	OceanBaseOracleDb = dialector.OceanBaseOracleDb
 	DamengDb         = dialector.DamengDb
+	GBase8sDb        = dialector.GBase8sDb
 )
 
 type Dialector = dialector.Dialector

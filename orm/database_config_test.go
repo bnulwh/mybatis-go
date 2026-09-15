@@ -72,6 +72,14 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r15 != DamengDb || err != nil {
 		t.Error("test parseDatabaseType dm8 failed.")
 	}
+	r16, err := dialector.ParseDatabaseType("gbase8s")
+	if r16 != GBase8sDb || err != nil {
+		t.Error("test parseDatabaseType gbase8s failed.")
+	}
+	r17, err := dialector.ParseDatabaseType("gbase")
+	if r17 != GBase8sDb || err != nil {
+		t.Error("test parseDatabaseType gbase failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -149,6 +157,11 @@ func Test_parseAddr(t *testing.T) {
 	tp14, host14, port14, db14, err := parseAddr(mp)
 	if tp14 != "dameng" || host14 != "10.1.2.3" || port14 != 5236 || db14 != "dameng_test" || err != nil {
 		t.Error("test parseAddr dameng failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:gbase8s://10.1.2.3:9088/gbase_test"
+	tp15, host15, port15, db15, err := parseAddr(mp)
+	if tp15 != "gbase8s" || host15 != "10.1.2.3" || port15 != 9088 || db15 != "gbase_test" || err != nil {
+		t.Error("test parseAddr gbase8s failed.")
 	}
 }
 

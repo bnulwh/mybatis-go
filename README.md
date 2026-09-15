@@ -9,7 +9,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap`（含 `<association>` / `<collection>` 嵌套关联类型生成）
 - **自增主键回填**：`useGeneratedKeys` / `keyProperty` 支持，Insert 后自动回填自增主键到入参 struct 指针
 - **MyBatis-Plus 内置 CRUD**：`schema2code -mp` 从表结构直接生成 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）的 XML，原生加载、无需手写 GoExtraMapper；亦可在 **XML 含 resultMap 时加载期内存自动补生成**（无需落盘 CRUD XML），使用说明见 **docs/agents/mybatis-plus.md**
-- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES、TiDB、TDSQL、PolarDB-MySQL、openGauss、GaussDB、HighGo DB、Vastbase、OceanBase（MySQL/Oracle 模式）、达梦 DM8，国产数据库适配进行中
+- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES、TiDB、TDSQL、PolarDB-MySQL、openGauss、GaussDB、HighGo DB、Vastbase、OceanBase（MySQL/Oracle 模式）、达梦 DM8、GBase 8s（南大通用），国产数据库适配已完成
 - **Schema 缓存列类型推断**：查询结果列类型自动从 `information_schema` 推断（无需手写 resultMap 即可正确映射 time/bool/数字类型），可配置 TTL，DDL 后自动失效
 - **代码生成**：内置 `generator`（XML → Go）和 `schema2code`（数据库表 → Go）工具
 - **预编译缓存**：Prepared Statement 自动缓存和复用
@@ -50,7 +50,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 
 **P3 — Informix 方言族**：
 
-- [ ] GBase 8s（南大通用）— Informix 兼容，社区 Go 驱动
+- [x] GBase 8s（南大通用）— Informix 兼容，独立 `GBase8sDialector`（Informix 方言族），占位符 `?`，`cmd/gbase8sdemo` 示例
 
 ## 安装
 
@@ -76,6 +76,7 @@ go get github.com/bnulwh/mybatis-go
 | OceanBase | 无需引入（框架自动以 `oceanbase` 名称注册 `go-sql-driver/mysql`） |
 | OceanBase-Oracle | `_ "github.com/oceanbase/oceanbase-driver-go"`（需用户引入驱动） |
 | 达梦 DM8 | `_ "dmdb.com/dm"`（需用户引入驱动） |
+| GBase 8s | `_ "github.com/alexgarrec/go-informix"`（需用户引入驱动） |
 
 ## 快速开始
 
@@ -159,7 +160,7 @@ func main() {
 }
 ```
 
-完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go`、`cmd/kingbasedemo/main.go`、`cmd/tidbdemo/main.go`、`cmd/tdsqldemo/main.go`、`cmd/polardbdemo/main.go`、`cmd/opengaussdemo/main.go`、`cmd/gaussdbdemo/main.go`、`cmd/highgodemo/main.go`、`cmd/vastbasedemo/main.go`、`cmd/oceanbasedemo/main.go`、`cmd/oboracledemo/main.go` 和 `cmd/damengdemo/main.go`。
+完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go`、`cmd/kingbasedemo/main.go`、`cmd/tidbdemo/main.go`、`cmd/tdsqldemo/main.go`、`cmd/polardbdemo/main.go`、`cmd/opengaussdemo/main.go`、`cmd/gaussdbdemo/main.go`、`cmd/highgodemo/main.go`、`cmd/vastbasedemo/main.go`、`cmd/oceanbasedemo/main.go`、`cmd/oboracledemo/main.go`、`cmd/damengdemo/main.go` 和 `cmd/gbase8sdemo/main.go`。
 
 ## 大结果集流式查询
 
@@ -425,6 +426,18 @@ mybatis.mapper-locations= resources/mapper
 
 Oracle 方言族占位符自动 `?`→`:1`/`:2`…；`NeedsReturning` 返回 false。用户需引入达梦驱动（`_ "dmdb.com/dm"`）。
 
+### GBase 8s（南大通用）
+
+```properties
+# GBase 8s — Informix 兼容族，默认端口 9088
+spring.datasource.url= jdbc:gbase8s://localhost:9088/testdb
+spring.datasource.username= informix
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+Informix 方言族占位符保持 `?`；`NeedsReturning` 返回 false；`EffectiveSchema` 返回 `UPPER(Username)`。用户需引入 Informix 驱动（`_ "github.com/alexgarrec/go-informix"`）。
+
 ### TiDB（PingCAP）
 
 ```properties
@@ -498,6 +511,7 @@ err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "
 // 或 orm.InitializeDatabase("oceanbase", "localhost", 2881, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("oceanbase-oracle", "localhost", 2881, "SYS", "123456", "testdb")
 // 或 orm.InitializeDatabase("dameng", "localhost", 5236, "SYSDBA", "123456", "testdb")
+// 或 orm.InitializeDatabase("gbase8s", "localhost", 9088, "informix", "123456", "testdb")
 ```
 
 ### 数据表名前缀
@@ -649,7 +663,7 @@ go build -o schema2code cmd/schema2code/main.go
 ```
 
 参数说明：
-- `-type` 数据库类型：`mysql` / `postgres` / `kingbase` / `sqlite` / `tidb` / `tdsql` / `polardb` / `opengauss` / `gaussdb` / `highgo` / `vastbase` / `oceanbase` / `oceanbase-oracle` / `dameng`
+- `-type` 数据库类型：`mysql` / `postgres` / `kingbase` / `sqlite` / `tidb` / `tdsql` / `polardb` / `opengauss` / `gaussdb` / `highgo` / `vastbase` / `oceanbase` / `oceanbase-oracle` / `dameng` / `gbase8s`
 - `-host` 数据库地址
 - `-port` 端口
 - `-username` / `-password` 认证信息（SQLite 无需填写）
@@ -676,6 +690,7 @@ go run ./cmd/vastbasedemo   # Vastbase（海量数据，PostgreSQL 兼容）
 go run ./cmd/oceanbasedemo  # OceanBase MySQL 模式（蚂蚁集团，MySQL 兼容）
 go run ./cmd/oboracledemo   # OceanBase Oracle 模式（蚂蚁集团，Oracle 方言族）
 go run ./cmd/damengdemo     # 达梦 DM8（Oracle 方言族）
+go run ./cmd/gbase8sdemo    # GBase 8s（南大通用，Informix 方言族）
 ```
 
 ## 重要说明
@@ -692,6 +707,7 @@ go run ./cmd/damengdemo     # 达梦 DM8（Oracle 方言族）
 - OceanBase Oracle 模式需用户引入驱动（`_ "github.com/oceanbase/oceanbase-driver-go"`），框架未内置该驱动
 - 达梦 DM8 需用户引入驱动（`_ "dmdb.com/dm"`），框架未内置该驱动
 - Oracle 方言族（OceanBase-Oracle / 达梦）占位符自动 `?`→`:1`/`:2`…，`NeedsReturning` 返回 false
+- Informix 方言族（GBase 8s）占位符保持 `?`，`NeedsReturning` 返回 false，`EffectiveSchema` 返回 `UPPER(Username)`
 - 日志通过 `orm.SetLogger` 替换，实现 `log.Logger` 接口即可
 - 事务：`orm.Begin()` 开启后 Mapper 方法自动在事务内执行，`Commit()` / `Rollback()` 结束事务（见「事务」章节）
 
@@ -715,6 +731,7 @@ go run ./cmd/damengdemo     # 达梦 DM8（Oracle 方言族）
 │   ├── oceanbasedemo/   # OceanBase MySQL 模式使用示例
 │   ├── oboracledemo/    # OceanBase Oracle 模式使用示例
 │   ├── damengdemo/      # 达梦 DM8 使用示例
+│   ├── gbase8sdemo/     # GBase 8s 使用示例
 │   └── demo/            # 通用使用示例
 ├── orm/                 # 核心 ORM 框架
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
@@ -726,6 +743,7 @@ go run ./cmd/damengdemo     # 达梦 DM8（Oracle 方言族）
 │   │   ├── tidb.go / tdsql.go / polardb.go   # P0 国产数据库（MySQL 兼容族）
 │   │   ├── opengauss.go / gaussdb.go / highgo.go / vastbase.go   # P1 国产数据库（PostgreSQL 兼容族）
 │   │   ├── oceanbase.go / oceanbase_oracle.go / dameng.go       # P2 国产数据库（Oracle 方言族）
+│   │   ├── gbase8s.go                                          # P3 国产数据库（Informix 方言族）
 │   │   └── types.go / base.go                 # 类型定义 + 公共基类
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
 ├── types/               # XML 解析引擎和数据类型
@@ -747,6 +765,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **v0.2.6（国产数据库 P3 适配，2026-09-15）**：P3 Informix 方言族 GBase 8s 适配 — GBase 8s（南大通用）：Informix 兼容，独立 `GBase8sDialector`（Informix 方言族），占位符保持 `?`，`NeedsReturning` 返回 false，`SYSCOLUMNS`+`SYSTABLES` 表结构查询，`EffectiveSchema` 返回 `UPPER(Username)`，DSN 格式 `user:password@host:port/dbname`；JDBC URL 支持 `jdbc:gbase8s://` 格式；新增 `DatabaseFamily.Informix` 族；`cmd/gbase8sdemo` 示例；`application-gbase8s.properties` 配置模板；用户需引入 Informix 驱动（`_ "github.com/alexgarrec/go-informix"`）；dialector 单元测试覆盖占位符格式、`NeedsReturning`、DSN 生成、`ParseDatabaseType`（含 `gbase`/`gbase-8s` 别名）、`Family` 映射、`GetDriverName`、`EffectiveSchema`
 - **v0.2.5（国产数据库 P2 适配，2026-09-15）**：P2 Oracle 方言族三款国产数据库适配 — ① OceanBase-MySQL（蚂蚁集团）：MySQL 模式零成本适配，复用 `go-sql-driver/mysql`，默认端口 2881，框架自动以 `oceanbase` 名称注册驱动，内嵌 `MySqlDialector`；② OceanBase-Oracle（蚂蚁集团）：Oracle 模式独立 `OceanBaseOracleDialector`（Oracle 方言族），占位符 `?`→`:n`，`NeedsReturning` 返回 false，`ALL_TAB_COLUMNS` + `ALL_CONSTRAINTS` 表结构查询，用户需引入 `go-oceanbase-driver`；③ DM8/达梦：自有协议 Oracle 风格，独立 `DamengDialector`（Oracle 方言族），占位符 `?`→`:n`，`NeedsReturning` 返回 false，`ALL_TAB_COLUMNS` + `ALL_CONSTRAINTS` 表结构查询，用户需引入 `dmdb.com/dm` 驱动。新增 `DatabaseFamily.Oracle` 族：`EffectiveSchema` 返回 `UPPER(Username)`，DSN 格式 `user/password@host:port/dbname`；JDBC URL 支持 `jdbc:oceanbase://`/`jdbc:oceanbase-oracle://`/`jdbc:dameng://` 格式；`parseAddr` 正则支持连字符协议前缀；`cmd/oceanbasedemo`/`cmd/oboracledemo`/`cmd/damengdemo` 示例；`application-oceanbase.properties`/`application-oboracle.properties`/`application-dameng.properties` 配置模板；dialector 单元测试覆盖驱动注册、占位符格式、`NeedsReturning`、DSN 生成、`ParseDatabaseType`（含 `dm`/`dm8`/`oboracle` 别名）、`Family` 映射、`GetDriverName`、`EffectiveSchema`
 - **v0.2.4（国产数据库 P1 适配，2026-09-15）**：P1 PostgreSQL 兼容族四款国产数据库低难度适配 — ① openGauss（华为开源）：PG 协议兼容，复用 `lib/pq` 驱动，框架自动以 `opengauss` 名称注册驱动；② GaussDB（华为云）：PG 协议兼容，复用 `lib/pq` 驱动，框架自动以 `gaussdb` 名称注册驱动；③ HighGo DB（瀚高）：PG 协议兼容，复用 `lib/pq` 驱动，框架自动以 `highgo` 名称注册驱动；④ Vastbase（海量数据）：PG 协议兼容，复用 `lib/pq` 驱动，框架自动以 `vastbase` 名称注册驱动。四款 dialector 均内嵌 `PostgresDialector`（占位符 `?`→`$n`、`NeedsReturning` 返回 true、`information_schema` + `pg_attribute` 表结构查询、PG 格式 DSN 生成），JDBC URL 支持 `jdbc:opengauss://`/`jdbc:gaussdb://`/`jdbc:highgo://`/`jdbc:vastbase://` 格式；`cmd/opengaussdemo`/`cmd/gaussdbdemo`/`cmd/highgodemo`/`cmd/vastbasedemo` 示例；`application-opengauss.properties`/`application-gaussdb.properties`/`application-highgo.properties`/`application-vastbase.properties` 配置模板；dialector 单元测试覆盖驱动注册、占位符格式、`NeedsReturning`、DSN 生成、`ParseDatabaseType`、`Family` 映射、`GetDriverName`
 - **v0.2.3（国产数据库 P0 适配，2026-09-15）**：P0 MySQL 兼容族三款国产数据库零成本适配 — ① TiDB（PingCAP）：MySQL 协议高度兼容，复用 `go-sql-driver/mysql`，默认端口 4000，框架自动以 `tidb` 名称注册驱动；② TDSQL（腾讯云）：MySQL 兼容，复用 `go-sql-driver/mysql`；③ PolarDB-MySQL（阿里云）：MySQL 兼容，复用 `go-sql-driver/mysql`。三款 dialector 均内嵌 `MySqlDialector`（占位符 `?` 保留、`LastInsertId` 回填、`information_schema` 表结构查询、`parseTime=true` DSN 自动追加），JDBC URL 支持 `jdbc:tidb://`/`jdbc:tdsql://`/`jdbc:polardb://` 格式；`cmd/tidbdemo`/`cmd/tdsqldemo`/`cmd/polardbdemo` 示例；`application-tidb.properties`/`application-tdsql.properties`/`application-polardb.properties` 配置模板；dialector 单元测试覆盖驱动注册、占位符格式、`NeedsReturning`、DSN 生成、`ParseDatabaseType`、`Family` 映射、`GetDriverName`
