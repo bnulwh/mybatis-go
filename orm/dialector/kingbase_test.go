@@ -114,6 +114,21 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"polardb", PolarDBMyDb},
 		{"polardb-mysql", PolarDBMyDb},
 		{"polardb_mysql", PolarDBMyDb},
+		{"opengauss", OpenGaussDb},
+		{"opengauss-server", OpenGaussDb},
+		{"gaussdb", GaussDBDb},
+		{"gaussdb-pg", GaussDBDb},
+		{"highgo", HighGoDb},
+		{"highgodb", HighGoDb},
+		{"vastbase", VastbaseDb},
+		{"vastbasedb", VastbaseDb},
+		{"oceanbase", OceanBaseDb},
+		{"oceanbase-mysql", OceanBaseDb},
+		{"oceanbase-oracle", OceanBaseOracleDb},
+		{"oboracle", OceanBaseOracleDb},
+		{"dameng", DamengDb},
+		{"dm", DamengDb},
+		{"dm8", DamengDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -148,6 +163,27 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if PolarDBMyDb.Family() != FamilyMySQL {
 		t.Errorf("PolarDBMyDb.Family() = %q, want %q", PolarDBMyDb.Family(), FamilyMySQL)
 	}
+	if OpenGaussDb.Family() != FamilyPostgres {
+		t.Errorf("OpenGaussDb.Family() = %q, want %q", OpenGaussDb.Family(), FamilyPostgres)
+	}
+	if GaussDBDb.Family() != FamilyPostgres {
+		t.Errorf("GaussDBDb.Family() = %q, want %q", GaussDBDb.Family(), FamilyPostgres)
+	}
+	if HighGoDb.Family() != FamilyPostgres {
+		t.Errorf("HighGoDb.Family() = %q, want %q", HighGoDb.Family(), FamilyPostgres)
+	}
+	if VastbaseDb.Family() != FamilyPostgres {
+		t.Errorf("VastbaseDb.Family() = %q, want %q", VastbaseDb.Family(), FamilyPostgres)
+	}
+	if OceanBaseDb.Family() != FamilyMySQL {
+		t.Errorf("OceanBaseDb.Family() = %q, want %q", OceanBaseDb.Family(), FamilyMySQL)
+	}
+	if OceanBaseOracleDb.Family() != FamilyOracle {
+		t.Errorf("OceanBaseOracleDb.Family() = %q, want %q", OceanBaseOracleDb.Family(), FamilyOracle)
+	}
+	if DamengDb.Family() != FamilyOracle {
+		t.Errorf("DamengDb.Family() = %q, want %q", DamengDb.Family(), FamilyOracle)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -162,6 +198,13 @@ func Test_GetDriverName(t *testing.T) {
 		{TiDBDb, "tidb"},
 		{TDSQLDb, "tdsql"},
 		{PolarDBMyDb, "polardb"},
+		{OpenGaussDb, "opengauss"},
+		{GaussDBDb, "gaussdb"},
+		{HighGoDb, "highgo"},
+		{VastbaseDb, "vastbase"},
+		{OceanBaseDb, "oceanbase"},
+		{OceanBaseOracleDb, "oceanbase-oracle"},
+		{DamengDb, "dameng"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -236,6 +279,126 @@ func Test_PolarDBNeedsReturning(t *testing.T) {
 	}
 }
 
+func Test_OpenGaussDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("opengauss") {
+		t.Error("opengauss driver should be registered by init")
+	}
+}
+
+func Test_OpenGaussFormatPrepareSQL(t *testing.T) {
+	d := NewOpenGaussDialector(&testConfig{dbType: OpenGaussDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = $1 and b = $2"
+	if got != want {
+		t.Errorf("opengauss format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_OpenGaussNeedsReturning(t *testing.T) {
+	d := NewOpenGaussDialector(&testConfig{dbType: OpenGaussDb})
+	if !d.NeedsReturning() {
+		t.Error("opengauss should need RETURNING")
+	}
+}
+
+func Test_OpenGaussDialectorName(t *testing.T) {
+	d := NewOpenGaussDialector(&testConfig{dbType: OpenGaussDb})
+	if d.Name() != "opengauss" {
+		t.Errorf("opengauss dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_GaussDBDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("gaussdb") {
+		t.Error("gaussdb driver should be registered by init")
+	}
+}
+
+func Test_GaussDBFormatPrepareSQL(t *testing.T) {
+	d := NewGaussDBDialector(&testConfig{dbType: GaussDBDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = $1 and b = $2"
+	if got != want {
+		t.Errorf("gaussdb format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_GaussDBNeedsReturning(t *testing.T) {
+	d := NewGaussDBDialector(&testConfig{dbType: GaussDBDb})
+	if !d.NeedsReturning() {
+		t.Error("gaussdb should need RETURNING")
+	}
+}
+
+func Test_GaussDBDialectorName(t *testing.T) {
+	d := NewGaussDBDialector(&testConfig{dbType: GaussDBDb})
+	if d.Name() != "gaussdb" {
+		t.Errorf("gaussdb dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_HighGoDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("highgo") {
+		t.Error("highgo driver should be registered by init")
+	}
+}
+
+func Test_HighGoFormatPrepareSQL(t *testing.T) {
+	d := NewHighGoDialector(&testConfig{dbType: HighGoDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = $1 and b = $2"
+	if got != want {
+		t.Errorf("highgo format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_HighGoNeedsReturning(t *testing.T) {
+	d := NewHighGoDialector(&testConfig{dbType: HighGoDb})
+	if !d.NeedsReturning() {
+		t.Error("highgo should need RETURNING")
+	}
+}
+
+func Test_HighGoDialectorName(t *testing.T) {
+	d := NewHighGoDialector(&testConfig{dbType: HighGoDb})
+	if d.Name() != "highgo" {
+		t.Errorf("highgo dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_VastbaseDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("vastbase") {
+		t.Error("vastbase driver should be registered by init")
+	}
+}
+
+func Test_VastbaseFormatPrepareSQL(t *testing.T) {
+	d := NewVastbaseDialector(&testConfig{dbType: VastbaseDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = $1 and b = $2"
+	if got != want {
+		t.Errorf("vastbase format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_VastbaseNeedsReturning(t *testing.T) {
+	d := NewVastbaseDialector(&testConfig{dbType: VastbaseDb})
+	if !d.NeedsReturning() {
+		t.Error("vastbase should need RETURNING")
+	}
+}
+
+func Test_VastbaseDialectorName(t *testing.T) {
+	d := NewVastbaseDialector(&testConfig{dbType: VastbaseDb})
+	if d.Name() != "vastbase" {
+		t.Errorf("vastbase dialector name failed, got: %q", d.Name())
+	}
+}
+
 func Test_EffectiveSchema(t *testing.T) {
 	tests := []struct {
 		params ConnectParams
@@ -248,6 +411,13 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Type: TiDBDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: TDSQLDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: PolarDBMyDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: OpenGaussDb}, "public"},
+		{ConnectParams{DBName: "mydb", Type: GaussDBDb}, "public"},
+		{ConnectParams{DBName: "mydb", Type: HighGoDb}, "public"},
+		{ConnectParams{DBName: "mydb", Type: VastbaseDb}, "public"},
+		{ConnectParams{DBName: "mydb", Username: "root", Type: OceanBaseDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Username: "SYS", Type: OceanBaseOracleDb}, "SYS"},
+		{ConnectParams{DBName: "mydb", Username: "SYSDBA", Type: DamengDb}, "SYSDBA"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -281,6 +451,34 @@ func Test_GenerateDSN(t *testing.T) {
 	if got := GenerateDSN(polardbParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
 		t.Errorf("GenerateDSN polardb = %q", got)
 	}
+	opengaussParams := ConnectParams{Host: "10.0.0.1", Port: 5432, Username: "root", Password: "123456", DBName: "testdb", Type: OpenGaussDb}
+	if got := GenerateDSN(opengaussParams); got != "host=10.0.0.1 port=5432 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN opengauss = %q", got)
+	}
+	gaussdbParams := ConnectParams{Host: "10.0.0.1", Port: 5432, Username: "root", Password: "123456", DBName: "testdb", Type: GaussDBDb}
+	if got := GenerateDSN(gaussdbParams); got != "host=10.0.0.1 port=5432 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN gaussdb = %q", got)
+	}
+	highgoParams := ConnectParams{Host: "10.0.0.1", Port: 5432, Username: "root", Password: "123456", DBName: "testdb", Type: HighGoDb}
+	if got := GenerateDSN(highgoParams); got != "host=10.0.0.1 port=5432 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN highgo = %q", got)
+	}
+	vastbaseParams := ConnectParams{Host: "10.0.0.1", Port: 5432, Username: "root", Password: "123456", DBName: "testdb", Type: VastbaseDb}
+	if got := GenerateDSN(vastbaseParams); got != "host=10.0.0.1 port=5432 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN vastbase = %q", got)
+	}
+	oceanbaseParams := ConnectParams{Host: "10.0.0.1", Port: 2881, Username: "root", Password: "123456", DBName: "testdb", Type: OceanBaseDb}
+	if got := GenerateDSN(oceanbaseParams); got != "root:123456@tcp(10.0.0.1:2881)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN oceanbase = %q", got)
+	}
+	oboracleParams := ConnectParams{Host: "10.0.0.1", Port: 2881, Username: "SYS", Password: "123456", DBName: "testdb", Type: OceanBaseOracleDb}
+	if got := GenerateDSN(oboracleParams); got != "SYS/123456@10.0.0.1:2881/testdb" {
+		t.Errorf("GenerateDSN oceanbase-oracle = %q", got)
+	}
+	damengParams := ConnectParams{Host: "10.0.0.1", Port: 5236, Username: "SYSDBA", Password: "123456", DBName: "testdb", Type: DamengDb}
+	if got := GenerateDSN(damengParams); got != "SYSDBA/123456@10.0.0.1:5236/testdb" {
+		t.Errorf("GenerateDSN dameng = %q", got)
+	}
 }
 
 func Test_NewForType(t *testing.T) {
@@ -308,6 +506,34 @@ func Test_NewForType(t *testing.T) {
 	if err != nil || d6.Name() != "polardb" {
 		t.Errorf("NewForType polardb failed: %v, name=%q", err, d6.Name())
 	}
+	d7, err := NewForType(OpenGaussDb, &testConfig{dbType: OpenGaussDb})
+	if err != nil || d7.Name() != "opengauss" {
+		t.Errorf("NewForType opengauss failed: %v, name=%q", err, d7.Name())
+	}
+	d8, err := NewForType(GaussDBDb, &testConfig{dbType: GaussDBDb})
+	if err != nil || d8.Name() != "gaussdb" {
+		t.Errorf("NewForType gaussdb failed: %v, name=%q", err, d8.Name())
+	}
+	d9, err := NewForType(HighGoDb, &testConfig{dbType: HighGoDb})
+	if err != nil || d9.Name() != "highgo" {
+		t.Errorf("NewForType highgo failed: %v, name=%q", err, d9.Name())
+	}
+	d10, err := NewForType(VastbaseDb, &testConfig{dbType: VastbaseDb})
+	if err != nil || d10.Name() != "vastbase" {
+		t.Errorf("NewForType vastbase failed: %v, name=%q", err, d10.Name())
+	}
+	d11, err := NewForType(OceanBaseDb, &testConfig{dbType: OceanBaseDb})
+	if err != nil || d11.Name() != "oceanbase" {
+		t.Errorf("NewForType oceanbase failed: %v, name=%q", err, d11.Name())
+	}
+	d12, err := NewForType(OceanBaseOracleDb, &testConfig{dbType: OceanBaseOracleDb})
+	if err != nil || d12.Name() != "oceanbase-oracle" {
+		t.Errorf("NewForType oceanbase-oracle failed: %v, name=%q", err, d12.Name())
+	}
+	d13, err := NewForType(DamengDb, &testConfig{dbType: DamengDb})
+	if err != nil || d13.Name() != "dameng" {
+		t.Errorf("NewForType dameng failed: %v, name=%q", err, d13.Name())
+	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")
 	}
@@ -323,4 +549,109 @@ func (c *testConfig) GetMaxTimeout() int          { return 300 }
 func (c *testConfig) GetMaxOpen() int             { return 100 }
 func (c *testConfig) GetConnectParams() ConnectParams {
 	return ConnectParams{Type: c.dbType}
+}
+
+func Test_OceanBaseDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("oceanbase") {
+		t.Error("oceanbase driver should be registered by init")
+	}
+}
+
+func Test_OceanBaseFormatPrepareSQL(t *testing.T) {
+	d := NewOceanBaseDialector(&testConfig{dbType: OceanBaseDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	if got != src {
+		t.Errorf("oceanbase format prepare sql should keep ?, got: %q", got)
+	}
+}
+
+func Test_OceanBaseNeedsReturning(t *testing.T) {
+	d := NewOceanBaseDialector(&testConfig{dbType: OceanBaseDb})
+	if d.NeedsReturning() {
+		t.Error("oceanbase should not need RETURNING")
+	}
+}
+
+func Test_OceanBaseDialectorName(t *testing.T) {
+	d := NewOceanBaseDialector(&testConfig{dbType: OceanBaseDb})
+	if d.Name() != "oceanbase" {
+		t.Errorf("oceanbase dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_OceanBaseOracleFormatPrepareSQL(t *testing.T) {
+	d := NewOceanBaseOracleDialector(&testConfig{dbType: OceanBaseOracleDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = :1 and b = :2"
+	if got != want {
+		t.Errorf("oceanbase-oracle format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_OceanBaseOracleNeedsReturning(t *testing.T) {
+	d := NewOceanBaseOracleDialector(&testConfig{dbType: OceanBaseOracleDb})
+	if d.NeedsReturning() {
+		t.Error("oceanbase-oracle should not need RETURNING")
+	}
+}
+
+func Test_OceanBaseOracleDialectorName(t *testing.T) {
+	d := NewOceanBaseOracleDialector(&testConfig{dbType: OceanBaseOracleDb})
+	if d.Name() != "oceanbase-oracle" {
+		t.Errorf("oceanbase-oracle dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_OceanBaseOracleFamily(t *testing.T) {
+	d := NewOceanBaseOracleDialector(&testConfig{dbType: OceanBaseOracleDb})
+	if d.Family() != FamilyOracle {
+		t.Errorf("oceanbase-oracle family failed, got: %q want: %q", d.Family(), FamilyOracle)
+	}
+}
+
+func Test_OceanBaseOraclePlaceholderStyle(t *testing.T) {
+	d := NewOceanBaseOracleDialector(&testConfig{dbType: OceanBaseOracleDb})
+	if d.PlaceholderStyle() != PlaceholderColon {
+		t.Errorf("oceanbase-oracle placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderColon)
+	}
+}
+
+func Test_DamengFormatPrepareSQL(t *testing.T) {
+	d := NewDamengDialector(&testConfig{dbType: DamengDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = :1 and b = :2"
+	if got != want {
+		t.Errorf("dameng format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_DamengNeedsReturning(t *testing.T) {
+	d := NewDamengDialector(&testConfig{dbType: DamengDb})
+	if d.NeedsReturning() {
+		t.Error("dameng should not need RETURNING")
+	}
+}
+
+func Test_DamengDialectorName(t *testing.T) {
+	d := NewDamengDialector(&testConfig{dbType: DamengDb})
+	if d.Name() != "dameng" {
+		t.Errorf("dameng dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_DamengFamily(t *testing.T) {
+	d := NewDamengDialector(&testConfig{dbType: DamengDb})
+	if d.Family() != FamilyOracle {
+		t.Errorf("dameng family failed, got: %q want: %q", d.Family(), FamilyOracle)
+	}
+}
+
+func Test_DamengPlaceholderStyle(t *testing.T) {
+	d := NewDamengDialector(&testConfig{dbType: DamengDb})
+	if d.PlaceholderStyle() != PlaceholderColon {
+		t.Errorf("dameng placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderColon)
+	}
 }

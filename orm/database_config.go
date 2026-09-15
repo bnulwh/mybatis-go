@@ -308,7 +308,7 @@ func parseAddr(m map[string]string) (string, string, int64, string, error) {
 		path = strings.TrimPrefix(path, "file:")
 		return "sqlite", "", 0, path, nil
 	}
-	re := regexp.MustCompile(`jdbc:([\w]+)://(?:\[([^\]]+)\]|([\w.-]+)):(\d+)/([\w._-]+)`)
+	re := regexp.MustCompile(`jdbc:([\w-]+)://(?:\[([^\]]+)\]|([\w.-]+)):(\d+)/([\w._-]+)`)
 	matched := re.FindStringSubmatch(val)
 	if len(matched) < 6 {
 		return "", "", 0, "", errors.New("unsupport format of spring.datasource.url")

@@ -29,23 +29,32 @@ const (
 type DatabaseType string
 
 const (
-	MySqlDb      DatabaseType = "mysql"
-	PostgresDb   DatabaseType = "postgres"
-	KingbaseDb   DatabaseType = "kingbase"
-	SqliteDb     DatabaseType = "sqlite"
-	TiDBDb       DatabaseType = "tidb"
-	TDSQLDb      DatabaseType = "tdsql"
-	PolarDBMyDb  DatabaseType = "polardb"
+	MySqlDb          DatabaseType = "mysql"
+	PostgresDb       DatabaseType = "postgres"
+	KingbaseDb       DatabaseType = "kingbase"
+	SqliteDb         DatabaseType = "sqlite"
+	TiDBDb           DatabaseType = "tidb"
+	TDSQLDb          DatabaseType = "tdsql"
+	PolarDBMyDb      DatabaseType = "polardb"
+	OpenGaussDb      DatabaseType = "opengauss"
+	GaussDBDb        DatabaseType = "gaussdb"
+	HighGoDb         DatabaseType = "highgo"
+	VastbaseDb       DatabaseType = "vastbase"
+	OceanBaseDb      DatabaseType = "oceanbase"
+	OceanBaseOracleDb DatabaseType = "oceanbase-oracle"
+	DamengDb         DatabaseType = "dameng"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
 	switch dt {
-	case PostgresDb, KingbaseDb:
+	case PostgresDb, KingbaseDb, OpenGaussDb, GaussDBDb, HighGoDb, VastbaseDb:
 		return FamilyPostgres
-	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb:
+	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb, OceanBaseDb:
 		return FamilyMySQL
 	case SqliteDb:
 		return FamilySQLite
+	case OceanBaseOracleDb, DamengDb:
+		return FamilyOracle
 	default:
 		return DatabaseFamily("")
 	}
@@ -67,6 +76,20 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return TDSQLDb, nil
 	case "polardb", "polardb-mysql", "polardb_mysql":
 		return PolarDBMyDb, nil
+	case "opengauss", "opengauss-server":
+		return OpenGaussDb, nil
+	case "gaussdb", "gaussdb-pg", "gaussdb_pg":
+		return GaussDBDb, nil
+	case "highgo", "highgodb":
+		return HighGoDb, nil
+	case "vastbase", "vastbasedb":
+		return VastbaseDb, nil
+	case "oceanbase", "oceanbase-mysql":
+		return OceanBaseDb, nil
+	case "oceanbase-oracle", "oboracle":
+		return OceanBaseOracleDb, nil
+	case "dameng", "dm", "dm8":
+		return DamengDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -88,6 +111,20 @@ func GetDriverName(dbType DatabaseType) string {
 		return "tdsql"
 	case PolarDBMyDb:
 		return "polardb"
+	case OpenGaussDb:
+		return "opengauss"
+	case GaussDBDb:
+		return "gaussdb"
+	case HighGoDb:
+		return "highgo"
+	case VastbaseDb:
+		return "vastbase"
+	case OceanBaseDb:
+		return "oceanbase"
+	case OceanBaseOracleDb:
+		return "oceanbase-oracle"
+	case DamengDb:
+		return "dameng"
 	default:
 		return string(dbType)
 	}
@@ -112,6 +149,8 @@ func EffectiveSchema(params ConnectParams) string {
 		return params.DBName
 	case FamilySQLite:
 		return ""
+	case FamilyOracle:
+		return strings.ToUpper(params.Username)
 	default:
 		return "public"
 	}
@@ -125,6 +164,8 @@ func GenerateDSN(params ConnectParams) string {
 		return generateMySQLDSN(params)
 	case FamilySQLite:
 		return generateSQLiteDSN(params)
+	case FamilyOracle:
+		return generateOracleDSN(params)
 	}
 	return ""
 }
@@ -159,6 +200,10 @@ func joinHostPort(host string, port int64) string {
 		host = "[" + host + "]"
 	}
 	return fmt.Sprintf("%s:%d", host, port)
+}
+
+func generateOracleDSN(p ConnectParams) string {
+	return fmt.Sprintf("%s/%s@%s:%d/%s", p.Username, p.Password, p.Host, p.Port, p.DBName)
 }
 
 var ErrUnsupportedDatabase = errors.New("unsupported database type")
@@ -209,6 +254,20 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewTDSQLDialector(cfg), nil
 	case PolarDBMyDb:
 		return NewPolarDBDialector(cfg), nil
+	case OpenGaussDb:
+		return NewOpenGaussDialector(cfg), nil
+	case GaussDBDb:
+		return NewGaussDBDialector(cfg), nil
+	case HighGoDb:
+		return NewHighGoDialector(cfg), nil
+	case VastbaseDb:
+		return NewVastbaseDialector(cfg), nil
+	case OceanBaseDb:
+		return NewOceanBaseDialector(cfg), nil
+	case OceanBaseOracleDb:
+		return NewOceanBaseOracleDialector(cfg), nil
+	case DamengDb:
+		return NewDamengDialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

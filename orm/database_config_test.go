@@ -40,6 +40,38 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r7 != PolarDBMyDb || err != nil {
 		t.Error("test parseDatabaseType polardb failed.")
 	}
+	r8, err := dialector.ParseDatabaseType("opengauss")
+	if r8 != OpenGaussDb || err != nil {
+		t.Error("test parseDatabaseType opengauss failed.")
+	}
+	r9, err := dialector.ParseDatabaseType("gaussdb")
+	if r9 != GaussDBDb || err != nil {
+		t.Error("test parseDatabaseType gaussdb failed.")
+	}
+	r10, err := dialector.ParseDatabaseType("highgo")
+	if r10 != HighGoDb || err != nil {
+		t.Error("test parseDatabaseType highgo failed.")
+	}
+	r11, err := dialector.ParseDatabaseType("vastbase")
+	if r11 != VastbaseDb || err != nil {
+		t.Error("test parseDatabaseType vastbase failed.")
+	}
+	r12, err := dialector.ParseDatabaseType("oceanbase")
+	if r12 != OceanBaseDb || err != nil {
+		t.Error("test parseDatabaseType oceanbase failed.")
+	}
+	r13, err := dialector.ParseDatabaseType("oceanbase-oracle")
+	if r13 != OceanBaseOracleDb || err != nil {
+		t.Error("test parseDatabaseType oceanbase-oracle failed.")
+	}
+	r14, err := dialector.ParseDatabaseType("dameng")
+	if r14 != DamengDb || err != nil {
+		t.Error("test parseDatabaseType dameng failed.")
+	}
+	r15, err := dialector.ParseDatabaseType("dm8")
+	if r15 != DamengDb || err != nil {
+		t.Error("test parseDatabaseType dm8 failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -82,6 +114,41 @@ func Test_parseAddr(t *testing.T) {
 	tp7, host7, port7, db7, err := parseAddr(mp)
 	if tp7 != "polardb" || host7 != "10.1.2.3" || port7 != 3306 || db7 != "polardb_test" || err != nil {
 		t.Error("test parseAddr polardb failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:opengauss://10.1.2.3:5432/testdb"
+	tp8, host8, port8, db8, err := parseAddr(mp)
+	if tp8 != "opengauss" || host8 != "10.1.2.3" || port8 != 5432 || db8 != "testdb" || err != nil {
+		t.Error("test parseAddr opengauss failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:gaussdb://10.1.2.3:5432/gaussdb_test"
+	tp9, host9, port9, db9, err := parseAddr(mp)
+	if tp9 != "gaussdb" || host9 != "10.1.2.3" || port9 != 5432 || db9 != "gaussdb_test" || err != nil {
+		t.Error("test parseAddr gaussdb failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:highgo://10.1.2.3:5432/highgo_test"
+	tp10, host10, port10, db10, err := parseAddr(mp)
+	if tp10 != "highgo" || host10 != "10.1.2.3" || port10 != 5432 || db10 != "highgo_test" || err != nil {
+		t.Error("test parseAddr highgo failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:vastbase://10.1.2.3:5432/vastbase_test"
+	tp11, host11, port11, db11, err := parseAddr(mp)
+	if tp11 != "vastbase" || host11 != "10.1.2.3" || port11 != 5432 || db11 != "vastbase_test" || err != nil {
+		t.Error("test parseAddr vastbase failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:oceanbase://10.1.2.3:2881/oceanbase_test"
+	tp12, host12, port12, db12, err := parseAddr(mp)
+	if tp12 != "oceanbase" || host12 != "10.1.2.3" || port12 != 2881 || db12 != "oceanbase_test" || err != nil {
+		t.Error("test parseAddr oceanbase failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:oceanbase-oracle://10.1.2.3:2881/ob_test"
+	tp13, host13, port13, db13, err := parseAddr(mp)
+	if tp13 != "oceanbase-oracle" || host13 != "10.1.2.3" || port13 != 2881 || db13 != "ob_test" || err != nil {
+		t.Error("test parseAddr oceanbase-oracle failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:dameng://10.1.2.3:5236/dameng_test"
+	tp14, host14, port14, db14, err := parseAddr(mp)
+	if tp14 != "dameng" || host14 != "10.1.2.3" || port14 != 5236 || db14 != "dameng_test" || err != nil {
+		t.Error("test parseAddr dameng failed.")
 	}
 }
 

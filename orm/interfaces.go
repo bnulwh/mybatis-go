@@ -34,6 +34,13 @@ const (
 	TiDBDb      = dialector.TiDBDb
 	TDSQLDb     = dialector.TDSQLDb
 	PolarDBMyDb = dialector.PolarDBMyDb
+	OpenGaussDb = dialector.OpenGaussDb
+	GaussDBDb   = dialector.GaussDBDb
+	HighGoDb    = dialector.HighGoDb
+	VastbaseDb  = dialector.VastbaseDb
+	OceanBaseDb      = dialector.OceanBaseDb
+	OceanBaseOracleDb = dialector.OceanBaseOracleDb
+	DamengDb         = dialector.DamengDb
 )
 
 type Dialector = dialector.Dialector
