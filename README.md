@@ -52,6 +52,33 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 
 - [x] GBase 8s（南大通用）— Informix 兼容，独立 `GBase8sDialector`（Informix 方言族），占位符 `?`，`cmd/gbase8sdemo` 示例
 
+**P4 — 国际主流数据库**：
+
+- [ ] MS SQL Server — 独立 `MssqlDialector`，占位符 `?`→`@p1/@p2`，`go-mssqldb` 官方纯 Go 驱动
+- [ ] Oracle — 独立 `OracleDialector`，占位符 `?`→`:1/:2`，`go-ora` 纯 Go 驱动（与 OceanBase-Oracle/达梦同族）
+- [ ] DB2 — 独立 `Db2Dialector`，占位符 `?`→`:1/:2`，`go_ibm_db` 官方驱动（需 CGo + 客户端库）
+- [ ] ClickHouse — 独立 `ClickHouseDialector`，`clickhouse-go/v2` 官方纯 Go 驱动（OLAP 场景，无事务）
+
+**P5 — 云原生 / NewSQL 数据库**：
+
+- [ ] CockroachDB — PG 协议兼容，复用 PG dialector 零成本适配
+- [ ] Google Cloud Spanner — 独立 `SpannerDialector`，`go-sql-spanner` 官方驱动（gRPC 协议）
+- [ ] YDB — 独立 `YdbDialector`，`ydb-go-sdk` 官方纯 Go 驱动
+
+**P6 — 嵌入式 / 分析型数据库**：
+
+- [ ] DuckDB — 独立 `DuckdbDialector`，`go-duckdb` CGo 驱动（嵌入式列式 OLAP）
+- [ ] SAP HANA — 独立 `HanaDialector`，`go-hdb` 官方纯 Go 驱动
+- [ ] Snowflake — 独立 `SnowflakeDialector`，`gosnowflake` 官方纯 Go 驱动（云端 OLAP）
+
+**P7 — 其他国产数据库**：
+
+- [ ] MogDB（云和恩墨）— PG 兼容，复用 PG dialector 零成本适配
+- [ ] IvorySQL（瀚高）— PG 兼容，复用 PG dialector 零成本适配
+- [ ] GoldenDB（中兴）— MySQL 兼容，复用 MySQL dialector 零成本适配
+- [ ] SequoiaDB/巨杉 — MySQL 兼容，复用 MySQL dialector 零成本适配
+- [ ] 神通/Oscar（神舟通用）— ODBC 桥接（需 CGo），待厂商提供纯 Go 驱动
+
 ## 安装
 
 ```bash

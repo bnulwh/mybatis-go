@@ -156,11 +156,68 @@
 实现要点：`SERIAL` 自增、`FIRST n` 分页（无 `LIMIT`）、`::` 类型转换；
 GORM 有社区驱动 `gitee.com/GBase8s/gorm-gbase` 可参考
 
-#### P4 — 暂不可行（无 Go 驱动）
+#### P4 — 国际主流数据库（中高难度，需独立 dialector）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 适配方式 | Go 驱动 |
+|--------|------|------|----------|----------|---------|
+| **MS SQL Server** | Microsoft | 自有（TDS 协议） | 1433 | 独立 dialector | `github.com/microsoft/go-mssqldb`（官方纯 Go，`[*]` 兼容测试通过） |
+| **Oracle** | Oracle | 自有 | 1521 | 独立 dialector | `github.com/sijms/go-ora`（纯 Go，活跃维护） |
+| **DB2** | IBM | 自有（DRDA） | 50000 | 独立 dialector | `github.com/ibmdb/go_ibm_db`（官方，需 CGo + DB2客户端库） |
+| **ClickHouse** | ClickHouse Inc. | 自有（HTTP/TCP） | 8123/9000 | 独立 dialector | `github.com/ClickHouse/clickhouse-go/v2`（官方纯 Go，`[**]` 兼容测试通过） |
+
+实现要点：
+- **MS SQL Server**：占位符 `?`→`@p1/@p2`；`NeedsReturning` 返回 false（用 `SCOPE_IDENTITY()` / `OUTPUT INSERTED.*`）；`TOP n` 分页（旧版）或 `OFFSET...FETCH`（2012+）；标识符引用用方括号 `[name]`；`information_schema` 查询与 SQL Server 系统视图（`sys.columns`/`sys.tables`）；`go-mssqldb` 已通过 Go 兼容性测试套件，成熟度高
+- **Oracle**：占位符 `?`→`:1/:2`；`NeedsReturning` 返回 false（用 `RETURNING ... INTO ...`）；`ROWNUM`/`FETCH FIRST n ROWS ONLY`（12c+）分页；`ALL_TAB_COLUMNS`/`USER_TABLES` 系统视图；DSN 格式 `oracle://user:pass@host:1521/service_name`；与现有 OceanBase-Oracle / Dameng 同属 Oracle 方言族，可复用部分逻辑
+- **DB2**：占位符 `?`→`:1/:2`（与 Oracle 同）；`NeedsReturning` 返回 false（用 `SELECT ... FROM FINAL TABLE(INSERT ...)` 或 `IDENTITY_VAL_LOCAL()`）；`FETCH FIRST n ROWS ONLY` 分页；`SYSCAT.COLUMNS`/`SYSCAT.TABLES` 系统视图；DSN 需 DB2 客户端库（CGo 依赖，跨编译受限）；**难度较高**，驱动依赖 CGo
+- **ClickHouse**：占位符保持 `?`；`NeedsReturning` 返回 false（不支持 RETURNING）；`LIMIT n` 分页（原生支持）；`system.columns`/`system.tables` 系统视图；HTTP API 与原生 TCP 双模式；**注意**：ClickHouse 为列式 OLAP 引擎，与 OLTP 场景差异较大（无事务、UPDATE/DELETE 为异步 mutation），ORM 适配需明确使用场景边界
+
+#### P5 — 云原生 / NewSQL 数据库（中等难度）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 适配方式 | Go 驱动 |
+|--------|------|------|----------|----------|---------|
+| **CockroachDB** | Cockroach Labs | PG 兼容 | 26257 | 复用 PG dialector | 任意 PG 驱动（`lib/pq` / `pgx`，`[*]`） |
+| **Google Cloud Spanner** | Google Cloud | 自有（gRPC） | - | 独立 dialector | `github.com/googleapis/go-sql-spanner`（官方，实现 `database/sql` 接口） |
+| **YDB** | Yandex | 自有 | 2135 | 独立 dialector | `github.com/ydb-platform/ydb-go-sdk`（官方纯 Go） |
+
+实现要点：
+- **CockroachDB**：PG 协议高度兼容，同 KingbaseES/openGauss 策略零成本适配——`init()` 中 `sql.Register("cockroachdb", &pq.Driver{})`，`FormatPrepareSQL()` 返回 `$1/$2`，`information_schema` 查询复用 PG 分支
+- **Google Cloud Spanner**：自有协议（gRPC），官方驱动已实现 `database/sql` 接口；占位符 `?`→`@param`（命名参数）；无传统 `information_schema`（需调用客户端库获取 schema）；**注意**：Spanner 无自增主键、不支持多行 INSERT、DML 限制定义明显，ORM 适配需限定使用场景
+- **YDB**：Yandex 自研分布式数据库，官方 Go SDK 已实现 `database/sql` 接口；YQL 语法类 SQL 但有扩展；独立 dialector 必需
+
+#### P6 — 嵌入式 / 分析型数据库（低~中难度）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 适配方式 | Go 驱动 |
+|--------|------|------|----------|----------|---------|
+| **DuckDB** | DuckDB Labs | 自有（PG 兼容风格） | -（嵌入式） | 独立 dialector | `github.com/marcboeker/go-duckdb`（纯 Go，CGo 绑定） |
+| **SAP HANA** | SAP | 自有 | 30015 | 独立 dialector | `github.com/SAP/go-hdb`（官方纯 Go） |
+| **Snowflake** | Snowflake Inc. | 自有（HTTP） | 443 | 独立 dialector | `github.com/snowflakedb/gosnowflake`（官方纯 Go） |
+
+实现要点：
+- **DuckDB**：嵌入式列式分析数据库，CGo 驱动；PG 风格占位符 `$1/$2`；`information_schema` 查询兼容 PG；`LIMIT/OFFSET` 分页；与 SQLite 同为嵌入式场景，但面向 OLAP；**注意**：CGo 依赖，交叉编译受限
+- **SAP HANA**：企业级内存数据库，官方纯 Go 驱动；占位符 `?`；`NeedsReturning` 待确认（HANA 2.0 SPS12+ 支持 `SELECT ... FROM INSERT(...)` ）；`PUBLIC.M_TABLE_COLUMNS`/`PUBLIC.M_TABLES` 系统视图；DSN 格式 `hdb://user:pass@host:30015`
+- **Snowflake**：云端数据仓库，官方纯 Go 驱动；占位符 `?`；`LIMIT n` 分页；`INFORMATION_SCHEMA.COLUMNS`/`TABLES` 标准视图；DSN 格式 `user:pass@account/database/schema?warehouse=wh&role=role`；**注意**：纯云服务，无本地部署，主要面向 OLAP 场景
+
+#### P7 — 其他国产数据库（有 Go 驱动或兼容协议）
+
+| 数据库 | 厂商 | 协议 | 默认端口 | 适配方式 | Go 驱动 |
+|--------|------|------|----------|----------|---------|
+| **神通/Oscar** | 神舟通用 | 自有（类 Oracle） | 2003 | 独立 dialector | `github.com/alexbrainman/odbc`（ODBC 桥接，需 CGo + 神通 ODBC 驱动） |
+| **MogDB** | 云和恩墨 | PG 兼容 | 5432 | 复用 PG dialector | 任意 PG 驱动（`lib/pq` / `pgx`） |
+| **IvorySQL** | 瀚高 | PG 兼容 | 5432 | 复用 PG dialector | 任意 PG 驱动（`lib/pq` / `pgx`） |
+| **GoldenDB** | 中兴 | MySQL 兼容 | 3306 | 复用 MySQL dialector | `go-sql-driver/mysql` |
+| **SequoiaDB/巨杉** | 巨杉数据库 | MySQL 兼容 | 11810 | 复用 MySQL dialector | `go-sql-driver/mysql` |
+
+实现要点：
+- **神通/Oscar**：目前唯一可用路径是 ODBC 桥接（需 CGo + 神通 ODBC 驱动），跨编译受限；若厂商后续提供纯 Go 驱动则可独立 dialector
+- **MogDB/IvorySQL**：PG 兼容族，同 openGauss/HighGo/Vastbase 零成本适配策略
+- **GoldenDB/SequoiaDB**：MySQL 兼容族，同 TiDB/TDSQL/PolarDB 零成本适配策略
+
+#### P8 — 暂不可行（无可用 Go 驱动）
 
 | 数据库 | 厂商 | 协议 | 默认端口 | 状态 |
 |--------|------|------|----------|------|
-| **神通/Oscar** | 神舟通用 | 自有（类 Oracle） | 2003 | 无 Go 驱动，需厂商提供 CGo 绑定或 ODBC 桥接 |
+| **南大通用 GBase 8a** | 南大通用 | 自有 | 5258 | 无 Go 驱动（与 GBase 8s/Informix 不同） |
+| **K-DB/人大金仓** | 人大金仓 | 自有 | - | 已通过 KingbaseES（PG 兼容）路径覆盖 |
 
 ---
 
