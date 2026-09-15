@@ -107,6 +107,13 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"kingbase8", KingbaseDb},
 		{"sqlite", SqliteDb},
 		{"sqlite3", SqliteDb},
+		{"tidb", TiDBDb},
+		{"TiDB", TiDBDb},
+		{"tdsql", TDSQLDb},
+		{"TDSQL", TDSQLDb},
+		{"polardb", PolarDBMyDb},
+		{"polardb-mysql", PolarDBMyDb},
+		{"polardb_mysql", PolarDBMyDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -132,6 +139,15 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if SqliteDb.Family() != FamilySQLite {
 		t.Errorf("SqliteDb.Family() = %q, want %q", SqliteDb.Family(), FamilySQLite)
 	}
+	if TiDBDb.Family() != FamilyMySQL {
+		t.Errorf("TiDBDb.Family() = %q, want %q", TiDBDb.Family(), FamilyMySQL)
+	}
+	if TDSQLDb.Family() != FamilyMySQL {
+		t.Errorf("TDSQLDb.Family() = %q, want %q", TDSQLDb.Family(), FamilyMySQL)
+	}
+	if PolarDBMyDb.Family() != FamilyMySQL {
+		t.Errorf("PolarDBMyDb.Family() = %q, want %q", PolarDBMyDb.Family(), FamilyMySQL)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -143,11 +159,80 @@ func Test_GetDriverName(t *testing.T) {
 		{KingbaseDb, "kingbase"},
 		{MySqlDb, "mysql"},
 		{SqliteDb, "sqlite"},
+		{TiDBDb, "tidb"},
+		{TDSQLDb, "tdsql"},
+		{PolarDBMyDb, "polardb"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
 			t.Errorf("GetDriverName(%q) = %q, want %q", tt.dbType, got, tt.want)
 		}
+	}
+}
+
+func Test_TiDBDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("tidb") {
+		t.Error("tidb driver should be registered by init")
+	}
+}
+
+func Test_TiDBFormatPrepareSQL(t *testing.T) {
+	d := NewTiDBDialector(&testConfig{dbType: TiDBDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	if got != src {
+		t.Errorf("tidb format prepare sql should keep ?, got: %q", got)
+	}
+}
+
+func Test_TiDBNeedsReturning(t *testing.T) {
+	d := NewTiDBDialector(&testConfig{dbType: TiDBDb})
+	if d.NeedsReturning() {
+		t.Error("tidb should not need RETURNING")
+	}
+}
+
+func Test_TDSQLDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("tdsql") {
+		t.Error("tdsql driver should be registered by init")
+	}
+}
+
+func Test_TDSQLFormatPrepareSQL(t *testing.T) {
+	d := NewTDSQLDialector(&testConfig{dbType: TDSQLDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	if got != src {
+		t.Errorf("tdsql format prepare sql should keep ?, got: %q", got)
+	}
+}
+
+func Test_TDSQLNeedsReturning(t *testing.T) {
+	d := NewTDSQLDialector(&testConfig{dbType: TDSQLDb})
+	if d.NeedsReturning() {
+		t.Error("tdsql should not need RETURNING")
+	}
+}
+
+func Test_PolarDBDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("polardb") {
+		t.Error("polardb driver should be registered by init")
+	}
+}
+
+func Test_PolarDBFormatPrepareSQL(t *testing.T) {
+	d := NewPolarDBDialector(&testConfig{dbType: PolarDBMyDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	if got != src {
+		t.Errorf("polardb format prepare sql should keep ?, got: %q", got)
+	}
+}
+
+func Test_PolarDBNeedsReturning(t *testing.T) {
+	d := NewPolarDBDialector(&testConfig{dbType: PolarDBMyDb})
+	if d.NeedsReturning() {
+		t.Error("polardb should not need RETURNING")
 	}
 }
 
@@ -160,6 +245,9 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Type: PostgresDb}, "public"},
 		{ConnectParams{DBName: "mydb", Type: MySqlDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: SqliteDb}, ""},
+		{ConnectParams{DBName: "mydb", Type: TiDBDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: TDSQLDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: PolarDBMyDb}, "mydb"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -181,6 +269,18 @@ func Test_GenerateDSN(t *testing.T) {
 	if got := GenerateDSN(sqlParams); got != "test.db?_loc=auto" {
 		t.Errorf("GenerateDSN sqlite = %q", got)
 	}
+	tidbParams := ConnectParams{Host: "10.0.0.1", Port: 4000, Username: "root", Password: "", DBName: "testdb", Type: TiDBDb}
+	if got := GenerateDSN(tidbParams); got != "root:@tcp(10.0.0.1:4000)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN tidb = %q", got)
+	}
+	tdsqlParams := ConnectParams{Host: "10.0.0.1", Port: 3306, Username: "root", Password: "123456", DBName: "testdb", Type: TDSQLDb}
+	if got := GenerateDSN(tdsqlParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN tdsql = %q", got)
+	}
+	polardbParams := ConnectParams{Host: "10.0.0.1", Port: 3306, Username: "root", Password: "123456", DBName: "testdb", Type: PolarDBMyDb}
+	if got := GenerateDSN(polardbParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN polardb = %q", got)
+	}
 }
 
 func Test_NewForType(t *testing.T) {
@@ -195,6 +295,18 @@ func Test_NewForType(t *testing.T) {
 	d3, err := NewForType(KingbaseDb, &testConfig{dbType: KingbaseDb})
 	if err != nil || d3.Name() != "kingbase" {
 		t.Errorf("NewForType kingbase failed: %v, name=%q", err, d3.Name())
+	}
+	d4, err := NewForType(TiDBDb, &testConfig{dbType: TiDBDb})
+	if err != nil || d4.Name() != "tidb" {
+		t.Errorf("NewForType tidb failed: %v, name=%q", err, d4.Name())
+	}
+	d5, err := NewForType(TDSQLDb, &testConfig{dbType: TDSQLDb})
+	if err != nil || d5.Name() != "tdsql" {
+		t.Errorf("NewForType tdsql failed: %v, name=%q", err, d5.Name())
+	}
+	d6, err := NewForType(PolarDBMyDb, &testConfig{dbType: PolarDBMyDb})
+	if err != nil || d6.Name() != "polardb" {
+		t.Errorf("NewForType polardb failed: %v, name=%q", err, d6.Name())
 	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")

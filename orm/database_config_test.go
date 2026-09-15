@@ -28,7 +28,18 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r4 != KingbaseDb || err != nil {
 		t.Error("test parseDatabaseType kingbase failed.")
 	}
-
+	r5, err := dialector.ParseDatabaseType("tidb")
+	if r5 != TiDBDb || err != nil {
+		t.Error("test parseDatabaseType tidb failed.")
+	}
+	r6, err := dialector.ParseDatabaseType("tdsql")
+	if r6 != TDSQLDb || err != nil {
+		t.Error("test parseDatabaseType tdsql failed.")
+	}
+	r7, err := dialector.ParseDatabaseType("polardb")
+	if r7 != PolarDBMyDb || err != nil {
+		t.Error("test parseDatabaseType polardb failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -56,6 +67,21 @@ func Test_parseAddr(t *testing.T) {
 	tp4, host4, port4, db4, err := parseAddr(mp)
 	if tp4 != "kingbase8" || host4 != "10.1.2.3" || port4 != 54321 || db4 != "testdb" || err != nil {
 		t.Error("test parseAddr kingbase8 failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:tidb://10.1.2.3:4000/testdb"
+	tp5, host5, port5, db5, err := parseAddr(mp)
+	if tp5 != "tidb" || host5 != "10.1.2.3" || port5 != 4000 || db5 != "testdb" || err != nil {
+		t.Error("test parseAddr tidb failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:tdsql://10.1.2.3:3306/mydb"
+	tp6, host6, port6, db6, err := parseAddr(mp)
+	if tp6 != "tdsql" || host6 != "10.1.2.3" || port6 != 3306 || db6 != "mydb" || err != nil {
+		t.Error("test parseAddr tdsql failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:polardb://10.1.2.3:3306/polardb_test"
+	tp7, host7, port7, db7, err := parseAddr(mp)
+	if tp7 != "polardb" || host7 != "10.1.2.3" || port7 != 3306 || db7 != "polardb_test" || err != nil {
+		t.Error("test parseAddr polardb failed.")
 	}
 }
 

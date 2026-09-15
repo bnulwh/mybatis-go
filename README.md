@@ -9,7 +9,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap`（含 `<association>` / `<collection>` 嵌套关联类型生成）
 - **自增主键回填**：`useGeneratedKeys` / `keyProperty` 支持，Insert 后自动回填自增主键到入参 struct 指针
 - **MyBatis-Plus 内置 CRUD**：`schema2code -mp` 从表结构直接生成 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）的 XML，原生加载、无需手写 GoExtraMapper；亦可在 **XML 含 resultMap 时加载期内存自动补生成**（无需落盘 CRUD XML），使用说明见 **docs/agents/mybatis-plus.md**
-- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES，国产数据库适配进行中（TiDB/TDSQL/PolarDB/openGauss/GaussDB/HighGo/Vastbase/OceanBase/达梦等）
+- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES、TiDB、TDSQL、PolarDB-MySQL，国产数据库适配进行中（openGauss/GaussDB/HighGo/Vastbase/OceanBase/达梦等）
 - **Schema 缓存列类型推断**：查询结果列类型自动从 `information_schema` 推断（无需手写 resultMap 即可正确映射 time/bool/数字类型），可配置 TTL，DDL 后自动失效
 - **代码生成**：内置 `generator`（XML → Go）和 `schema2code`（数据库表 → Go）工具
 - **预编译缓存**：Prepared Statement 自动缓存和复用
@@ -31,9 +31,9 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 
 **P0 — MySQL 兼容族**（零成本，复用 MySQL dialector）：
 
-- [ ] TiDB（PingCAP）— MySQL 协议高度兼容，复用 `go-sql-driver/mysql`，默认端口 4000
-- [ ] TDSQL（腾讯云）— MySQL 兼容，复用 `go-sql-driver/mysql`
-- [ ] PolarDB-MySQL（阿里云）— MySQL 兼容，复用 `go-sql-driver/mysql`
+- [x] TiDB（PingCAP）— MySQL 协议高度兼容，复用 `go-sql-driver/mysql`，默认端口 4000，`cmd/tidbdemo` 示例
+- [x] TDSQL（腾讯云）— MySQL 兼容，复用 `go-sql-driver/mysql`，`cmd/tdsqldemo` 示例
+- [x] PolarDB-MySQL（阿里云）— MySQL 兼容，复用 `go-sql-driver/mysql`，`cmd/polardbdemo` 示例
 
 **P1 — PostgreSQL 兼容族**（低难度，复用 KingbaseES 模式）：
 
@@ -66,6 +66,9 @@ go get github.com/bnulwh/mybatis-go
 | MySQL | `_ "github.com/go-sql-driver/mysql"` |
 | SQLite | `_ "modernc.org/sqlite"` |
 | KingbaseES | 无需引入（框架自动以 `kingbase` 名称注册 `lib/pq`） |
+| TiDB | 无需引入（框架自动以 `tidb` 名称注册 `go-sql-driver/mysql`） |
+| TDSQL | 无需引入（框架自动以 `tdsql` 名称注册 `go-sql-driver/mysql`） |
+| PolarDB-MySQL | 无需引入（框架自动以 `polardb` 名称注册 `go-sql-driver/mysql`） |
 
 ## 快速开始
 
@@ -149,7 +152,7 @@ func main() {
 }
 ```
 
-完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go` 和 `cmd/kingbasedemo/main.go`。
+完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go`、`cmd/kingbasedemo/main.go`、`cmd/tidbdemo/main.go`、`cmd/tdsqldemo/main.go` 和 `cmd/polardbdemo/main.go`。
 
 ## 大结果集流式查询
 
@@ -328,6 +331,42 @@ mybatis.mapper-locations= resources/mapper
 
 URL 类型支持 `jdbc:kingbase8://`、`jdbc:kingbase://` 等（parseDatabaseType 兼容 kingbase5~8 各版本号）。
 
+### TiDB（PingCAP）
+
+```properties
+# TiDB — MySQL 协议高度兼容，默认端口 4000
+spring.datasource.url= jdbc:tidb://localhost:4000/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
+spring.datasource.username= root
+spring.datasource.password=
+mybatis.mapper-locations= resources/mapper
+```
+
+框架自动以 `tidb` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
+
+### TDSQL（腾讯云）
+
+```properties
+# TDSQL — MySQL 兼容
+spring.datasource.url= jdbc:tdsql://localhost:3306/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+框架自动以 `tdsql` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
+
+### PolarDB-MySQL（阿里云）
+
+```properties
+# PolarDB-MySQL — MySQL 兼容
+spring.datasource.url= jdbc:polardb://localhost:3306/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+框架自动以 `polardb` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
+
 ### 配置项说明
 
 | 配置项 | 说明 | 默认值 |
@@ -355,6 +394,9 @@ JDBC URL 支持 IPv6 地址，如 `jdbc:postgresql://[2001:db8::1]:5432/testdb`�
 ```go
 err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("kingbase", "localhost", 54321, "system", "123456", "testdb")
+// 或 orm.InitializeDatabase("tidb", "localhost", 4000, "root", "", "testdb")
+// 或 orm.InitializeDatabase("tdsql", "localhost", 3306, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("polardb", "localhost", 3306, "root", "123456", "testdb")
 ```
 
 ### 数据表名前缀
@@ -506,7 +548,7 @@ go build -o schema2code cmd/schema2code/main.go
 ```
 
 参数说明：
-- `-type` 数据库类型：`mysql` / `postgres` / `kingbase` / `sqlite`
+- `-type` 数据库类型：`mysql` / `postgres` / `kingbase` / `sqlite` / `tidb` / `tdsql` / `polardb`
 - `-host` 数据库地址
 - `-port` 端口
 - `-username` / `-password` 认证信息（SQLite 无需填写）
@@ -523,6 +565,9 @@ go run ./cmd/sqlitedemo      # SQLite（自动建表 + Mapper 全流程，生成
 go run ./cmd/postgresdemo    # PostgreSQL（需先准备 application-pg.properties 指向的库）
 go run ./cmd/mysqldemo       # MySQL
 go run ./cmd/kingbasedemo    # KingbaseES
+go run ./cmd/tidbdemo        # TiDB（MySQL 协议兼容，默认端口 4000）
+go run ./cmd/tdsqldemo       # TDSQL（腾讯云，MySQL 兼容）
+go run ./cmd/polardbdemo     # PolarDB-MySQL（阿里云，MySQL 兼容）
 ```
 
 ## 重要说明
@@ -533,6 +578,7 @@ go run ./cmd/kingbasedemo    # KingbaseES
 - `useGeneratedKeys` 回填需向 Insert 方法传 **struct 指针**（值传递无法写回调用方）；入参为 map 时同样支持
 - SELECT 方法的返回值类型为 `([]Model, error)`，INSERT/UPDATE/DELETE 为 `(int64, error)`；流式 select 可返回 `(*orm.RowStream, error)`（逐行消费，调用方必须 `Close()` 释放连接）
 - KingbaseES 驱动由框架自动注册（`sql.Register("kingbase", &pq.Driver{})`），无需也不应重复引入驱动
+- TiDB/TDSQL/PolarDB 驱动由框架自动注册（`sql.Register("tidb"/"tdsql"/"polardb", &mysql.MySQLDriver{})`），无需也不应重复引入驱动
 - 日志通过 `orm.SetLogger` 替换，实现 `log.Logger` 接口即可
 - 事务：`orm.Begin()` 开启后 Mapper 方法自动在事务内执行，`Commit()` / `Rollback()` 结束事务（见「事务」章节）
 
@@ -546,14 +592,19 @@ go run ./cmd/kingbasedemo    # KingbaseES
 │   ├── mysqldemo/       # MySQL 使用示例
 │   ├── kingbasedemo/    # KingbaseES（人大金仓）使用示例
 │   ├── sqlitedemo/      # SQLite 使用示例
+│   ├── tidbdemo/        # TiDB 使用示例
+│   ├── tdsqldemo/       # TDSQL 使用示例
+│   ├── polardbdemo/     # PolarDB-MySQL 使用示例
 │   └── demo/            # 通用使用示例
 ├── orm/                 # 核心 ORM 框架
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
 │   ├── multi_datasource.go  # 多数据源注册表（InitializeDataSources / UseDataSource / AddDataSource）
 │   ├── row_stream.go    # 大结果集流式读取（QueryStream / RowStream，Mapper 流式 select）
 │   ├── embed_fs.go      # go:embed 内嵌 Mapper 加载（RegisterMapperFS / RegisterMapperSources / ReloadMappers）
-│   ├── mysql_dialector.go / postgres_dialector.go
-│   ├── sqlite_dialector.go / kingbase_dialector.go   # 数据库方言
+│   ├── dialector/       # 数据库方言
+│   │   ├── mysql.go / postgres.go / sqlite.go / kingbase.go
+│   │   ├── tidb.go / tdsql.go / polardb.go   # P0 国产数据库（MySQL 兼容族）
+│   │   └── types.go / base.go                 # 类型定义 + 公共基类
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
 ├── types/               # XML 解析引擎和数据类型
 │   └── sql_mappers.go   # Mapper 加载（NewSqlMappers 磁盘 / NewSqlMappersFrom embed.FS 等任意 io/fs.FS）
@@ -574,6 +625,7 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **v0.2.3（国产数据库 P0 适配，2026-09-15）**：P0 MySQL 兼容族三款国产数据库零成本适配 — ① TiDB（PingCAP）：MySQL 协议高度兼容，复用 `go-sql-driver/mysql`，默认端口 4000，框架自动以 `tidb` 名称注册驱动；② TDSQL（腾讯云）：MySQL 兼容，复用 `go-sql-driver/mysql`；③ PolarDB-MySQL（阿里云）：MySQL 兼容，复用 `go-sql-driver/mysql`。三款 dialector 均内嵌 `MySqlDialector`（占位符 `?` 保留、`LastInsertId` 回填、`information_schema` 表结构查询、`parseTime=true` DSN 自动追加），JDBC URL 支持 `jdbc:tidb://`/`jdbc:tdsql://`/`jdbc:polardb://` 格式；`cmd/tidbdemo`/`cmd/tdsqldemo`/`cmd/polardbdemo` 示例；`application-tidb.properties`/`application-tdsql.properties`/`application-polardb.properties` 配置模板；dialector 单元测试覆盖驱动注册、占位符格式、`NeedsReturning`、DSN 生成、`ParseDatabaseType`、`Family` 映射、`GetDriverName`
 - **v0.2.2（内嵌 Mapper，2026-09-10）**：支持 `go:embed` 内嵌 Mapper 加载 — 新增 `orm.RegisterMapperFS(fsys, patterns...)` / `orm.RegisterMapperSources(sources...)` / `orm.ReloadMappers()`，XML 可随二进制一起分发，部署时无需携带 `resources/mapper` 目录；底层 `types` 包新增 `NewSqlMappersFrom(fsys, patterns...)` / `NewSqlMappersFromSources(...)` 与 `MapperSource{FS, Patterns}`（`FS == nil` 保持原有磁盘语义）；磁盘 pattern 保持「目录递归 / 单文件精确」语义，内嵌 pattern 用 `/` 分隔并兼容误写 `\`；`<configuration>` 根或 namespace 缺失的 XML 自动跳过；同一 namespace 后注册的源覆盖先注册的源（磁盘可覆盖内嵌）；注册与初始化顺序解耦（先 `RegisterMapperFS` 后 `Initialize` 亦可，反之用 `ReloadMappers()` 补绑定）；顺带修复空 `mybatis.mapper-locations` 会退化为扫描当前目录 XML 的问题；`mybatis.mapper-locations` 与 `NewSqlMappers(dir)` 行为完全不变（回归测试 `Test_NewSqlMappers_DiskUnchanged`）；端到端覆盖 `orm/embed_fs_test.go` + `types/embed_fs_test.go`（SQLite 全流程、MapFS、多源覆盖、非法 XML）
 - **v0.2.1（补丁，2026-09-04）**：MySQL 文本列整列丢失修复 — go-sql-driver/mysql 在 `parseTime=true` 下对 VARCHAR/TEXT/CHAR 列报告 `ScanType() = sql.NullString`，`resolveConverter`（`orm/common.go`）缺少该分支导致 `createMapWithConverters` 静默跳过该列，查询结果中**所有字符串字段为空**（id/时间/数字正常）；补上 `sql.NullString → convertSqlString2String` 分支后全字段正常返回（该缺陷自 v0.1 系列即存在，SQLite/MySQL/PG 三 Demo 验证中发现）
 - **v0.2.0（优化改造，2026-09-04 起）**：共享 Java Mapper XML 零改造接入 + 多环境前缀切换免改 XML

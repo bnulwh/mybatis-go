@@ -29,17 +29,20 @@ const (
 type DatabaseType string
 
 const (
-	MySqlDb    DatabaseType = "mysql"
-	PostgresDb DatabaseType = "postgres"
-	KingbaseDb DatabaseType = "kingbase"
-	SqliteDb   DatabaseType = "sqlite"
+	MySqlDb      DatabaseType = "mysql"
+	PostgresDb   DatabaseType = "postgres"
+	KingbaseDb   DatabaseType = "kingbase"
+	SqliteDb     DatabaseType = "sqlite"
+	TiDBDb       DatabaseType = "tidb"
+	TDSQLDb      DatabaseType = "tdsql"
+	PolarDBMyDb  DatabaseType = "polardb"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
 	switch dt {
 	case PostgresDb, KingbaseDb:
 		return FamilyPostgres
-	case MySqlDb:
+	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb:
 		return FamilyMySQL
 	case SqliteDb:
 		return FamilySQLite
@@ -58,6 +61,12 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return KingbaseDb, nil
 	case "sqlite", "sqlite3":
 		return SqliteDb, nil
+	case "tidb":
+		return TiDBDb, nil
+	case "tdsql":
+		return TDSQLDb, nil
+	case "polardb", "polardb-mysql", "polardb_mysql":
+		return PolarDBMyDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -73,6 +82,12 @@ func GetDriverName(dbType DatabaseType) string {
 		return "mysql"
 	case SqliteDb:
 		return "sqlite"
+	case TiDBDb:
+		return "tidb"
+	case TDSQLDb:
+		return "tdsql"
+	case PolarDBMyDb:
+		return "polardb"
 	default:
 		return string(dbType)
 	}
@@ -188,6 +203,12 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewSqliteDialector(cfg), nil
 	case KingbaseDb:
 		return NewKingbaseDialector(cfg), nil
+	case TiDBDb:
+		return NewTiDBDialector(cfg), nil
+	case TDSQLDb:
+		return NewTDSQLDialector(cfg), nil
+	case PolarDBMyDb:
+		return NewPolarDBDialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

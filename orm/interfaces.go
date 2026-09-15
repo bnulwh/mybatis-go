@@ -27,10 +27,13 @@ const (
 type DatabaseType = dialector.DatabaseType
 
 const (
-	MySqlDb    = dialector.MySqlDb
-	PostgresDb = dialector.PostgresDb
-	KingbaseDb = dialector.KingbaseDb
-	SqliteDb   = dialector.SqliteDb
+	MySqlDb     = dialector.MySqlDb
+	PostgresDb  = dialector.PostgresDb
+	KingbaseDb  = dialector.KingbaseDb
+	SqliteDb    = dialector.SqliteDb
+	TiDBDb      = dialector.TiDBDb
+	TDSQLDb     = dialector.TDSQLDb
+	PolarDBMyDb = dialector.PolarDBMyDb
 )
 
 type Dialector = dialector.Dialector
