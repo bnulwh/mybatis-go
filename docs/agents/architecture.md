@@ -258,22 +258,30 @@ userMapper.SelectById(1)
 
 ## 7. 新增方言的扩展路径
 
-添加新数据库（如 openGauss）只需：
+添加新数据库（如 openGauss）的完整操作步骤见 **docs/agents/add-dialector.md**。
+
+核心改动点速览：
 
 ```
-1. orm/dialector/opengauss.go
-   ├── type OpenGaussDialector struct { BaseDialector }
-   ├── func NewOpenGaussDialector(cfg ConfigProvider) *OpenGaussDialector
-   └── 覆写与 PG 不同的方法（通常零覆写，PG 兼容）
+1. orm/dialector/types.go
+   ├── const XxxDb DatabaseType = "xxx"
+   ├── DatabaseType.Family() 添加 case → 所属族
+   ├── ParseDatabaseType() 添加 case "xxx"
+   ├── GetDriverName() 添加 case → 驱动名
+   └── NewForType() 添加 case → NewXxxDialector()
 
-2. orm/database_config.go
-   ├── const OpenGaussDb DatabaseType = "opengauss"
-   ├── parseDatabaseType() 添加 case "opengauss"
-   └── DatabaseType.Family() 添加 case OpenGaussDb → FamilyPostgres
+2. orm/dialector/<name>.go
+   ├── init() 注册驱动别名（sql.Register）
+   ├── type XxxDialector struct { 嵌入父Dialector }
+   └── func NewXxxDialector(cfg ConfigProvider) *XxxDialector
 
-3. orm/database_connection.go
-   └── Open() switch 添加 case FamilyPostgres 已覆盖（无需改动）
+3. orm/interfaces.go
+   └── XxxDb = dialector.XxxDb（常量重导出）
 
-4. orm/dialector/opengauss_test.go
-   └── 单元测试
+4. cmd/<name>demo/main.go + application-<name>.properties
+
+5. orm/dialector/kingbase_test.go + orm/database_config_test.go
+   └── 追加单元测试
+
+6. README.md 更新
 ```
