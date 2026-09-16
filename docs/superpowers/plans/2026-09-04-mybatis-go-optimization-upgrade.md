@@ -55,7 +55,7 @@ go test -count=1 ./...
 - Modify: `orm/param_type.go`（`checkSql` 放宽）
 - Test: `types/sql_param_test.go`（新增）、`orm/param_type_test.go`（新增）
 
-- [ ] **Step 1: 写失败测试 —— types/sql_param_test.go 新增**
+- [x] **Step 1: 写失败测试 —— types/sql_param_test.go 新增**
 
 ```go
 // Test_collectSqlSlots_NoParameterType：samples（RuoYi 共享 XML，无 parameterType）
@@ -120,12 +120,12 @@ func Test_collectSqlSlots_IfNoPlaceholder(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `go test ./types/ -run Test_collectSqlSlots -v`
 Expected: `Need should be true` / `slots = []` 失败（`Slots` 字段尚不存在编译不过，先加字段再加推导逻辑，或先 `go test ./types/` 看编译错误即可）。
 
-- [ ] **Step 3: 实现 —— types/sql_param.go**
+- [x] **Step 3: 实现 —— types/sql_param.go**
 
 ```go
 type SqlParam struct {
@@ -140,7 +140,7 @@ type SqlParam struct {
 
 `parseSqlParamFromXmlAttrs` 保持不变（仍只在显式 `parameterType` 时置 `Need=true`，`AutoDerive=false`）。
 
-- [ ] **Step 4: 实现 —— types/sql_fragments.go 新增 collectSqlSlots**
+- [x] **Step 4: 实现 —— types/sql_fragments.go 新增 collectSqlSlots**
 
 ```go
 // collectSqlSlots 深度遍历片段树，收集全部 #{} / ${} 占位符名（去重、按首现序）。
@@ -203,7 +203,7 @@ func collectSqlSlots(items []*sqlFragment) []string {
 }
 ```
 
-- [ ] **Step 5: 实现 —— types/sql_function.go parseSqlFunctionFromXmlNode 接线**
+- [x] **Step 5: 实现 —— types/sql_function.go parseSqlFunctionFromXmlNode 接线**
 
 ```go
 items := parsesqlFragmentsFromXmlElements(node.Elements, sns)
@@ -217,7 +217,7 @@ param.Slots = slots
 return &SqlFunction{ /* 其余不变 */ Items: items, Param: param, ... }
 ```
 
-- [ ] **Step 6: 实现 —— orm/param_type.go checkSql 放宽（M-06 语义）**
+- [x] **Step 6: 实现 —— orm/param_type.go checkSql 放宽（M-06 语义）**
 
 ```go
 func (in *ParamType) checkSql(f *types.SqlFunction, name string) error {
@@ -235,7 +235,7 @@ func (in *ParamType) checkSql(f *types.SqlFunction, name string) error {
 }
 ```
 
-- [ ] **Step 7: 注册期回归测试 —— orm/param_type_test.go 新增**
+- [x] **Step 7: 注册期回归测试 —— orm/param_type_test.go 新增**
 
 ```go
 type NoParamTypeMapper struct {
@@ -272,7 +272,7 @@ func Test_bindSql_NoParameterType(t *testing.T) {
 
 > 注：`types.BuildKeyOf` 若不存在则直接在测试里 `strings.ToLower`/自实现小写键（参考 `types.common.go::buildKey`）。`newMapperInfo` 当前返回 `*mapperInfo`（Task 0.2 会改签名，届时同步本测试）。
 
-- [ ] **Step 8: 跑全量测试并提交**
+- [x] **Step 8: 跑全量测试并提交**
 
 Run: `go test -count=1 ./types/ ./orm/`
 Expected: 新增用例通过；既有 `Test_*` 全绿（放宽只影响"有参函数 + 无 parameterType"这一失败面，不影响已声明 parameterType 的语句）。
@@ -293,7 +293,7 @@ git commit -m "feat(types): derive param need from statement placeholders (1.1, 
 - Modify: `orm/proxy_value.go`（`buildRemoteMethod` 变参跳过长度校验）
 - Test: `orm/proxy_value_test.go`（改 `Test_makeParamType`）、`orm/robustness_test.go`（若有 panic 断言同步）
 
-- [ ] **Step 1: 写失败测试 —— orm/proxy_value_test.go 更新 Test_makeParamType**
+- [x] **Step 1: 写失败测试 —— orm/proxy_value_test.go 更新 Test_makeParamType**
 
 ```go
 func Test_makeParamType(t *testing.T) {
@@ -329,12 +329,12 @@ func Test_makeParamType(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `go test ./orm/ -run Test_makeParamType -v`
 Expected: 编译失败/断言失败（`makeParamType` 尚未返回 error）。
 
-- [ ] **Step 3: 实现 —— orm/param_type.go**
+- [x] **Step 3: 实现 —— orm/param_type.go**
 
 ```go
 type ParamType struct {
@@ -381,7 +381,7 @@ func makeParamType(funcName string, funcType reflect.Type, funcTag reflect.Struc
 }
 ```
 
-- [ ] **Step 4: 实现 —— orm/mapper_cache.go（错误聚合）**
+- [x] **Step 4: 实现 —— orm/mapper_cache.go（错误聚合）**
 
 ```go
 type mapperInfo struct {
@@ -435,7 +435,7 @@ func newMapperInfo(typ reflect.Type) *mapperInfo {
 }
 ```
 
-- [ ] **Step 5: 实现 —— orm/orm_cache.go bindSqls 合并 FuncErrs**
+- [x] **Step 5: 实现 —— orm/orm_cache.go bindSqls 合并 FuncErrs**
 
 ```go
 for name := range in.mappers.Mappers {
@@ -449,7 +449,7 @@ for name := range in.mappers.Mappers {
 }
 ```
 
-- [ ] **Step 6: 实现 —— orm/proxy_value.go buildRemoteMethod 变参放行**
+- [x] **Step 6: 实现 —— orm/proxy_value.go buildRemoteMethod 变参放行**
 
 ```go
 var tagArgs = parseTagArgs(getTagArgNames(structField.Tag))
@@ -464,7 +464,7 @@ if !fieldTyp.IsVariadic() { // 1.3：变参不在代理安装期校验 tag 长�
 }
 ```
 
-- [ ] **Step 7: 全量测试**
+- [x] **Step 7: 全量测试**
 
 Run: `go build ./... && go vet ./... && go test -count=1 ./...`
 Expected: 全绿；`Test_makeParamType` 新断言通过；无其它用例依赖旧 panic 行为（若有，同步改为断言 error）。
@@ -485,7 +485,7 @@ git commit -m "fix(orm): variadic functions no longer panic; arg-tag errors beco
 
 > 背景：`orm/proxy_arg.go::buildArgs` 对带 `args:` 标签的函数已把参数打包为 map（args[0]），不影响；本任务修复**无标签多参**（`func(schema, tableName string)`）场景：所有占位符被同一个 `args[0]` 替换。
 
-- [ ] **Step 1: 写失败测试 —— types/sql_function_test.go 新增**
+- [x] **Step 1: 写失败测试 —— types/sql_function_test.go 新增**
 
 ```go
 // Test_GenerateSQL_MultiParam：无 args 标签的多参函数，占位符按位绑定（1.2）
@@ -527,12 +527,12 @@ func Test_PrepareSQL_MultiParam(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `go test ./types/ -run 'Test_GenerateSQL_MultiParam|Test_PrepareSQL_MultiParam' -v`
 Expected: `multi-param not bound per-slot`（现在两个占位符都渲染成 `'gzwsk'`）。
 
-- [ ] **Step 3: 实现 —— types/sql_function.go**
+- [x] **Step 3: 实现 —— types/sql_function.go**
 
 `GenerateSQL`/`PrepareSQL` 在 `validParam` 之后、`effectiveParamType` 分派之前插入多参分支，并新增 buildParamMap：
 
@@ -586,7 +586,7 @@ return sqlstr, results, nil
 
 > `generateSqlWithMap`/`prepareSqlWithMap` 已存在（`MapSqlParam` 路径），`lookupParam` 支持按 buildKey 键取值，直接复用。
 
-- [ ] **Step 4: 实现 —— types/sql_param.go validParam 多参放宽**
+- [x] **Step 4: 实现 —— types/sql_param.go validParam 多参放宽**
 
 在 `validParam` 的 `switch in.Type` 之前插入：
 
@@ -604,12 +604,12 @@ if len(args) > 1 {
 }
 ```
 
-- [ ] **Step 5: 端到端复核（SQLite 真实执行）**
+- [x] **Step 5: 端到端复核（SQLite 真实执行）**
 
 在 `orm/table_prefix_test.go` 同款 harness（`Test_Sqlite*` 模式）新增 `Test_Sqlite_MultiParamNoTag`：
 建表 `columns_t(a text, b text)`，XML 语句 `select a from columns_t where a = #{a} and b = #{b}`（无 parameterType、无 args 标签），Go 结构体函数 `SelectByA func(a, b string) ([]map[string]interface{}, error)`，插入 2 行后按 `("x","y")` 查询断言只匹配 `a='x' and b='y'` 的行。
 
-- [ ] **Step 6: 全量测试并提交**
+- [x] **Step 6: 全量测试并提交**
 
 Run: `go build ./... && go test -count=1 ./...`
 Expected: 全绿；既有单参（Base/Slice/Map/Struct）路径行为不变（`len(args)==1` 不受影响）。
@@ -629,7 +629,7 @@ git commit -m "fix(types): bind multi-args per statement slot instead of args[0]
 - Modify: `orm/multi_datasource.go`（可选：多源继承映射配置）
 - Test: `orm/table_prefix_test.go`（新增单测 + SQLite 端到端）
 
-- [ ] **Step 1: 写失败测试 —— orm/table_prefix_test.go 新增纯函数断言**
+- [x] **Step 1: 写失败测试 —— orm/table_prefix_test.go 新增纯函数断言**
 
 ```go
 // Test_rewriteSQLTablesWithMap：前缀移除/替换（2.1）
@@ -673,12 +673,12 @@ func Test_rewriteSQLTablesWithMap_tableSet(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `go test ./orm/ -run Test_rewriteSQLTablesWithMap -v`
 Expected: 编译失败（函数不存在）——正是预期。
 
-- [ ] **Step 3: 实现 —— orm/database_config.go**
+- [x] **Step 3: 实现 —— orm/database_config.go**
 
 ```go
 type MyBatisSetting struct {
@@ -720,7 +720,7 @@ func parseTablePrefixMap(m map[string]string) map[string]string {
 
 `parseDatabaseConfig` 里与 `TablePrefix: parseTablePrefix(m)` 并列加一行：`TablePrefixMap: parseTablePrefixMap(m)`。
 
-- [ ] **Step 4: 实现 —— orm/table_prefix.go**
+- [x] **Step 4: 实现 —— orm/table_prefix.go**
 
 新增：
 
@@ -833,7 +833,7 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 1. 把 `rewriteSQLTablesWithSet` 的循环体抽出为 `rewriteTableTokens(tokens []sqlToken, prefix string, prefixMap map[string]string, tableSet map[string]struct{}) string`，两处表位置分支（普通标识符、`schema.table` 限定名的表名 token）统一调用 `applyToken`；原 `rewriteSQLTablesWithSet`/`rewriteSQLTables` 变为薄委托，**保证既有 20+24+8 组单测零回归**（prefixMap=nil 时行为与现状逐字节一致）。
 2. 注意 `schema.table` 限定分支：映射对表名部分生效**不区分 schema 是否为 public/main**（映射为显式配置意图；`mappedPrefix` 命中即处理），未命中映射时维持原有 `isPrefixableSchema` 跳过逻辑。
 
-- [ ] **Step 5: 实现 —— DB.applyTablePrefix 走映射 + 多源继承**
+- [x] **Step 5: 实现 —— DB.applyTablePrefix 走映射 + 多源继承**
 
 ```go
 func (db *DB) applyTablePrefix(query string) string {
@@ -850,11 +850,11 @@ func (db *DB) applyTablePrefix(query string) string {
 
 > 说明：`spring.datasource.<name>.table-prefix-map` 逐源覆盖键经 `parseMultiDatabaseConfig` 剥前缀后自动生效（复用 parseDatabaseConfig），无需额外解析。
 
-- [ ] **Step 6: 端到端（SQLite，模拟三库 prod 场景）**
+- [x] **Step 6: 端到端（SQLite，模拟三库 prod 场景）**
 
 新增 `Test_TablePrefixMap_SqliteRemovePrefix`：库中建**无前缀**表 `sys_user`；Setting 配 `TablePrefixMap: {"threedb_": ""}`（通过 `mybatis.table-prefix-map` 配置键加载）；Mapper XML 语句硬编码 `select * from threedb_sys_user where id = #{id}`；执行断言命中 `sys_user` 真实表。
 
-- [ ] **Step 7: 全量测试并提交**
+- [x] **Step 7: 全量测试并提交**
 
 Run: `go build ./... && go test -count=1 ./orm/ -run 'Test_rewriteSQLTables|Test_TablePrefix' -v && go test -count=1 ./...`
 Expected: 新增用例通过；既有前缀单测（basic/noFalsePositive/tableSet）全部保持原断言。
@@ -871,7 +871,7 @@ git commit -m "feat(orm): table prefix map to remove/replace prefixes (2.1)"
 **Files:**
 - Test: `orm/sqlite_p0_test.go`（新增，不含生产代码）
 
-- [ ] **Step 1: 写验收测试**
+- [x] **Step 1: 写验收测试**
 
 ```go
 // Test_P0_SharedJavaXml_NoParameterType：samples（Java 侧共享 XML）无 parameterType
@@ -890,7 +890,7 @@ func Test_P0_SharedJavaXml_NoParameterType(t *testing.T) {
 - Go struct：`SelectByOrgCode func(params map[string]interface{}) ([]*MdmOrgRaw, error)`（模型字段 `OrgCode`/`DeletedAt`，resultType 映射 `MdmOrgRaw`）。
 - 同一测试内再验证：`func(args ...interface{})` + `args:"orgCode"` 变参注册不 panic（1.3 验收）。
 
-- [ ] **Step 2: 运行**
+- [x] **Step 2: 运行**
 
 Run: `go test -count=1 ./orm/ -run Test_P0_SharedJavaXml_NoParameterType -v`
 Expected: 全绿。
@@ -913,7 +913,7 @@ git commit -m "test(orm): end-to-end shared java xml registration without parame
 - Modify: `orm/mapper_cache.go`（`mapperInfo.bindSql` 宽松分支）
 - Test: `orm/robustness_test.go`（新增）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 // Test_SetStrictRegister_Lax：strict=false 时失败函数跳过、其余正常绑定
@@ -943,12 +943,12 @@ func Test_SetStrictRegister_Lax(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `go test ./orm/ -run Test_SetStrictRegister_Lax -v`
 Expected: `RegisterMapper` 返回错误（当前宽松未实现）。
 
-- [ ] **Step 3: 实现 —— orm/orm_cache.go**
+- [x] **Step 3: 实现 —— orm/orm_cache.go**
 
 ```go
 var strictRegister atomic.Bool
@@ -991,7 +991,7 @@ if err != nil {
 }
 ```
 
-- [ ] **Step 4: 实现 —— bindMapper 容错（宽松模式下未绑定函数运行时返回明确错误）**
+- [x] **Step 4: 实现 —— bindMapper 容错（宽松模式下未绑定函数运行时返回明确错误）**
 
 `orm/orm_cache.go::bindMapper` 中 `bm.fetchSqlFunction(funcName)` 返回 err 时，不再 panic，改为产出错误代理函数：
 
@@ -1011,7 +1011,7 @@ if err != nil {
 
 （具体接线参照 `bindMapper` 现有 proxyFunc 注册结构；`buildReturnValues(returnType, reflect.Value{}, error)` 已在库内使用，直接复用。）
 
-- [ ] **Step 5: 全量测试并提交**
+- [x] **Step 5: 全量测试并提交**
 
 Run: `go build ./... && go vet ./... && go test -count=1 ./...`
 Expected: 全绿；默认严格模式行为不变（既有测试未受影响）。
@@ -1029,7 +1029,7 @@ git commit -m "feat(orm): lax registration mode SetStrictRegister (5.1)"
 - Test: `types/table_struct_test.go`（新增断言）
 - Docs: `docs/agents/mybatis-plus.md`（注明产物已带 parameterType；MyBatis-Plus 章节补一句）
 
-- [ ] **Step 1: 写验证测试**
+- [x] **Step 1: 写验证测试**
 
 ```go
 // Test_GeneratedXML_AllStatementsHaveParameterType：schema2code 产物每条语句都带 parameterType（4.1）
@@ -1064,12 +1064,12 @@ func Test_GeneratedXML_AllStatementsHaveParameterType(t *testing.T) {
 
 （`SaveMPToFile` 同理跑一遍。若发现有语句确实缺失 parameterType（如 count/selectAll），按 `types/table_struct.go` 现有 `CreateAttr("parameterType", …)` 模式补齐并断言通过。）
 
-- [ ] **Step 2: 运行并修复缺口**
+- [x] **Step 2: 运行并修复缺口**
 
 Run: `go test ./types/ -run Test_GeneratedXML_AllStatementsHaveParameterType -v`
 Expected: 通过（现状已全带）；若有失败按 Step 1 补 `CreateAttr` 后重跑。
 
-- [ ] **Step 3: 文档更新并提交**
+- [x] **Step 3: 文档更新并提交**
 
 `docs/agents/mybatis-plus.md` 增补：schema2code/saveMP 生成 XML 均内嵌 `parameterType`（基础类型/模型名/主键类型），配合 1.1 自动推导注册期无需再手工补参。`git add && git commit -m "test(types): assert generated xml carries parameterType (4.1)"`。
 
@@ -1081,7 +1081,7 @@ Expected: 通过（现状已全带）；若有失败按 Step 1 补 `CreateAttr` 
 - Test: `orm/multi_datasource_test.go`（新增验证）
 - Docs: `README.md`（多数据源 × schema × 前缀矩阵）、`docs/agents/table-prefix.md`（schema 限定名约定说明）
 
-- [ ] **Step 1: 写验证测试**
+- [x] **Step 1: 写验证测试**
 
 ```go
 // Test_parseMultiDatabaseConfig_schemaOverride：逐源 schema 键被解析（3.1）
@@ -1101,12 +1101,12 @@ func Test_parseMultiDatabaseConfig_schemaOverride(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行**
+- [x] **Step 2: 运行**
 
 Run: `go test ./orm/ -run Test_parseMultiDatabaseConfig_schemaOverride -v`
 Expected: 通过（parseDatabaseConfig 已对称支持）。若失败则说明逐源解析有缺口，按 `parseMultiDatabaseConfig` 剥前缀逻辑排查补修。
 
-- [ ] **Step 3: 文档**
+- [x] **Step 3: 文档**
 
 README「多数据源」/「schema」章节补矩阵示例：
 
@@ -1134,7 +1134,7 @@ git commit -m "docs(orm): datasource schema override matrix + qualified-name con
 - Modify: `types/common.go`（`parseResultTypeFrom` 增加 map 分支）
 - Test: `types/sql_result_test.go`（新增）
 
-- [ ] **Step 1: 失败测试**
+- [x] **Step 1: 失败测试**
 
 ```go
 // Test_ParseResultTypeFrom_Map：map 识别为合法通用类型，不再走 default warn 路径
@@ -1149,9 +1149,9 @@ func Test_ParseResultTypeFrom_Map(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行**（`go test ./types/ -run Test_ParseResultTypeFrom_Map -v` → FAIL）
+- [x] **Step 2: 运行**（`go test ./types/ -run Test_ParseResultTypeFrom_Map -v` → FAIL）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```go
 case "MAP", "HASHMAP", "TREEMAP":
@@ -1168,7 +1168,7 @@ case "MAP", "HASHMAP", "TREEMAP":
 - Test: `orm/table_prefix_test.go`（新增 MERGE/CREATE INDEX/RENAME 断言）
 - Modify: `orm/table_prefix.go`（若断言失败才实现）
 
-- [ ] **Step 1: 写验证测试（现状可能已支持，先测再改）**
+- [x] **Step 1: 写验证测试（现状可能已支持，先测再改）**
 
 ```go
 func Test_rewriteSQLTables_edgeKeywords(t *testing.T) {
@@ -1186,12 +1186,12 @@ func Test_rewriteSQLTables_edgeKeywords(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行确认**（`go test ./orm/ -run Test_rewriteSQLTables_edgeKeywords -v`）
+- [x] **Step 2: 运行确认**（`go test ./orm/ -run Test_rewriteSQLTables_edgeKeywords -v`）
   - `merge into`：现有 `into` 已触发 expectTable，应已通过（RUN 验证）。
   - `create index ... on`：`on` 是断句词不清零 expectTable，需状态机补 `index→on` 上下文。
   - `rename table a to b`：`to` 未触发，需补 `rename` 上下文。
 
-- [ ] **Step 3: 按失败项实现（增量，保持既有行为）**
+- [x] **Step 3: 按失败项实现（增量，保持既有行为）**
 
 状态机补充（`rewriteSQLTablesWithMap` 词法循环内）：
 - 新增两个上下文标记 `pendingIndex bool`、`renameMode bool`：
@@ -1202,7 +1202,7 @@ func Test_rewriteSQLTables_edgeKeywords(t *testing.T) {
   - word `to` 且 `expectToTable` → `expectTable = true; expectToTable = false`。
 - 仅新增分支，不改动 `clauseBreakWords` 与既有路径；每个新分支配单测断言（Step 1 用例补全到全绿）。
 
-- [ ] **Step 4: 全量测试并提交**（`go test -count=1 ./orm/ && git commit -m "feat(orm): table rewrite edge keywords MERGE/CREATE INDEX/RENAME (2.2)"`）
+- [x] **Step 4: 全量测试并提交**（`go test -count=1 ./orm/ && git commit -m "feat(orm): table rewrite edge keywords MERGE/CREATE INDEX/RENAME (2.2)"`）
 
 ---
 
@@ -1211,7 +1211,7 @@ func Test_rewriteSQLTables_edgeKeywords(t *testing.T) {
 **Files:**
 - Test: `orm/table_prefix_test.go`（新增嵌套 WITH 断言）
 
-- [ ] **Step 1: 写验证测试**
+- [x] **Step 1: 写验证测试**
 
 ```go
 func Test_rewriteSQLTables_nestedCTE(t *testing.T) {
@@ -1229,7 +1229,7 @@ func Test_rewriteSQLTables_nestedCTE(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行确认**（`go test ./orm/ -run Test_rewriteSQLTables_nestedCTE -v`）
+- [x] **Step 2: 运行确认**（`go test ./orm/ -run Test_rewriteSQLTables_nestedCTE -v`）
   若通过（主循环逐 token 访问括号内 `with` → 已收集）→ 直接在 `docs/agents/table-prefix.md` 移除「嵌套 CTE 未收集」的已知边界描述并提交；若失败再实现递归收集（在 `matchParenIndex` 返回的括号区间内对 `with` token 再调 `cteModeCollect`）。
 
 ---
@@ -1241,7 +1241,7 @@ func Test_rewriteSQLTables_nestedCTE(t *testing.T) {
 - Modify: `orm/table_prefix.go`（`tableNamesCache` 加 `fetchedAt`，`tableNameSet` 过期重取）
 - Test: `orm/table_prefix_test.go`（新增）
 
-- [ ] **Step 1: 实现（TTL 默认关闭，行为零变化）**
+- [x] **Step 1: 实现（TTL 默认关闭，行为零变化）**
 
 `database_config.go`：
 
@@ -1282,7 +1282,7 @@ func (c *tableNamesCache) get() (map[string]struct{}, bool, bool) {
 
 `tableNameSet`：`get()` 返回 stale 时重新 `fetchTableNames` 并更新 `fetchedAt`（失败时保留旧集合并记 Warn，不降级为空集）；`db.tablePrefixSetTTL()` 取 DB 配置或 0。
 
-- [ ] **Step 2: 测试**
+- [x] **Step 2: 测试**
 
 ```go
 // Test_tableNamesCache_TTL：TTL 过期后 get() 标记 stale（弱校验路径触发重取）
@@ -1303,7 +1303,7 @@ func Test_tableNamesCache_TTL(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: 全量测试并提交**（`go test -count=1 ./... && git commit -m "feat(orm): table name set cache TTL refresh (2.4)"`）
+- [x] **Step 3: 全量测试并提交**（`go test -count=1 ./... && git commit -m "feat(orm): table name set cache TTL refresh (2.4)"`）
 
 ---
 
@@ -1314,7 +1314,7 @@ func Test_tableNamesCache_TTL(t *testing.T) {
 - Modify: `orm/prepared_stmt.go`（降级计数器 + 一次性 Warn）
 - Test: `orm/prepared_stmt_test.go`（新增）
 
-- [ ] **Step 1: 实现 —— table_prefix.go**
+- [x] **Step 1: 实现 —— table_prefix.go**
 
 ```go
 func (db *DB) applyTablePrefix(query string) string {
@@ -1331,7 +1331,7 @@ func (db *DB) applyTablePrefix(query string) string {
 }
 ```
 
-- [ ] **Step 2: 实现 —— prepared_stmt.go**
+- [x] **Step 2: 实现 —— prepared_stmt.go**
 
 ```go
 type PreparedStmtDB struct {
@@ -1351,7 +1351,7 @@ func (db *PreparedStmtDB) noteDirectExec() {
 
 将 `ExecContext`/`QueryContext`/`QueryRowContext` 中 `db.cacheFull()`（或 `len(args)==0` 直连）分支改为调用 `db.noteDirectExec()` 后直连。
 
-- [ ] **Step 3: 测试**
+- [x] **Step 3: 测试**
 
 ```go
 // Test_PreparedStmtDirectExecCounter：filled 缓存之后直连计数增加且不 panic
@@ -1368,7 +1368,7 @@ func Test_PreparedStmtDirectExecCounter(t *testing.T) {
 }
 ```
 
-- [ ] **Step 4: 全量测试并提交**（`go test -count=1 ./... && git commit -m "feat(orm): observable table-prefix rewrite log + prepared degrade warn (2.5/5.3)"`）
+- [x] **Step 4: 全量测试并提交**（`go test -count=1 ./... && git commit -m "feat(orm): observable table-prefix rewrite log + prepared degrade warn (2.5/5.3)"`）
 
 ---
 
@@ -1380,7 +1380,7 @@ func Test_PreparedStmtDirectExecCounter(t *testing.T) {
 - Modify: `orm/schema_utils.go`（`SchemaToCode`/`SchemaToCodeMP` 末尾统一 gofmt）
 - Test: `types/sql_mappers_test.go`（汇总行数量断言，可选）
 
-- [ ] **Step 1: 实现 —— NewSqlMappers 汇总日志**
+- [x] **Step 1: 实现 —— NewSqlMappers 汇总日志**
 
 ```go
 func NewSqlMappers(dir string) *SqlMappers {
@@ -1404,7 +1404,7 @@ func NewSqlMappers(dir string) *SqlMappers {
 
 > 若 `SqlMapper` 无现成的"语句数"访问器，改用文件内 `<select|insert|update|delete` 计数（`strings.Count` 于原始 XML）或对 `NamedFunctions` 长度/2（每个函数按 id+lcase 双键）。选定一种在注释中说明即可，目标是一文件一行汇总。
 
-- [ ] **Step 2: 实现 —— 生成文件 gofmt（4.2）**
+- [x] **Step 2: 实现 —— 生成文件 gofmt（4.2）**
 
 `types/sql_mapper.go` 新建 helper 并接入 `generateMapperFile` 与模型 GenerateFile 写盘处；`orm/schema_utils.go` 两个入口末尾对各目录 `exec.Command("gofmt", "-w", f)`（失败仅 Warn，不阻塞生成）：
 
@@ -1418,11 +1418,11 @@ func gofmtFile(path string) {
 }
 ```
 
-- [ ] **Step 3: 验证**
+- [x] **Step 3: 验证**
 
 Run: `go run ./cmd/sqlitedemo` 或 `go test ./types/ -run Test_GenerateFiles` 后，对生成的 `*.go` 执行 `gofmt -l` 断言为空（CI 步骤中新增 `gofmt -l` 检查或人工复核一次）。
 
-- [ ] **Step 4: 提交**（`git add ... && git commit -m "chore(codegen): per-file parse summary + gofmt generated go (5.2/4.2)"`）
+- [x] **Step 4: 提交**（`git add ... && git commit -m "chore(codegen): per-file parse summary + gofmt generated go (5.2/4.2)"`）
 
 ---
 
@@ -1435,7 +1435,7 @@ Run: `go run ./cmd/sqlitedemo` 或 `go test ./types/ -run Test_GenerateFiles` �
 - Modify: `docs/agents/conventions.md`（注册期参数绑定新约定：无 parameterType 自动推导；多参无 tag 时按占位符顺序绑定）
 - Modify: `docs/agents/mybatis-plus.md`（4.1 parameterType 已内嵌说明）
 
-- [ ] **Step 1~N:** 随各 Task 同步更新对应文档；最终 `git commit -m "docs: changelog v0.2.x + optimization plan follow-ups"`。
+- [x] **Step 1~N:** 随各 Task 同步更新对应文档；最终 `git commit -m "docs: changelog v0.2.x + optimization plan follow-ups"`。
 
 ---
 
