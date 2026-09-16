@@ -18,13 +18,13 @@ type ormCache struct {
 }
 
 var (
-	gCache       ormCache
-	strictReg    atomic.Bool // 5.1：注册模式，默认严格（任一函数绑定失败即整体失败）
+	gCache    ormCache
+	strictReg atomic.Bool // 5.1：注册模式，默认严格（任一函数绑定失败即整体失败）
 )
 
 func init() {
 	gCache = ormCache{
-		models:  modelCache{Models: map[string]reflect.Type{}},
+		models:  modelCache{Models: map[string]reflect.Type{}, Infos: map[string]*ModelInfo{}},
 		mappers: mapperCache{Mappers: map[string]*mapperInfo{}},
 		sqls:    nil,
 	}
@@ -37,7 +37,6 @@ func SetStrictRegister(strict bool) { strictReg.Store(strict) }
 
 // IsStrictRegister 返回当前注册模式。
 func IsStrictRegister() bool { return strictReg.Load() }
-
 
 func (in *ormCache) createModel(name string) (reflect.Value, error) {
 	return in.models.createModel(name)

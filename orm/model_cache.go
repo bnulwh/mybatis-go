@@ -12,6 +12,7 @@ import (
 type modelCache struct {
 	mu     sync.RWMutex
 	Models map[string]reflect.Type
+	Infos  map[string]*ModelInfo // db tag 元数据（P0-2），无 tag 的模型存 nil
 }
 
 func (in *modelCache) registerModel(inPtr interface{}) {
@@ -36,12 +37,25 @@ func (in *modelCache) addModel(typ reflect.Type) {
 	log.Debugf("name: %v", name)
 	sn := types.GetShortName(name)
 	log.Debugf("short name: %v", sn)
+	info, err := parseModelInfoFromType(typ)
+	if err != nil {
+		log.Warnf("parse model info for %s failed: %v", getFullName(typ), err)
+		info = nil
+	}
 	in.mu.Lock()
+	if in.Infos == nil {
+		in.Infos = map[string]*ModelInfo{}
+	}
 	in.Models[name] = typ
 	in.Models[strings.ToLower(name)] = typ
 	in.Models[sn] = typ
 	in.Models[strings.ToLower(sn)] = typ
 	in.Models[getFullName(typ)] = typ
+	in.Infos[name] = info
+	in.Infos[strings.ToLower(name)] = info
+	in.Infos[sn] = info
+	in.Infos[strings.ToLower(sn)] = info
+	in.Infos[getFullName(typ)] = info
 	in.mu.Unlock()
 }
 

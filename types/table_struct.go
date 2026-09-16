@@ -62,7 +62,8 @@ type TableStructure struct {
 	ColumnMap     map[string]*ColumnStructure
 	Table         string
 	PrimaryColumn *ColumnStructure
-	ModelName     string // 显式模型名（内存生成 CRUD 时取 resultMap type 原值，空则按表名推导）
+	ModelName     string           // 显式模型名（内存生成 CRUD 时取 resultMap type 原值，空则按表名推导）
+	LogicColumn   *ColumnStructure // 显式逻辑删除列（db:",logic" tag 指定），优先于 deleted/del_flag 约定
 }
 
 func (ts *TableStructure) SaveToFile(filename, prefix string) error {
@@ -118,13 +119,21 @@ func (ts *TableStructure) hasColumn(name string) bool {
 	return false
 }
 
-// hasLogicalDelete 是否含逻辑删除列：deleted（bool）或 del_flag（varchar，RuoYi 约定）
+// hasLogicalDelete 是否含逻辑删除列：显式 LogicColumn 优先，
+// 否则按约定 deleted（bool）或 del_flag（varchar，RuoYi 约定）。
 func (ts *TableStructure) hasLogicalDelete() bool {
+	if ts.LogicColumn != nil {
+		return true
+	}
 	return ts.hasColumn("deleted") || ts.hasColumn("del_flag")
 }
 
-// deleteFlagSetSQL 逻辑删除的 update set 片段（按列约定取 deleted / del_flag）
+// deleteFlagSetSQL 逻辑删除的 update set 片段：显式 LogicColumn 按列 Go 类型取值
+// （bool → =true / string → ='1' / 数值 → =1），否则按 deleted / del_flag 约定。
 func (ts *TableStructure) deleteFlagSetSQL() string {
+	if lc := ts.LogicColumn; lc != nil {
+		return lc.Name + logicSetSuffix(lc)
+	}
 	if ts.hasColumn("deleted") {
 		return "deleted=true,delete_time=now()"
 	}
@@ -134,8 +143,12 @@ func (ts *TableStructure) deleteFlagSetSQL() string {
 	return ""
 }
 
-// deleteFlagFilterSQL 逻辑删除的 where 过滤片段（deleted=false / del_flag='0'）
+// deleteFlagFilterSQL 逻辑删除的 where 过滤片段：显式 LogicColumn 按列 Go 类型取值
+// （bool → = false / string → = '0' / 数值 → = 0），否则按约定 deleted=false / del_flag='0'。
 func (ts *TableStructure) deleteFlagFilterSQL() string {
+	if lc := ts.LogicColumn; lc != nil {
+		return lc.Name + logicFilterSuffix(lc)
+	}
 	if ts.hasColumn("deleted") {
 		return "deleted = false"
 	}
@@ -143,6 +156,32 @@ func (ts *TableStructure) deleteFlagFilterSQL() string {
 		return "del_flag = '0'"
 	}
 	return ""
+}
+
+// logicSetSuffix 显式逻辑删除列的 set 值后缀（按 Go 类型）。
+func logicSetSuffix(lc *ColumnStructure) string {
+	if lc.Type != nil {
+		switch lc.Type.Kind() {
+		case reflect.Bool:
+			return "=true"
+		case reflect.String:
+			return "='1'"
+		}
+	}
+	return "=1"
+}
+
+// logicFilterSuffix 显式逻辑删除列的 where 过滤后缀（按 Go 类型）。
+func logicFilterSuffix(lc *ColumnStructure) string {
+	if lc.Type != nil {
+		switch lc.Type.Kind() {
+		case reflect.Bool:
+			return " = false"
+		case reflect.String:
+			return " = '0'"
+		}
+	}
+	return " = 0"
 }
 
 func (ts *TableStructure) writeHeader(doc *etree.Document) {
@@ -186,15 +225,22 @@ func (ts *TableStructure) CreateMapper(doc *etree.Document, prefix string) *etre
 	return mapper
 }
 
+// isLogicColumn 是否为逻辑删除相关列：deleted/delete_time 约定，或显式 LogicColumn。
+// 该类列由框架托管（逻辑删除 set/filter），不进入 resultMap、base_column_list 与 insert/update 列清单。
+func (ts *TableStructure) isLogicColumn(name string) bool {
+	low := strings.ToLower(name)
+	if low == "deleted" || low == "delete_time" {
+		return true
+	}
+	return ts.LogicColumn != nil && strings.EqualFold(ts.LogicColumn.Name, name)
+}
+
 func (ts *TableStructure) writeResultMap(mapper *etree.Element, prefix string) {
 	resultMap := mapper.CreateElement("resultMap")
 	resultMap.CreateAttr("id", DefaultResultMapName)
 	resultMap.CreateAttr("type", ts.getModelName(prefix))
 	for _, column := range ts.Columns {
-		if strings.Compare(strings.ToLower(column.Name), "deleted") == 0 {
-			continue
-		}
-		if strings.Compare(strings.ToLower(column.Name), "delete_time") == 0 {
+		if ts.isLogicColumn(column.Name) {
 			continue
 		}
 		result := resultMap.CreateElement("result")
@@ -208,10 +254,7 @@ func (ts *TableStructure) writeBaseColumnList(mapper *etree.Element) {
 	sql.CreateAttr("id", DefaultBCLName)
 	var cnames []string
 	for _, column := range ts.Columns {
-		if strings.Compare(strings.ToLower(column.Name), "deleted") == 0 {
-			continue
-		}
-		if strings.Compare(strings.ToLower(column.Name), "delete_time") == 0 {
+		if ts.isLogicColumn(column.Name) {
 			continue
 		}
 		cnames = append(cnames, column.Name)
@@ -241,10 +284,7 @@ func (ts *TableStructure) writeDeleteFunction(mapper *etree.Element) {
 func (ts *TableStructure) generateInsertSQL() string {
 	var cnames, cvalues []string
 	for _, column := range ts.Columns {
-		if strings.Compare(strings.ToLower(column.Name), "deleted") == 0 {
-			continue
-		}
-		if strings.Compare(strings.ToLower(column.Name), "delete_time") == 0 {
+		if ts.isLogicColumn(column.Name) {
 			continue
 		}
 		cnames = append(cnames, column.Name)
@@ -267,15 +307,18 @@ func (ts *TableStructure) generateUpdateSQL() string {
 		if column.Primary {
 			continue
 		}
-		if strings.Compare(strings.ToLower(column.Name), "deleted") == 0 {
-			continue
-		}
-		if strings.Compare(strings.ToLower(column.Name), "delete_time") == 0 {
+		if ts.isLogicColumn(column.Name) {
 			continue
 		}
 		cvalues = append(cvalues, fmt.Sprintf("%s=#{%s,jdbcType=%s}", column.Name, column.getPropertyName(), column.getJdbcType()))
 	}
-	if len(ts.Columns) != len(cvalues)+1 {
+	logicExcluded := 0
+	for _, column := range ts.Columns {
+		if !column.Primary && ts.isLogicColumn(column.Name) {
+			logicExcluded++
+		}
+	}
+	if len(ts.Columns) != len(cvalues)+1+logicExcluded {
 		log.Warnf("check primary key for table %s", ts.Table)
 	}
 	cvs := strings.Join(cvalues, ",\n\t\t\t ")

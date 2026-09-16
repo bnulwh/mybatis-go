@@ -33,6 +33,17 @@ func IsJdkType(name string) bool {
 	return jdkTypeNames[strings.ToLower(strings.TrimSpace(name))]
 }
 
+// modelStructureProvider 模型结构提供器：由 orm 包在初始化时注入
+// （RegisterModel 解析 struct db tag 得到 TableStructure），types 不反向依赖 orm。
+// 入参为 resultMap type 全名，返回 nil 表示未命中（走 resultMap 推导）。
+var modelStructureProvider func(typeName string) *TableStructure
+
+// SetModelStructureProvider 注册模型结构提供器（orm 包 init 时调用）。
+// 提供器命中时优先于 resultMap 推导：表名、列、主键、逻辑删除列均以 tag 元数据为准。
+func SetModelStructureProvider(fn func(typeName string) *TableStructure) {
+	modelStructureProvider = fn
+}
+
 // ensureMPBuiltinCRUD：Mapper 缺少 MP 内置 CRUD 时，若存在可推导表结构的 resultMap
 // （含基本类型列 id/result，type 为业务模型），则在内存中补生成缺失的内置方法
 // （insert/deleteById/updateById/selectById/selectOne/selectList/selectPage/
@@ -107,6 +118,13 @@ func buildTableStructureFromResultMap(in *SqlMapper) (*TableStructure, *ResultMa
 	}
 	if target == nil {
 		return nil, nil
+	}
+	// 优先走 orm 注入的模型结构提供器（struct db tag 元数据）：
+	// 显式表名 / 显式主键 / 显式逻辑删除列任一命中即采用，列清单与逻辑删除以 tag 为准。
+	if modelStructureProvider != nil {
+		if ts := modelStructureProvider(target.TypeName); ts != nil {
+			return ts, target
+		}
 	}
 	table := camelToSnake(strings.TrimSuffix(GetShortName(target.TypeName), "Model"))
 	if table == "" {
