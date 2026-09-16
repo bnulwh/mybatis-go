@@ -100,6 +100,10 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r22 != Db2Db || err != nil {
 		t.Error("test parseDatabaseType ibmdb2 failed.")
 	}
+	r23, err := dialector.ParseDatabaseType("clickhouse")
+	if r23 != ClickHouseDb || err != nil {
+		t.Error("test parseDatabaseType clickhouse failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -197,6 +201,11 @@ func Test_parseAddr(t *testing.T) {
 	tp18, host18, port18, db18, err := parseAddr(mp)
 	if tp18 != "db2" || host18 != "10.1.2.3" || port18 != 50000 || db18 != "db2test" || err != nil {
 		t.Error("test parseAddr db2 failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:clickhouse://10.1.2.3:9000/ch_test"
+	tp19, host19, port19, db19, err := parseAddr(mp)
+	if tp19 != "clickhouse" || host19 != "10.1.2.3" || port19 != 9000 || db19 != "ch_test" || err != nil {
+		t.Error("test parseAddr clickhouse failed.")
 	}
 }
 

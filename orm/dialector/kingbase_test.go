@@ -141,6 +141,8 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"db2", Db2Db},
 		{"ibmdb2", Db2Db},
 		{"db2-luw", Db2Db},
+		{"clickhouse", ClickHouseDb},
+		{"click-house", ClickHouseDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -208,6 +210,9 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if Db2Db.Family() != FamilyDB2 {
 		t.Errorf("Db2Db.Family() = %q, want %q", Db2Db.Family(), FamilyDB2)
 	}
+	if ClickHouseDb.Family() != FamilyClickHouse {
+		t.Errorf("ClickHouseDb.Family() = %q, want %q", ClickHouseDb.Family(), FamilyClickHouse)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -233,6 +238,7 @@ func Test_GetDriverName(t *testing.T) {
 		{MssqlDb, "sqlserver"},
 		{OracleDb, "oracle"},
 		{Db2Db, "go_ibm_db"},
+		{ClickHouseDb, "clickhouse"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -451,6 +457,7 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Schema: "myschema", Type: MssqlDb}, "myschema"},
 		{ConnectParams{DBName: "mydb", Username: "SYSTEM", Type: OracleDb}, "SYSTEM"},
 		{ConnectParams{DBName: "mydb", Username: "db2inst1", Type: Db2Db}, "DB2INST1"},
+		{ConnectParams{DBName: "mydb", Type: ClickHouseDb}, "mydb"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -527,6 +534,10 @@ func Test_GenerateDSN(t *testing.T) {
 	db2Params := ConnectParams{Host: "10.0.0.1", Port: 50000, Username: "db2inst1", Password: "123456", DBName: "testdb", Type: Db2Db}
 	if got := GenerateDSN(db2Params); got != "HOSTNAME=10.0.0.1;PORT=50000;DATABASE=testdb;UID=db2inst1;PWD=123456" {
 		t.Errorf("GenerateDSN db2 = %q", got)
+	}
+	chParams := ConnectParams{Host: "10.0.0.1", Port: 9000, Username: "default", Password: "123456", DBName: "testdb", Type: ClickHouseDb}
+	if got := GenerateDSN(chParams); got != "clickhouse://default:123456@10.0.0.1:9000/testdb" {
+		t.Errorf("GenerateDSN clickhouse = %q", got)
 	}}
 
 func Test_NewForType(t *testing.T) {
@@ -597,6 +608,10 @@ func Test_NewForType(t *testing.T) {
 	d17, err := NewForType(Db2Db, &testConfig{dbType: Db2Db})
 	if err != nil || d17.Name() != "db2" {
 		t.Errorf("NewForType db2 failed: %v, name=%q", err, d17.Name())
+	}
+	d18, err := NewForType(ClickHouseDb, &testConfig{dbType: ClickHouseDb})
+	if err != nil || d18.Name() != "clickhouse" {
+		t.Errorf("NewForType clickhouse failed: %v, name=%q", err, d18.Name())
 	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")
@@ -928,5 +943,64 @@ func Test_Db2ApplyPagination(t *testing.T) {
 	got3 := d.ApplyPagination("SELECT * FROM t", 0, 5)
 	if got3 != "SELECT * FROM t" {
 		t.Errorf("db2 pagination limit=0 failed, got: %q", got3)
+	}
+}
+
+func Test_ClickHouseDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("clickhouse") {
+		t.Error("clickhouse driver should be registered by clickhouse-go/v2 init")
+	}
+}
+
+func Test_ClickHouseFormatPrepareSQL(t *testing.T) {
+	d := NewClickHouseDialector(&testConfig{dbType: ClickHouseDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	if got != src {
+		t.Errorf("clickhouse format prepare sql should keep ?, got: %q", got)
+	}
+}
+
+func Test_ClickHouseNeedsReturning(t *testing.T) {
+	d := NewClickHouseDialector(&testConfig{dbType: ClickHouseDb})
+	if d.NeedsReturning() {
+		t.Error("clickhouse should not need RETURNING")
+	}
+}
+
+func Test_ClickHouseDialectorName(t *testing.T) {
+	d := NewClickHouseDialector(&testConfig{dbType: ClickHouseDb})
+	if d.Name() != "clickhouse" {
+		t.Errorf("clickhouse dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_ClickHouseFamily(t *testing.T) {
+	d := NewClickHouseDialector(&testConfig{dbType: ClickHouseDb})
+	if d.Family() != FamilyClickHouse {
+		t.Errorf("clickhouse family failed, got: %q want: %q", d.Family(), FamilyClickHouse)
+	}
+}
+
+func Test_ClickHousePlaceholderStyle(t *testing.T) {
+	d := NewClickHouseDialector(&testConfig{dbType: ClickHouseDb})
+	if d.PlaceholderStyle() != PlaceholderQuestion {
+		t.Errorf("clickhouse placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderQuestion)
+	}
+}
+
+func Test_ClickHouseApplyPagination(t *testing.T) {
+	d := NewClickHouseDialector(&testConfig{dbType: ClickHouseDb})
+	got1 := d.ApplyPagination("SELECT * FROM t", 10, 0)
+	if got1 != "SELECT * FROM t LIMIT 10" {
+		t.Errorf("clickhouse pagination offset=0 failed, got: %q", got1)
+	}
+	got2 := d.ApplyPagination("SELECT * FROM t", 10, 5)
+	if got2 != "SELECT * FROM t LIMIT 10 OFFSET 5" {
+		t.Errorf("clickhouse pagination offset>0 failed, got: %q", got2)
+	}
+	got3 := d.ApplyPagination("SELECT * FROM t", 0, 5)
+	if got3 != "SELECT * FROM t" {
+		t.Errorf("clickhouse pagination limit=0 failed, got: %q", got3)
 	}
 }

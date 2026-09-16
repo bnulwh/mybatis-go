@@ -27,7 +27,8 @@ const (
 	FamilyOracle   DatabaseFamily = "oracle"
 	FamilyInformix DatabaseFamily = "informix"
 	FamilyMSSQL    DatabaseFamily = "mssql"
-	FamilyDB2      DatabaseFamily = "db2"
+	FamilyDB2        DatabaseFamily = "db2"
+	FamilyClickHouse DatabaseFamily = "clickhouse"
 )
 
 type DatabaseType string
@@ -50,7 +51,8 @@ const (
 	GBase8sDb        DatabaseType = "gbase8s"
 	MssqlDb          DatabaseType = "mssql"
 	OracleDb         DatabaseType = "oracle"
-	Db2Db            DatabaseType = "db2"
+	Db2Db           DatabaseType = "db2"
+	ClickHouseDb    DatabaseType = "clickhouse"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
@@ -69,6 +71,8 @@ func (dt DatabaseType) Family() DatabaseFamily {
 		return FamilyMSSQL
 	case Db2Db:
 		return FamilyDB2
+	case ClickHouseDb:
+		return FamilyClickHouse
 	default:
 		return DatabaseFamily("")
 	}
@@ -112,6 +116,8 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return OracleDb, nil
 	case "db2", "ibmdb2", "db2-luw":
 		return Db2Db, nil
+	case "clickhouse", "click-house":
+		return ClickHouseDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -155,6 +161,8 @@ func GetDriverName(dbType DatabaseType) string {
 		return "oracle"
 	case Db2Db:
 		return "go_ibm_db"
+	case ClickHouseDb:
+		return "clickhouse"
 	default:
 		return string(dbType)
 	}
@@ -187,6 +195,8 @@ func EffectiveSchema(params ConnectParams) string {
 		return "dbo"
 	case FamilyDB2:
 		return strings.ToUpper(params.Username)
+	case FamilyClickHouse:
+		return params.DBName
 	default:
 		return "public"
 	}
@@ -208,6 +218,8 @@ func GenerateDSN(params ConnectParams) string {
 		return generateMssqlDSN(params)
 	case FamilyDB2:
 		return generateDb2DSN(params)
+	case FamilyClickHouse:
+		return generateClickHouseDSN(params)
 	}
 	return ""
 }
@@ -330,6 +342,8 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewOracleDialector(cfg), nil
 	case Db2Db:
 		return NewDb2Dialector(cfg), nil
+	case ClickHouseDb:
+		return NewClickHouseDialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

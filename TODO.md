@@ -7,11 +7,12 @@
 
 ## ✅ 已完成
 
-### P4 国际主流数据库 MSSQL/Oracle/DB2 适配（未发布）
+### P4 国际主流数据库 MSSQL/Oracle/DB2/ClickHouse 适配（未发布）
 
 - **P4 MS SQL Server 数据库适配**：独立 `MssqlDialector`（MSSQL 方言族），占位符 `?→@p1/@p2`…（`PlaceholderAtP`），`NeedsReturning` 返回 false（使用 `SCOPE_IDENTITY()` + `LastInsertId()`），`INFORMATION_SCHEMA.COLUMNS` + `INFORMATION_SCHEMA.TABLE_CONSTRAINTS` 表结构查询，分页使用 `OFFSET N ROWS FETCH NEXT M ROWS ONLY`（需 SQL 含 `ORDER BY`），默认 Schema 为 `dbo`，DSN 格式 `sqlserver://user:password@host:port?database=dbname`；新增 `DatabaseFamily.MSSQL` 族、`PlaceholderStyle.PlaceholderAtP`；JDBC URL 支持 `jdbc:sqlserver://` 格式；`ParseDatabaseType` 支持 `mssql`/`sqlserver`/`mssql-server` 别名；`GetDriverName` 返回 `sqlserver`；新增 `cmd/mssqldemo` 示例；`application-mssql.properties` 配置模板；用户需引入 MSSQL 驱动（`_ "github.com/microsoft/go-mssqldb"`）；dialector 单元测试覆盖
 - **P4 Oracle 数据库适配**：独立 `OracleDialector`（Oracle 方言族），占位符 `?→:1/:2`…（`PlaceholderColon`），`NeedsReturning` 返回 false（Oracle 使用自增序列），`ALL_TAB_COLUMNS` + `ALL_CONSTRAINTS` + `ALL_COL_COMMENTS` 表结构查询，分页使用 `OFFSET N ROWS FETCH NEXT M ROWS ONLY`（需 Oracle 12c+），`EffectiveSchema` 返回 `UPPER(Username)`，DSN 格式 `user/password@host:port/dbname`（EZConnect，go-ora 兼容）；JDBC URL 支持 `jdbc:oracle://` 格式；`ParseDatabaseType` 支持 `oracle`/`oracledb`/`oracle-db` 别名；`GetDriverName` 返回 `oracle`；新增 `cmd/oracledemo` 示例；`application-oracle.properties` 配置模板；框架 blank import go-ora/v2，无需额外引入驱动；dialector 单元测试覆盖
 - **P4 IBM DB2 数据库适配**：独立 `Db2Dialector`（DB2 方言族），占位符 `?→:1/:2`…（`PlaceholderColon`），`NeedsReturning` 返回 false（DB2 使用 IDENTITY 列 + `IDENTITY_VAL_LOCAL()`），`SYSCAT.COLUMNS` + `SYSCAT.KEYCOLUSE` + `SYSCAT.INDEXES` 表结构查询，分页使用 `OFFSET N ROWS FETCH NEXT M ROWS ONLY`（需 DB2 10.1+），`EffectiveSchema` 返回 `UPPER(Username)`，DSN 格式 `HOSTNAME=host;PORT=port;DATABASE=dbname;UID=username;PWD=password`（go_ibm_db 兼容）；JDBC URL 支持 `jdbc:db2://` 格式；`ParseDatabaseType` 支持 `db2`/`ibmdb2`/`db2-luw` 别名；`GetDriverName` 返回 `go_ibm_db`；新增 `cmd/db2demo` 示例；`application-db2.properties` 配置模板；用户需引入 DB2 驱动（`_ "github.com/ibmdb/go_ibm_db"`，需安装 DB2 ODBC/CLI 客户端库）；dialector 单元测试覆盖
+- **P4 ClickHouse 数据库适配**：独立 `ClickHouseDialector`（ClickHouse 方言族），占位符保持 `?`（`PlaceholderQuestion`），`NeedsReturning` 返回 false（ClickHouse 无 RETURNING 支持），`system.columns` + `system.tables` 表结构查询，分页使用 `LIMIT n OFFSET m`，`EffectiveSchema` 返回数据库名，DSN 格式 `clickhouse://user:password@host:port/dbname`（clickhouse-go/v2 URL 格式）；新增 `DatabaseFamily.ClickHouse` 族；JDBC URL 支持 `jdbc:clickhouse://` 格式；`ParseDatabaseType` 支持 `clickhouse`/`click-house` 别名；`GetDriverName` 返回 `clickhouse`；框架 blank import clickhouse-go/v2，无需额外引入驱动；新增 `cmd/clickhousedemo` 示例；`application-clickhouse.properties` 配置模板；dialector 单元测试覆盖
 
 ### v0.3.0（优化改造，依据 2026-09-04 优化点整理）
 
@@ -169,13 +170,13 @@ GORM 有社区驱动 `gitee.com/GBase8s/gorm-gbase` 可参考
 | ~~**MS SQL Server**~~ ✅ | Microsoft | 自有（TDS 协议） | 1433 | 独立 dialector | `github.com/microsoft/go-mssqldb`（官方纯 Go，`[*]` 兼容测试通过） |
 | ~~**Oracle**~~ ✅ | Oracle | 自有 | 1521 | 独立 dialector | `github.com/sijms/go-ora`（纯 Go，活跃维护） |
 | ~~**DB2**~~ ✅ | IBM | 自有（DRDA） | 50000 | 独立 dialector | `github.com/ibmdb/go_ibm_db`（官方，需 CGo + DB2客户端库） |
-| **ClickHouse** | ClickHouse Inc. | 自有（HTTP/TCP） | 8123/9000 | 独立 dialector | `github.com/ClickHouse/clickhouse-go/v2`（官方纯 Go，`[**]` 兼容测试通过） |
+| ~~**ClickHouse**~~ ✅ | ClickHouse Inc. | 自有（HTTP/TCP） | 8123/9000 | 独立 dialector | `github.com/ClickHouse/clickhouse-go/v2`（官方纯 Go，`[**]` 兼容测试通过） |
 
 实现要点：
 - ~~**MS SQL Server**~~ ✅：占位符 `?`→`@p1/@p2`；`NeedsReturning` 返回 false（用 `SCOPE_IDENTITY()` / `OUTPUT INSERTED.*`）；`TOP n` 分页（旧版）或 `OFFSET...FETCH`（2012+）；标识符引用用方括号 `[name]`；`information_schema` 查询与 SQL Server 系统视图（`sys.columns`/`sys.tables`）；`go-mssqldb` 已通过 Go 兼容性测试套件，成熟度高
 - ~~**Oracle**~~ ✅：占位符 `?`→`:1/:2`；`NeedsReturning` 返回 false（用 `RETURNING ... INTO ...`）；`OFFSET N ROWS FETCH NEXT M ROWS ONLY`（12c+）分页；`ALL_TAB_COLUMNS`/`ALL_CONSTRAINTS`/`ALL_COL_COMMENTS` 系统视图；DSN 格式 `user/password@host:port/dbname`（EZConnect，go-ora 兼容）；与现有 OceanBase-Oracle / Dameng 同属 Oracle 方言族，复用 `FamilyOracle`/`PlaceholderColon`/`generateOracleDSN`
 - ~~**DB2**~~ ✅：占位符 `?`→`:1/:2`（与 Oracle 同）；`NeedsReturning` 返回 false（用 `SELECT ... FROM FINAL TABLE(INSERT ...)` 或 `IDENTITY_VAL_LOCAL()`）；`OFFSET N ROWS FETCH NEXT M ROWS ONLY` 分页；`SYSCAT.COLUMNS`/`SYSCAT.TABLES` 系统视图；DSN 需 DB2 客户端库（CGo 依赖，跨编译受限）；**难度较高**，驱动依赖 CGo
-- **ClickHouse**：占位符保持 `?`；`NeedsReturning` 返回 false（不支持 RETURNING）；`LIMIT n` 分页（原生支持）；`system.columns`/`system.tables` 系统视图；HTTP API 与原生 TCP 双模式；**注意**：ClickHouse 为列式 OLAP 引擎，与 OLTP 场景差异较大（无事务、UPDATE/DELETE 为异步 mutation），ORM 适配需明确使用场景边界
+- ~~**ClickHouse**~~ ✅：占位符保持 `?`；`NeedsReturning` 返回 false（不支持 RETURNING）；`LIMIT n OFFSET m` 分页；`system.columns`/`system.tables` 系统视图；clickhouse-go/v2 自注册为 `"clickhouse"` 驱动，DSN 格式 `clickhouse://user:password@host:port/dbname`；新增 `DatabaseFamily.ClickHouse` 族；`EffectiveSchema` 返回数据库名；**注意**：ClickHouse 为列式 OLAP 引擎，与 OLTP 场景差异较大（无事务、UPDATE/DELETE 为异步 mutation），ORM 适配需明确使用场景边界
 
 #### P5 — 云原生 / NewSQL 数据库（中等难度）
 

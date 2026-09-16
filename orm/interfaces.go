@@ -24,7 +24,8 @@ const (
 	FamilyOracle   = dialector.FamilyOracle
 	FamilyInformix = dialector.FamilyInformix
 	FamilyMSSQL    = dialector.FamilyMSSQL
-	FamilyDB2      = dialector.FamilyDB2
+	FamilyDB2        = dialector.FamilyDB2
+	FamilyClickHouse = dialector.FamilyClickHouse
 )
 
 type DatabaseType = dialector.DatabaseType
@@ -48,6 +49,7 @@ const (
 	MssqlDb          = dialector.MssqlDb
 	OracleDb         = dialector.OracleDb
 	Db2Db            = dialector.Db2Db
+	ClickHouseDb     = dialector.ClickHouseDb
 )
 
 type Dialector = dialector.Dialector
