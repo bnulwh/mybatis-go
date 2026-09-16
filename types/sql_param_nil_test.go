@@ -115,11 +115,7 @@ func Test_GenerateSQL_NilParam(t *testing.T) {
 	}
 }
 
-func Test_ValidValue_Nil(t *testing.T) {
-	if validValue(nil) {
-		t.Error("validValue(nil) should be false")
-	}
-}
+// Test_ValidValue_Nil 已随片段引擎迁移至 types/sqlfragment（helpers_test.go，P0-3a）。
 
 func Test_Convert2Map_InvalidValue(t *testing.T) {
 	// reflect.Indirect(reflect.ValueOf(nil)) 是零 Value，convert2Map 应返回空 map 而非 panic

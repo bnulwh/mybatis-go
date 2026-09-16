@@ -1,4 +1,4 @@
-package types
+package sqlfragment
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 // 子片段全部为空时不输出任何内容；否则输出 "where " 前缀，
 // 并去除首个条件的开头 AND/OR（大小写不敏感）。
 type sqlWhere struct {
-	Sql []*sqlFragment
+	Sql []Node
 }
 
 var reLeadingAndOr = regexp.MustCompile(`(?i)^\s*(and|or)\s+`)
@@ -21,11 +21,11 @@ func trimLeadingAndOr(s string) string {
 	return strings.TrimSpace(reLeadingAndOr.ReplaceAllString(s, ""))
 }
 
-func (in *sqlWhere) prepareSqlWithMap(mp map[string]interface{}, depth int) (string, []string) {
+func (in *sqlWhere) PrepareSqlWithMap(mp map[string]interface{}, depth int) (string, []string) {
 	var buf bytes.Buffer
 	var results []string
 	for _, item := range in.Sql {
-		sqlstr, items := item.prepareSqlWithMap(mp, depth+1)
+		sqlstr, items := item.PrepareSqlWithMap(mp, depth+1)
 		if strings.TrimSpace(sqlstr) != "" {
 			buf.WriteString(" ")
 			buf.WriteString(sqlstr)
@@ -38,10 +38,10 @@ func (in *sqlWhere) prepareSqlWithMap(mp map[string]interface{}, depth int) (str
 	return "where " + trimLeadingAndOr(buf.String()), results
 }
 
-func (in *sqlWhere) generateSqlWithMap(mp map[string]interface{}, depth int) string {
+func (in *sqlWhere) GenerateSqlWithMap(mp map[string]interface{}, depth int) string {
 	var buf bytes.Buffer
 	for _, item := range in.Sql {
-		sqlstr := item.generateSqlWithMap(mp, depth+1)
+		sqlstr := item.GenerateSqlWithMap(mp, depth+1)
 		if strings.TrimSpace(sqlstr) != "" {
 			buf.WriteString(" ")
 			buf.WriteString(sqlstr)
@@ -53,11 +53,11 @@ func (in *sqlWhere) generateSqlWithMap(mp map[string]interface{}, depth int) str
 	return "where " + trimLeadingAndOr(buf.String())
 }
 
-func (in *sqlWhere) prepareSqlWithParam(m interface{}) (string, []string) {
+func (in *sqlWhere) PrepareSqlWithParam(m interface{}) (string, []string) {
 	var buf bytes.Buffer
 	var results []string
 	for _, item := range in.Sql {
-		sqlstr, items := item.prepareSqlWithParam(m)
+		sqlstr, items := item.PrepareSqlWithParam(m)
 		if strings.TrimSpace(sqlstr) != "" {
 			buf.WriteString(" ")
 			buf.WriteString(sqlstr)
@@ -70,10 +70,10 @@ func (in *sqlWhere) prepareSqlWithParam(m interface{}) (string, []string) {
 	return "where " + trimLeadingAndOr(buf.String()), results
 }
 
-func (in *sqlWhere) generateSqlWithParam(m interface{}) string {
+func (in *sqlWhere) GenerateSqlWithParam(m interface{}) string {
 	var buf bytes.Buffer
 	for _, item := range in.Sql {
-		sqlstr := item.generateSqlWithParam(m)
+		sqlstr := item.GenerateSqlWithParam(m)
 		if strings.TrimSpace(sqlstr) != "" {
 			buf.WriteString(" ")
 			buf.WriteString(sqlstr)
@@ -85,11 +85,11 @@ func (in *sqlWhere) generateSqlWithParam(m interface{}) string {
 	return "where " + trimLeadingAndOr(buf.String())
 }
 
-func (in *sqlWhere) prepareSqlWithSlice(m []interface{}, depth int) (string, []string) {
+func (in *sqlWhere) PrepareSqlWithSlice(m []interface{}, depth int) (string, []string) {
 	var buf bytes.Buffer
 	var results []string
 	for _, item := range in.Sql {
-		sqlstr, items := item.prepareSqlWithSlice(m, depth+1)
+		sqlstr, items := item.PrepareSqlWithSlice(m, depth+1)
 		if strings.TrimSpace(sqlstr) != "" {
 			buf.WriteString(" ")
 			buf.WriteString(sqlstr)
@@ -102,10 +102,10 @@ func (in *sqlWhere) prepareSqlWithSlice(m []interface{}, depth int) (string, []s
 	return "where " + trimLeadingAndOr(buf.String()), results
 }
 
-func (in *sqlWhere) generateSqlWithSlice(m []interface{}, depth int) string {
+func (in *sqlWhere) GenerateSqlWithSlice(m []interface{}, depth int) string {
 	var buf bytes.Buffer
 	for _, item := range in.Sql {
-		sqlstr := item.generateSqlWithSlice(m, depth+1)
+		sqlstr := item.GenerateSqlWithSlice(m, depth+1)
 		if strings.TrimSpace(sqlstr) != "" {
 			buf.WriteString(" ")
 			buf.WriteString(sqlstr)
@@ -117,10 +117,10 @@ func (in *sqlWhere) generateSqlWithSlice(m []interface{}, depth int) string {
 	return "where " + trimLeadingAndOr(buf.String())
 }
 
-func (in *sqlWhere) generateSqlWithoutParam() string {
+func (in *sqlWhere) GenerateSqlWithoutParam() string {
 	var buf bytes.Buffer
 	for _, item := range in.Sql {
-		sqlstr := item.generateSqlWithoutParam()
+		sqlstr := item.GenerateSqlWithoutParam()
 		if strings.TrimSpace(sqlstr) != "" {
 			buf.WriteString(" ")
 			buf.WriteString(sqlstr)
@@ -132,25 +132,61 @@ func (in *sqlWhere) generateSqlWithoutParam() string {
 	return "where " + trimLeadingAndOr(buf.String())
 }
 
-// parseSqlWhereFromXmlNode 解析 <where> 标签，其子元素可以是文本、<if>、<foreach>、<include>、<choose> 等。
-func parseSqlWhereFromXmlNode(elems []xmlElement, sns map[string]*SqlElement) (*sqlFragment, error) {
-	var sts []*sqlFragment
+func (in *sqlWhere) Children() []Node {
+	return in.Sql
+}
+
+// CollectSlots 直接文本视为无条件位置，正常统计（递归聚合子片段）。
+func (in *sqlWhere) CollectSlots() []string {
+	var out []string
+	for _, item := range in.Sql {
+		if item == nil {
+			continue
+		}
+		out = append(out, item.CollectSlots()...)
+	}
+	return out
+}
+
+func (in *sqlWhere) ContainsForEach() bool {
+	for _, item := range in.Sql {
+		if item != nil && item.ContainsForEach() {
+			return true
+		}
+	}
+	return false
+}
+
+func (in *sqlWhere) CollectIfTestFields() []string {
+	var names []string
+	for _, item := range in.Sql {
+		if item == nil {
+			continue
+		}
+		names = append(names, item.CollectIfTestFields()...)
+	}
+	return names
+}
+
+// parseSqlWhereNode 解析 <where> 标签，其子元素可以是文本、<if>、<foreach>、<include>、<choose> 等。
+func parseSqlWhereNode(node XmlNode, sns map[string]*SqlElement) (Node, error) {
+	return parseSqlWhereFromXmlNode(node.Elements, sns)
+}
+
+func parseSqlWhereFromXmlNode(elems []XmlElement, sns map[string]*SqlElement) (*sqlWhere, error) {
+	var sts []Node
 	for _, elem := range elems {
-		st, err := parsesqlFragmentFromXmlElement(elem, sns)
+		st, err := parseFragmentFromXmlElement(elem, sns)
 		if err != nil {
 			return nil, err
 		}
 		sts = append(sts, st)
 	}
-	return &sqlFragment{
-		Where: &sqlWhere{
-			Sql: sts,
-		},
-		Sql:     nil,
-		IfTest:  nil,
-		ForLoop: nil,
-		Include: nil,
-		Choose:  nil,
-		Type:    whereSqlFragment,
+	return &sqlWhere{
+		Sql: sts,
 	}, nil
+}
+
+func init() {
+	RegisterNodeParser("where", parseSqlWhereNode)
 }

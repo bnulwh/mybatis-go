@@ -9,8 +9,10 @@ import (
 
 var (
 	PrivateParseSqlFunctionType = parseSqlFunctionType
-	PrivateGetFormatString      = getFormatString
 )
+
+// PrivateGetFormatString 与 TestGetFormatString / Test_validValue 已随片段引擎
+// 迁移至 types/sqlfragment（helpers_test.go，P0-3a）。
 
 func TestGetShortName(t *testing.T) {
 	name := "test.abc.def"
@@ -82,27 +84,6 @@ func TestParseSqlFunctionType(t *testing.T) {
 	}
 }
 
-func TestGetFormatString(t *testing.T) {
-	if strings.Compare(PrivateGetFormatString(""), "''") != 0 {
-		t.Error("GetFormatString('') not equals '''' ")
-	}
-	if strings.Compare(PrivateGetFormatString("'"), "'\"'") != 0 {
-		t.Error("GetFormatString(''') not equals ''\"'' ")
-	}
-	if strings.Compare(PrivateGetFormatString("''"), "'\"\"'") != 0 {
-		t.Error("GetFormatString('') not equals '''' ")
-	}
-	if strings.Compare(PrivateGetFormatString("'' AND TEST  ''"), "'\"\" AND TEST  \"\"'") != 0 {
-		t.Error("GetFormatString('') not equals '''' ")
-	}
-	if strings.Compare(PrivateGetFormatString("'A B' CD 'DEF GH'"), "'\"A B\" CD \"DEF GH\"'") != 0 {
-		t.Error("GetFormatString('') not equals '''' ")
-	}
-	if strings.Compare(PrivateGetFormatString("A B' CD 'DEF GH"), "'A B\" CD \"DEF GH'") != 0 {
-		t.Error("GetFormatString('') not equals '''' ")
-	}
-}
-
 func Test_parseSqlFunctionType(t *testing.T) {
 	r1 := parseSqlFunctionType("Update")
 	if r1 != UpdateFunction {
@@ -142,76 +123,6 @@ func Test_parseJdbcTypeFrom(t *testing.T) {
 			t.Error("test parseJdbcTypeFrom failed.")
 		}
 	}
-}
-
-func Test_validValue(t *testing.T) {
-	if validValue("") {
-		t.Error("test validValue failed.")
-	}
-	if !validValue("s") {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(true) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(false) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(1) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(int8(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(int16(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(int32(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(int64(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(uint(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(uint8(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(uint16(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(uint32(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(uint64(1)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(0.0) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(float64(0.0)) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(time.Now()) {
-		t.Error("test validValue failed.")
-	}
-	if validValue(time.Time{}) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue([]string{"aaa"}) {
-		t.Error("test validValue failed.")
-	}
-	if validValue([]string{}) {
-		t.Error("test validValue failed.")
-	}
-	if !validValue(map[string]string{"aaa": "bbb"}) {
-		t.Error("test validValue failed.")
-	}
-	if validValue(map[string]string{}) {
-		t.Error("test validValue failed.")
-	}
-
 }
 
 func Test_buildKey(t *testing.T) {

@@ -1,10 +1,11 @@
-package types
+package sqlfragment
 
 import (
 	l "container/list"
 	"sync"
 )
 
+// stack 仅在 xml.go 的解析流程中使用的线程安全栈。
 type stack struct {
 	list *l.List
 	mu   sync.Mutex

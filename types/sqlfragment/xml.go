@@ -1,4 +1,4 @@
-package types
+package sqlfragment
 
 import (
 	"bytes"
@@ -9,41 +9,46 @@ import (
 	"strings"
 )
 
-type xmlElemType string
+// XmlElemType XML 元素类型：静态文本节点 / 节点子节点。
+type XmlElemType string
 
 const (
-	xmlTextElem xmlElemType = "text" // 静态文本节点
-	xmlNodeElem xmlElemType = "node" // 节点子节点
+	XmlTextElem XmlElemType = "text" // 静态文本节点
+	XmlNodeElem XmlElemType = "node" // 节点子节点
 )
 
-type xmlElement struct {
-	ElementType xmlElemType
+// XmlElement XML 解析后的元素：文本节点 Val 为 string，节点子节点 Val 为 XmlNode。
+type XmlElement struct {
+	ElementType XmlElemType
 	Val         interface{}
 }
 
-type xmlNode struct {
+// XmlNode XML 节点：标签名、属性与子元素。
+type XmlNode struct {
 	Id       string
 	Name     string
 	Attrs    map[string]string
-	Elements []xmlElement
+	Elements []XmlElement
 }
 
-func parseXmlFile(filename string) (*xmlNode, error) {
+// ParseXmlFile 解析磁盘上的 XML 文件。
+func ParseXmlFile(filename string) (*XmlNode, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	return parseXmlContent(content)
+	return ParseXmlContent(content)
 }
 
-// parseXmlContent 解析内存中的 XML 内容（embed.FS / 内存来源，无需落盘）。
-func parseXmlContent(content []byte) (*xmlNode, error) {
-	return parseXmlNode(bytes.NewReader(content))
+// ParseXmlContent 解析内存中的 XML 内容（embed.FS / 内存来源，无需落盘）。
+func ParseXmlContent(content []byte) (*XmlNode, error) {
+	return ParseXmlNode(bytes.NewReader(content))
 }
 
-func parseXmlNode(r io.Reader) (*xmlNode, error) {
+// ParseXmlNode 从 Reader 解析 XML 为节点树。
+func ParseXmlNode(r io.Reader) (*XmlNode, error) {
 	parser := xml.NewDecoder(r)
-	var root xmlNode
+	var root XmlNode
 
 	st := newStack()
 	for {
@@ -59,14 +64,14 @@ func parseXmlNode(r io.Reader) (*xmlNode, error) {
 		case xml.EndElement: //tag end
 			if st.Len() > 0 {
 				//cur node
-				n := st.Pop().(xmlNode)
-				if st.Len() > 0 { //if the root xmlNode then append to xmlElement
-					e := xmlElement{
-						ElementType: xmlNodeElem,
+				n := st.Pop().(XmlNode)
+				if st.Len() > 0 { //if the root XmlNode then append to XmlElement
+					e := XmlElement{
+						ElementType: XmlNodeElem,
 						Val:         n,
 					}
 
-					pn := st.Pop().(xmlNode)
+					pn := st.Pop().(XmlNode)
 					els := pn.Elements
 					els = append(els, e)
 					pn.Elements = els
@@ -95,13 +100,13 @@ func parseXmlNode(r io.Reader) (*xmlNode, error) {
 	return &root, nil
 }
 
-func charData2XmlNode(st *stack, t xml.Token) xmlNode {
-	n := st.Pop().(xmlNode)
+func charData2XmlNode(st *stack, t xml.Token) XmlNode {
+	n := st.Pop().(XmlNode)
 	bts := t.(xml.CharData)
 	content := strings.TrimSpace(string(bts))
 	if content != "" {
-		e := xmlElement{
-			ElementType: xmlTextElem,
+		e := XmlElement{
+			ElementType: XmlTextElem,
 			Val:         content,
 		}
 		els := n.Elements
@@ -111,7 +116,7 @@ func charData2XmlNode(st *stack, t xml.Token) xmlNode {
 	return n
 }
 
-func startElement2XmlNode(t xml.Token) xmlNode {
+func startElement2XmlNode(t xml.Token) XmlNode {
 	elmt := t.(xml.StartElement)
 	name := elmt.Name.Local
 	attr := elmt.Attr
@@ -119,10 +124,10 @@ func startElement2XmlNode(t xml.Token) xmlNode {
 	for _, val := range attr {
 		attrMap[val.Name.Local] = val.Value
 	}
-	node := xmlNode{
+	node := XmlNode{
 		Name:     name,
 		Attrs:    attrMap,
-		Elements: make([]xmlElement, 0),
+		Elements: make([]XmlElement, 0),
 	}
 	for _, val := range attr {
 		if val.Name.Local == "id" {

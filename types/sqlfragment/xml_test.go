@@ -1,4 +1,4 @@
-package types
+package sqlfragment
 
 import (
 	"bytes"
@@ -11,9 +11,8 @@ import (
 
 func Test_parseXmlFile(t *testing.T) {
 	dir, _ := os.Getwd()
-	fname := filepath.Join(dir, "..", "resources/mapper/UserInfoModelMapper.xml")
-	//fmt.Println(os.Getwd())
-	r, _ := parseXmlFile(fname)
+	fname := filepath.Join(dir, "..", "..", "resources/mapper/UserInfoModelMapper.xml")
+	r, _ := ParseXmlFile(fname)
 	bs, _ := json.MarshalIndent(r, "", "    ")
 	fmt.Println(string(bs))
 }
@@ -78,7 +77,7 @@ func Test_parseXmlNode(t *testing.T) {
 		"  </select>" +
 		"</mapper>"
 	r := bytes.NewReader([]byte(content))
-	r1, _ := parseXmlNode(r)
+	r1, _ := ParseXmlNode(r)
 	bs, _ := json.MarshalIndent(r1, "", "    ")
 	fmt.Println(string(bs))
 

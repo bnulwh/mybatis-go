@@ -1,7 +1,6 @@
 package types
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
@@ -53,39 +52,7 @@ func parseSqlFunctionType(tps string) SqlFunctionType {
 	return SelectFunction
 }
 
-func getFormatString(ms string) string {
-	var buf bytes.Buffer
-	if len(ms) == 0 {
-		return "''"
-	}
-	buf.WriteString("'")
-	buf.WriteString(strings.ReplaceAll(ms, "'", "\""))
-	buf.WriteString("'")
-	return buf.String()
-}
-
-func getFormatValue(m interface{}) string {
-	if m == nil {
-		// S-09：nil 参数反射零值 panic 防御，按 SQL NULL 渲染
-		return "null"
-	}
-	typ := reflect.TypeOf(m)
-	switch typ.String() {
-	case "string":
-		return getFormatString(m.(string))
-	case "bool",
-		"int", "int8", "int16", "int32",
-		"uint", "uint8", "uint16", "uint32",
-		"int64", "uint64",
-		"float32", "float64":
-		return fmt.Sprintf("%v", m)
-	case "time.Time":
-		return fmt.Sprintf("'%v'", m.(time.Time).Format("2006-01-02 15:04:05.000000000"))
-	default:
-		log.Warnf("not support convert type %v", typ)
-	}
-	return ""
-}
+// getFormatString/getFormatValue/validValue 已迁移至 sqlfragment 包私有实现（helpers.go）。
 
 func buildKey(key string) string {
 	return strings.ToLower(strings.TrimSpace(key))
@@ -214,37 +181,7 @@ func sliceArgsFrom(args []interface{}) []interface{} {
 	return args
 }
 
-func validValue(m interface{}) bool {
-	if m == nil {
-		// S-09：nil 参数 reflect.TypeOf 返回 nil，String() 会 panic
-		return false
-	}
-	typ := reflect.TypeOf(m)
-	switch typ.String() {
-	case "string":
-		ms := m.(string)
-		return len(ms) > 0
-	case "bool",
-		"int", "int8", "int16", "int32",
-		"uint", "uint8", "uint16", "uint32",
-		"int64", "uint64",
-		"float32", "float64":
-		return true
-	case "time.Time":
-		return !m.(time.Time).IsZero()
-	}
-	switch typ.Kind() {
-	case reflect.Slice:
-		val := reflect.ValueOf(m)
-		return val.Len() > 0
-	case reflect.Map:
-		val := reflect.ValueOf(m)
-		return val.Len() > 0
-
-	}
-	log.Warnf("not support valid value: %v ,type: %v, kind: %v", m, typ, typ.Kind())
-	return true
-}
+// validValue 已随片段引擎迁移至 sqlfragment 包（<if test> 非空判定）。
 
 func toGolangType(tn string) string {
 	sname := GetShortName(tn)

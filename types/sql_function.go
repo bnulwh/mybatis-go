@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bnulwh/mybatis-go/types/sqlfragment"
 )
 
 type SqlFunction struct {
@@ -17,7 +19,7 @@ type SqlFunction struct {
 	Type             SqlFunctionType
 	Param            SqlParam
 	Result           SqlResult
-	Items            []*sqlFragment
+	Items            []sqlfragment.Node
 	IfTestFields     []string
 	UseGeneratedKeys bool   // <insert useGeneratedKeys="true">：自增主键回填开关（S-11）
 	KeyProperty      string // 回填目标属性名（如 jobId）
@@ -207,7 +209,7 @@ func (in *SqlFunction) generateDefine() string {
 		if in.Param.TypeName == "" {
 			pt = "map[string]interface{}"
 		}
-		if in.Param.Type == BaseSqlParam && containsForEach(in.Items) {
+		if in.Param.Type == BaseSqlParam && sqlfragment.ContainsForEach(in.Items) {
 			buf.WriteString("[]")
 			buf.WriteString(pt)
 		} else {
@@ -253,50 +255,15 @@ func (in *SqlFunction) buildParamMap(args []interface{}) map[string]interface{} 
 	return nmp
 }
 
-// containsForEach 递归检查片段树（含 if/include/choose/where/set 嵌套）中是否含 <foreach>。
-func containsForEach(items []*sqlFragment) bool {
-	for _, item := range items {
-		if item == nil {
-			continue
-		}
-		switch item.Type {
-		case forLoopSqlFragment:
-			return true
-		case ifTestSqlFragment:
-			if item.IfTest != nil && containsForEach(item.IfTest.Sql) {
-				return true
-			}
-		case includeSqlFragment:
-			if item.Include != nil && containsForEach(item.Include.Fragments) {
-				return true
-			}
-		case chooseSqlFragment:
-			if item.Choose != nil {
-				for _, w := range item.Choose.When {
-					if w != nil && containsForEach(w.Sql) {
-						return true
-					}
-				}
-			}
-		case whereSqlFragment:
-			if item.Where != nil && containsForEach(item.Where.Sql) {
-				return true
-			}
-		case setSqlFragment:
-			if item.Set != nil && containsForEach(item.Set.Sql) {
-				return true
-			}
-		}
-	}
-	return false
-}
+// containsForEach 已迁移至 sqlfragment.ContainsForEach（按 Node 接口递归）。
+
 func (in *SqlFunction) prepareSqlWithMap(m map[string]interface{}) (string, []string) {
 	log.Debugf("sql function %v generate sql with map: %v", in.Id, m)
 	var buf bytes.Buffer
 	var results []string
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		sqlstr, items := item.prepareSqlWithMap(m, 0)
+		sqlstr, items := item.PrepareSqlWithMap(m, 0)
 		buf.WriteString(sqlstr)
 		results = append(results, items...)
 	}
@@ -307,7 +274,7 @@ func (in *SqlFunction) generateSqlWithMap(m map[string]interface{}) string {
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithMap(m, 0))
+		buf.WriteString(item.GenerateSqlWithMap(m, 0))
 	}
 	return buf.String()
 }
@@ -317,7 +284,7 @@ func (in *SqlFunction) prepareSqlWithSlice(m []interface{}) (string, []string) {
 	var results []string
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		sqlstr, items := item.prepareSqlWithSlice(m, 0)
+		sqlstr, items := item.PrepareSqlWithSlice(m, 0)
 		buf.WriteString(sqlstr)
 		results = append(results, items...)
 	}
@@ -328,7 +295,7 @@ func (in *SqlFunction) generateSqlWithSlice(m []interface{}) string {
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithSlice(m, 0))
+		buf.WriteString(item.GenerateSqlWithSlice(m, 0))
 	}
 	return buf.String()
 }
@@ -338,7 +305,7 @@ func (in *SqlFunction) prepareSqlWithParam(m interface{}) (string, []string) {
 	var results []string
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		sqlstr, items := item.prepareSqlWithParam(m)
+		sqlstr, items := item.PrepareSqlWithParam(m)
 		buf.WriteString(sqlstr)
 		results = append(results, items...)
 	}
@@ -349,7 +316,7 @@ func (in *SqlFunction) generateSqlWithParam(m interface{}) string {
 	var buf bytes.Buffer
 	for _, item := range in.Items {
 		buf.WriteString(" ")
-		buf.WriteString(item.generateSqlWithParam(m))
+		buf.WriteString(item.GenerateSqlWithParam(m))
 	}
 	return buf.String()
 }
@@ -361,7 +328,7 @@ func (in *SqlFunction) generateSqlWithoutParam() string {
 		var buf bytes.Buffer
 		for _, item := range in.Items {
 			buf.WriteString(" ")
-			buf.WriteString(item.generateSqlWithoutParam())
+			buf.WriteString(item.GenerateSqlWithoutParam())
 		}
 		in.noParamSQL = buf.String()
 	})
@@ -372,12 +339,12 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 	log.Debugf("begin parse sql function from %v %v", node.Id, node.Name)
 	defer log.Debugf("finish parse sql function from %v %v", node.Id, node.Name)
 	tp := parseSqlFunctionType(node.Name)
-	items := parsesqlFragmentsFromXmlElements(node.Elements, sns)
+	items, _ := sqlfragment.ParseFragments(node.Elements, sns)
 	param := parseSqlParamFromXmlAttrs(node.Attrs)
-	slots := collectSqlSlots(items)
+	slots := sqlfragment.CollectSqlSlots(items)
 	if !param.Need { // 无显式 parameterType：由语句占位符推导（1.1)
 		param.AutoDerive = true
-		param.Need = len(slots) > 0 || containsForEach(items)
+		param.Need = len(slots) > 0 || sqlfragment.ContainsForEach(items)
 	}
 	param.Slots = slots
 	return &SqlFunction{
@@ -387,7 +354,7 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		Param:            param,
 		Result:           parseSqlResultFromXmlAttrs(node.Attrs, rms),
 		Items:            items,
-		IfTestFields:     CollectIfTestFieldNames(items),
+		IfTestFields:     sqlfragment.CollectIfTestFieldNames(items),
 		UseGeneratedKeys: strings.EqualFold(node.Attrs["useGeneratedKeys"], "true"),
 		KeyProperty:      node.Attrs["keyProperty"],
 		KeyColumn:        node.Attrs["keyColumn"],
@@ -400,15 +367,6 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		GenerateCount:    0,
 	}
 }
-func parsesqlFragmentsFromXmlElements(elems []xmlElement, sns map[string]*SqlElement) []*sqlFragment {
-	var sts []*sqlFragment
-	for _, elem := range elems {
-		st, err := parsesqlFragmentFromXmlElement(elem, sns)
-		if err != nil {
-			log.Errorf("parse error:%v", err)
-			continue
-		}
-		sts = append(sts, st)
-	}
-	return sts
-}
+
+// parsesqlFragmentsFromXmlElements 已迁移至 sqlfragment.ParseFragments（log-and-continue 容错保持不变）。
+

@@ -5,18 +5,21 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/bnulwh/mybatis-go/types/sqlfragment"
 )
 // P2-5：无参 SQL 生成结果缓存回归测试。
 // 无参 SQL 的拼接结果静态不变，应只生成一次并在后续调用中复用。
 
 func Test_GenerateSqlWithoutParamCached(t *testing.T) {
+	items, _ := sqlfragment.ParseFragments([]xmlElement{
+		{ElementType: xmlTextElem, Val: "select * from t_user"},
+		{ElementType: xmlTextElem, Val: " where deleted = 0"},
+	}, nil)
 	fn := &SqlFunction{
-		Id:   "selectAll",
-		Type: SelectFunction,
-		Items: []*sqlFragment{
-			{Type: simpleSqlFragment, Sql: parseSimpleSqlFromText("select * from t_user")},
-			{Type: simpleSqlFragment, Sql: parseSimpleSqlFromText(" where deleted = 0")},
-		},
+		Id:    "selectAll",
+		Type:  SelectFunction,
+		Items: items,
 	}
 	sql1, args1, err := fn.GenerateSQL()
 	if err != nil {
@@ -43,12 +46,13 @@ func Test_GenerateSqlWithoutParamCached(t *testing.T) {
 
 // 并发调用无参 SQL 不应出现重复生成或数据竞争
 func Test_GenerateSqlWithoutParamConcurrent(t *testing.T) {
+	items, _ := sqlfragment.ParseFragments([]xmlElement{
+		{ElementType: xmlTextElem, Val: "select * from t_user"},
+	}, nil)
 	fn := &SqlFunction{
-		Id:   "selectAll",
-		Type: SelectFunction,
-		Items: []*sqlFragment{
-			{Type: simpleSqlFragment, Sql: parseSimpleSqlFromText("select * from t_user")},
-		},
+		Id:    "selectAll",
+		Type:  SelectFunction,
+		Items: items,
 	}
 	first, _, err := fn.GenerateSQL()
 	if err != nil {
@@ -253,55 +257,20 @@ func Test_GeneratedKeys_Samples(t *testing.T) {
 	}
 }
 
-// Test_ContainsForEach 递归检测片段树中的 <foreach>（含 if/include/where 嵌套）。
-func Test_ContainsForEach(t *testing.T) {
-	if containsForEach(nil) {
-		t.Error("nil items should not contain foreach")
-	}
-	if containsForEach([]*sqlFragment{{Type: simpleSqlFragment}}) {
-		t.Error("plain sql should not contain foreach")
-	}
-	// 直接 foreach
-	if !containsForEach([]*sqlFragment{{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}}}) {
-		t.Error("direct foreach not detected")
-	}
-	// if 嵌套 foreach
-	if !containsForEach([]*sqlFragment{{
-		Type:   ifTestSqlFragment,
-		IfTest: &sqlIfTest{Sql: []*sqlFragment{{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}}}},
-	}}) {
-		t.Error("foreach inside if not detected")
-	}
-	// include 嵌套 foreach
-	if !containsForEach([]*sqlFragment{{
-		Type:    includeSqlFragment,
-		Include: &sqlInclude{Fragments: []*sqlFragment{{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}}}},
-	}}) {
-		t.Error("foreach inside include not detected")
-	}
-	// where 嵌套 foreach
-	if !containsForEach([]*sqlFragment{{
-		Type:  whereSqlFragment,
-		Where: &sqlWhere{Sql: []*sqlFragment{{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}}}},
-	}}) {
-		t.Error("foreach inside where not detected")
-	}
-	// 无 foreach
-	if containsForEach([]*sqlFragment{{
-		Type:   ifTestSqlFragment,
-		IfTest: &sqlIfTest{Sql: []*sqlFragment{{Type: simpleSqlFragment, Sql: &simpleSql{Sql: "x"}}}},
-	}}) {
-		t.Error("nested plain sql should not contain foreach")
-	}
-}
+// Test_ContainsForEach 已随片段引擎迁移至 types/sqlfragment（node_test.go，P0-3a）。
 
 // Test_GenerateDefine_ForEachSlice 标量参数 + <foreach> 的批量方法生成切片签名（[]int64）。
 func Test_GenerateDefine_ForEachSlice(t *testing.T) {
 	mk := func(id string, withForEach bool) *SqlFunction {
-		items := []*sqlFragment{{Type: simpleSqlFragment, Sql: &simpleSql{Sql: "delete from t where id in "}}}
+		elems := []xmlElement{{ElementType: xmlTextElem, Val: "delete from t where id in "}}
 		if withForEach {
-			items = append(items, &sqlFragment{Type: forLoopSqlFragment, ForLoop: &sqlForLoop{}})
+			elems = append(elems, xmlElement{ElementType: xmlNodeElem, Val: xmlNode{
+				Name:     "foreach",
+				Attrs:    map[string]string{"collection": "array", "item": "id"},
+				Elements: []xmlElement{{ElementType: xmlTextElem, Val: "#{id}"}},
+			}})
 		}
+		items, _ := sqlfragment.ParseFragments(elems, nil)
 		return &SqlFunction{
 			Id:    id,
 			Type:  DeleteFunction,
@@ -320,10 +289,11 @@ func Test_GenerateDefine_ForEachSlice(t *testing.T) {
 		t.Error("scalar function should keep int64 signature, got:", def)
 	}
 	// map 参数 + foreach：不包切片（保持 map 签名）
-	items := []*sqlFragment{{
-		Type:    forLoopSqlFragment,
-		ForLoop: &sqlForLoop{},
-	}}
+	items, _ := sqlfragment.ParseFragments([]xmlElement{{ElementType: xmlNodeElem, Val: xmlNode{
+		Name:     "foreach",
+		Attrs:    map[string]string{"collection": "array", "item": "id"},
+		Elements: []xmlElement{{ElementType: xmlTextElem, Val: "#{id}"}},
+	}}}, nil)
 	fn := &SqlFunction{
 		Id:    "deleteByMap",
 		Type:  DeleteFunction,
