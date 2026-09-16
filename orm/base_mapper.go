@@ -49,6 +49,11 @@ func (in *BaseMapper) executeStream(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		return reflect.Value{}, err
 	}
 	log.Debugf("sql: %v", sqlStr)
+	// P0-5：Before 钩子（可改写 SQL），After 钩子与 UpdateUsage defer 并列
+	sqlStr = runBeforeHooks(context.Background(), in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs)
+	defer func() {
+		runAfterHooks(context.Background(), in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs, err, time.Since(start))
+	}()
 	stream, err := QueryStream(context.Background(), sqlStr, sqlargs...)
 	if err != nil {
 		return reflect.Value{}, err
@@ -233,6 +238,11 @@ func (in *BaseMapper) executePage(sqlFunc *types.SqlFunction, arg ProxyArg) (val
 		log.Warnf("generate sql failed: %v", err)
 		return reflect.Value{}, err
 	}
+	// P0-5：Before 钩子一对包裹 count+page 全程（在 buildCountSQL 之前注入，保证 count/page 一致）
+	sqlStr = runBeforeHooks(context.Background(), in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs)
+	defer func() {
+		runAfterHooks(context.Background(), in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs, err, time.Since(start))
+	}()
 	countSQL := normalizeSQL(buildCountSQL(sqlStr))
 	log.Debugf("page count sql: %v", countSQL)
 	var total int64
@@ -277,6 +287,11 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		return reflect.Value{}, err
 	}
 	log.Debugf("sql: %v", sqlStr)
+	// P0-5：Before 钩子（可改写 SQL），After 钩子与 UpdateUsage defer 并列（覆盖全部执行路径）
+	sqlStr = runBeforeHooks(context.Background(), in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs)
+	defer func() {
+		runAfterHooks(context.Background(), in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs, err, time.Since(start))
+	}()
 	switch sqlFunc.Type {
 	case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
 		// M-03：PostgreSQL / KingbaseES 不支持 LastInsertId()，

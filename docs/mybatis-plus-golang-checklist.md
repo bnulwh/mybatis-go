@@ -347,7 +347,7 @@
 | P0-2 | **Struct Tag 元数据**（TableName/PK/Logic/Version/Fill） | 小 | 消除 XML 中的重复映射声明（`db:"col,pk/logic/version/fill:insert|update|insert_update/-"`，`TableName() string` 显式表名；RegisterModel 解析入 `ModelInfo` 缓存，经 `types.SetModelStructureProvider` 注入，MP 内置 CRUD 生成优先 tag 元数据：显式逻辑删除列按类型取值、表名/主键以 tag 为准；显式逻辑删除列不进入 resultMap/BCL/insert/update 列清单，✅ 已完成） |
 | P0-3 | **`<trim>` 动态 SQL** | 小 | 补全动态 SQL 缺失项（P0-3a：片段引擎已提取至 `types/sqlfragment` 独立包 + Node 接口/注册表，✅ 已完成；P0-3b：`<trim>` 节点已实现（prefix/suffix/prefixOverrides/suffixOverrides，含与 `<where>`/`<set>` 等价性测试与开放封闭验证测试），✅ 已完成） |
 | P0-4 | **自定义 TypeHandler** | 小 | JSON/Enum 等自定义类型映射（`orm.RegisterTypeHandler`/`RegisterTypeHandlerFor`，DB 值→Go 类型，4 个转换接入点优先 handler、未注册回退 ChangeType，✅ 已完成） |
-| P0-5 | **拦截器/Hook 链** | 中 | 乐观锁/多租户/自动填充的基础设施 |
+| P0-5 | **拦截器/Hook 链** | 中 | 乐观锁/多租户/自动填充的基础设施（`orm.RegisterHook(point, hook)`：HookBeforeExecute 可改写 SQL、HookAfterExecute 可见 Error/Duration；接入 executeMethod/executePage/executeStream，分页 Before 一对包裹 count+page 保证一致；注册期后只读 + RWMutex，钩子 panic 不中断执行链，✅ 已完成） |
 
 ### P1 — 重要增强（提升框架完整性）
 
