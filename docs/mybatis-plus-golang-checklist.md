@@ -345,7 +345,7 @@
 |--------|------|--------|------|
 | P0-1 | **Wrapper 条件构造器** | 中 | 替代手写 WHERE，MP 最常用功能 |
 | P0-2 | **Struct Tag 元数据**（TableName/PK/Logic/Version/Fill） | 小 | 消除 XML 中的重复映射声明 |
-| P0-3 | **`<trim>` 动态 SQL** | 小 | 补全动态 SQL 缺失项（P0-3a：片段引擎已提取至 `types/sqlfragment` 独立包 + Node 接口/注册表，✅ 已完成；P0-3b：`<trim>` 节点待实现） |
+| P0-3 | **`<trim>` 动态 SQL** | 小 | 补全动态 SQL 缺失项（P0-3a：片段引擎已提取至 `types/sqlfragment` 独立包 + Node 接口/注册表，✅ 已完成；P0-3b：`<trim>` 节点已实现（prefix/suffix/prefixOverrides/suffixOverrides，含与 `<where>`/`<set>` 等价性测试与开放封闭验证测试），✅ 已完成） |
 | P0-4 | **自定义 TypeHandler** | 小 | JSON/Enum 等自定义类型映射 |
 | P0-5 | **拦截器/Hook 链** | 中 | 乐观锁/多租户/自动填充的基础设施 |
 

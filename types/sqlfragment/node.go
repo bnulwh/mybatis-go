@@ -1,6 +1,7 @@
 package sqlfragment
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"sync"
@@ -49,9 +50,9 @@ func lookupNodeParser(tag string) (NodeParser, bool) {
 	return p, ok
 }
 
-// containerBase 通用容器骨架：子片段顺序拼接、空片段跳过、结果经 Wrap 包装
-// （Wrap 为 nil 时仅去空白）。供 <trim>（P0-3b）等新增容器复用，
-// <where>/<set> 因保留原手写方法体不继承本骨架。
+// containerBase 通用容器骨架：子片段顺序拼接（空片段跳过）、整体为空时不输出任何内容，
+// 非空结果经 Wrap 包装（Wrap 为 nil 时仅去空白）。嵌入即得 Node 全部接口方法，
+// 新容器节点（<trim> 为首个使用者）只需提供 Wrap；既有 <where>/<set> 保留原手写方法体，不继承本骨架。
 type containerBase struct {
 	Sql  []Node
 	Wrap func(body string) string
@@ -66,6 +67,149 @@ func (in *containerBase) wrap(body string) string {
 		return strings.TrimSpace(body)
 	}
 	return in.Wrap(body)
+}
+
+func (in *containerBase) PrepareSqlWithMap(mp map[string]interface{}, depth int) (string, []string) {
+	var buf bytes.Buffer
+	var results []string
+	for _, item := range in.Sql {
+		sqlstr, items := item.PrepareSqlWithMap(mp, depth+1)
+		if strings.TrimSpace(sqlstr) != "" {
+			buf.WriteString(" ")
+			buf.WriteString(sqlstr)
+			results = append(results, items...)
+		}
+	}
+	if strings.TrimSpace(buf.String()) == "" {
+		return "", []string{}
+	}
+	return in.wrap(buf.String()), results
+}
+
+func (in *containerBase) GenerateSqlWithMap(mp map[string]interface{}, depth int) string {
+	var buf bytes.Buffer
+	for _, item := range in.Sql {
+		sqlstr := item.GenerateSqlWithMap(mp, depth+1)
+		if strings.TrimSpace(sqlstr) != "" {
+			buf.WriteString(" ")
+			buf.WriteString(sqlstr)
+		}
+	}
+	if strings.TrimSpace(buf.String()) == "" {
+		return ""
+	}
+	return in.wrap(buf.String())
+}
+
+func (in *containerBase) PrepareSqlWithParam(m interface{}) (string, []string) {
+	var buf bytes.Buffer
+	var results []string
+	for _, item := range in.Sql {
+		sqlstr, items := item.PrepareSqlWithParam(m)
+		if strings.TrimSpace(sqlstr) != "" {
+			buf.WriteString(" ")
+			buf.WriteString(sqlstr)
+			results = append(results, items...)
+		}
+	}
+	if strings.TrimSpace(buf.String()) == "" {
+		return "", []string{}
+	}
+	return in.wrap(buf.String()), results
+}
+
+func (in *containerBase) GenerateSqlWithParam(m interface{}) string {
+	var buf bytes.Buffer
+	for _, item := range in.Sql {
+		sqlstr := item.GenerateSqlWithParam(m)
+		if strings.TrimSpace(sqlstr) != "" {
+			buf.WriteString(" ")
+			buf.WriteString(sqlstr)
+		}
+	}
+	if strings.TrimSpace(buf.String()) == "" {
+		return ""
+	}
+	return in.wrap(buf.String())
+}
+
+func (in *containerBase) PrepareSqlWithSlice(m []interface{}, depth int) (string, []string) {
+	var buf bytes.Buffer
+	var results []string
+	for _, item := range in.Sql {
+		sqlstr, items := item.PrepareSqlWithSlice(m, depth+1)
+		if strings.TrimSpace(sqlstr) != "" {
+			buf.WriteString(" ")
+			buf.WriteString(sqlstr)
+			results = append(results, items...)
+		}
+	}
+	if strings.TrimSpace(buf.String()) == "" {
+		return "", []string{}
+	}
+	return in.wrap(buf.String()), results
+}
+
+func (in *containerBase) GenerateSqlWithSlice(m []interface{}, depth int) string {
+	var buf bytes.Buffer
+	for _, item := range in.Sql {
+		sqlstr := item.GenerateSqlWithSlice(m, depth+1)
+		if strings.TrimSpace(sqlstr) != "" {
+			buf.WriteString(" ")
+			buf.WriteString(sqlstr)
+		}
+	}
+	if strings.TrimSpace(buf.String()) == "" {
+		return ""
+	}
+	return in.wrap(buf.String())
+}
+
+func (in *containerBase) GenerateSqlWithoutParam() string {
+	var buf bytes.Buffer
+	for _, item := range in.Sql {
+		sqlstr := item.GenerateSqlWithoutParam()
+		if strings.TrimSpace(sqlstr) != "" {
+			buf.WriteString(" ")
+			buf.WriteString(sqlstr)
+		}
+	}
+	if strings.TrimSpace(buf.String()) == "" {
+		return ""
+	}
+	return in.wrap(buf.String())
+}
+
+// CollectSlots 直接文本视为无条件位置，正常统计（递归聚合子片段）。
+func (in *containerBase) CollectSlots() []string {
+	var out []string
+	for _, item := range in.Sql {
+		if item == nil {
+			continue
+		}
+		out = append(out, item.CollectSlots()...)
+	}
+	return out
+}
+
+func (in *containerBase) ContainsForEach() bool {
+	for _, item := range in.Sql {
+		if item != nil && item.ContainsForEach() {
+			return true
+		}
+	}
+	return false
+}
+
+func (in *containerBase) CollectIfTestFields() []string {
+	var names []string
+	for _, item := range in.Sql {
+		if item == nil {
+			continue
+		}
+		names = append(names, item.CollectIfTestFields()...)
+	}
+	return names
 }
 
 // parseFragmentFromXmlElement 单个 XML 子元素 → Node：文本元素解析为静态 SQL，
