@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/types"
-	"github.com/bnulwh/mybatis-go/utils"
 	"reflect"
 	"strings"
 	"unicode"
@@ -135,7 +134,7 @@ func convertMap2Result(mp map[string]interface{}, resInfo types.SqlResult, field
 	}
 	if resInfo.ResultT.Kind() != reflect.Map {
 		for col, v := range mp {
-			rval, err := utils.ChangeType(v, resInfo.ResultT)
+			rval, err := convertFieldValue(v, resInfo.ResultT)
 			if err != nil {
 				return nil, nil, fmt.Errorf("row %d column %q: %v", row, col, err)
 			}
@@ -174,7 +173,7 @@ func setModelFieldValues(value reflect.Value, mp map[string]interface{}, typ ref
 			continue
 		}
 		fval := outVal.FieldByIndex(idx)
-		rval, err := utils.ChangeType(val, fval.Type())
+		rval, err := convertFieldValue(val, fval.Type())
 		if err != nil {
 			errs = append(errs, ResultConvertError{
 				Column:  col,
@@ -246,7 +245,7 @@ func setColumnValuesPrepared(value reflect.Value, rmp *types.ResultMap, mp map[s
 			continue
 		}
 		fval := outVal.FieldByIndex(idx)
-		rval, err := utils.ChangeType(val, fval.Type())
+		rval, err := convertFieldValue(val, fval.Type())
 		if err != nil {
 			errs = append(errs, ResultConvertError{
 				Column:  col,

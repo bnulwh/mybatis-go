@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/types"
-	"github.com/bnulwh/mybatis-go/utils"
 	"reflect"
 	"strings"
 	"unicode"
@@ -146,7 +145,8 @@ func (s *RowStream) Close() error {
 // Scan 把当前行填充到 dest：
 //   - *map[string]interface{}：拷贝当前行到目标 map；
 //   - struct 指针：按列名匹配字段填充（匹配顺序：原名 → 首字母大写 → 下划线/连字符转驼峰
-//     → 大小写不敏感），类型用 utils.ChangeType 转换，列级失败聚合为一条错误返回。
+//     → 大小写不敏感），类型转换优先自定义 TypeHandler、未注册回退 utils.ChangeType，
+//     列级失败聚合为一条错误返回。
 func (s *RowStream) Scan(dest interface{}) error {
 	if s.row == nil {
 		return fmt.Errorf("RowStream.Scan: no current row, call Next() first")
@@ -178,7 +178,7 @@ func (s *RowStream) Scan(dest interface{}) error {
 		if !fval.CanSet() {
 			continue
 		}
-		rval, err := utils.ChangeType(val, fval.Type())
+		rval, err := convertFieldValue(val, fval.Type())
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("column %q -> field %s: %v", col, field.Name, err))
 			continue
