@@ -12,6 +12,7 @@ const (
 	PlaceholderQuestion = dialector.PlaceholderQuestion
 	PlaceholderDollar   = dialector.PlaceholderDollar
 	PlaceholderColon    = dialector.PlaceholderColon
+	PlaceholderAtP      = dialector.PlaceholderAtP
 )
 
 type DatabaseFamily = dialector.DatabaseFamily
@@ -22,6 +23,8 @@ const (
 	FamilySQLite   = dialector.FamilySQLite
 	FamilyOracle   = dialector.FamilyOracle
 	FamilyInformix = dialector.FamilyInformix
+	FamilyMSSQL    = dialector.FamilyMSSQL
+	FamilyDB2      = dialector.FamilyDB2
 )
 
 type DatabaseType = dialector.DatabaseType
@@ -42,6 +45,9 @@ const (
 	OceanBaseOracleDb = dialector.OceanBaseOracleDb
 	DamengDb         = dialector.DamengDb
 	GBase8sDb        = dialector.GBase8sDb
+	MssqlDb          = dialector.MssqlDb
+	OracleDb         = dialector.OracleDb
+	Db2Db            = dialector.Db2Db
 )
 
 type Dialector = dialector.Dialector

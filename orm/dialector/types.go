@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -14,6 +15,7 @@ const (
 	PlaceholderQuestion PlaceholderStyle = iota
 	PlaceholderDollar
 	PlaceholderColon
+	PlaceholderAtP
 )
 
 type DatabaseFamily string
@@ -24,6 +26,8 @@ const (
 	FamilySQLite   DatabaseFamily = "sqlite"
 	FamilyOracle   DatabaseFamily = "oracle"
 	FamilyInformix DatabaseFamily = "informix"
+	FamilyMSSQL    DatabaseFamily = "mssql"
+	FamilyDB2      DatabaseFamily = "db2"
 )
 
 type DatabaseType string
@@ -44,6 +48,9 @@ const (
 	OceanBaseOracleDb DatabaseType = "oceanbase-oracle"
 	DamengDb         DatabaseType = "dameng"
 	GBase8sDb        DatabaseType = "gbase8s"
+	MssqlDb          DatabaseType = "mssql"
+	OracleDb         DatabaseType = "oracle"
+	Db2Db            DatabaseType = "db2"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
@@ -54,10 +61,14 @@ func (dt DatabaseType) Family() DatabaseFamily {
 		return FamilyMySQL
 	case SqliteDb:
 		return FamilySQLite
-	case OceanBaseOracleDb, DamengDb:
+	case OceanBaseOracleDb, DamengDb, OracleDb:
 		return FamilyOracle
 	case GBase8sDb:
 		return FamilyInformix
+	case MssqlDb:
+		return FamilyMSSQL
+	case Db2Db:
+		return FamilyDB2
 	default:
 		return DatabaseFamily("")
 	}
@@ -95,6 +106,12 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return DamengDb, nil
 	case "gbase8s", "gbase", "gbase-8s":
 		return GBase8sDb, nil
+	case "mssql", "sqlserver", "mssql-server":
+		return MssqlDb, nil
+	case "oracle", "oracle-db", "oracledb":
+		return OracleDb, nil
+	case "db2", "ibmdb2", "db2-luw":
+		return Db2Db, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -132,6 +149,12 @@ func GetDriverName(dbType DatabaseType) string {
 		return "dameng"
 	case GBase8sDb:
 		return "gbase8s"
+	case MssqlDb:
+		return "sqlserver"
+	case OracleDb:
+		return "oracle"
+	case Db2Db:
+		return "go_ibm_db"
 	default:
 		return string(dbType)
 	}
@@ -160,6 +183,10 @@ func EffectiveSchema(params ConnectParams) string {
 		return strings.ToUpper(params.Username)
 	case FamilyInformix:
 		return strings.ToUpper(params.Username)
+	case FamilyMSSQL:
+		return "dbo"
+	case FamilyDB2:
+		return strings.ToUpper(params.Username)
 	default:
 		return "public"
 	}
@@ -177,6 +204,10 @@ func GenerateDSN(params ConnectParams) string {
 		return generateOracleDSN(params)
 	case FamilyInformix:
 		return generateInformixDSN(params)
+	case FamilyMSSQL:
+		return generateMssqlDSN(params)
+	case FamilyDB2:
+		return generateDb2DSN(params)
 	}
 	return ""
 }
@@ -219,6 +250,14 @@ func generateOracleDSN(p ConnectParams) string {
 
 func generateInformixDSN(p ConnectParams) string {
 	return fmt.Sprintf("%s:%s@%s:%d/%s", p.Username, p.Password, p.Host, p.Port, p.DBName)
+}
+
+func generateMssqlDSN(p ConnectParams) string {
+	return fmt.Sprintf("sqlserver://%s:%s@%s?database=%s",
+		url.QueryEscape(p.Username),
+		url.QueryEscape(p.Password),
+		joinHostPort(p.Host, p.Port),
+		url.QueryEscape(p.DBName))
 }
 
 var ErrUnsupportedDatabase = errors.New("unsupported database type")
@@ -285,6 +324,12 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewDamengDialector(cfg), nil
 	case GBase8sDb:
 		return NewGBase8sDialector(cfg), nil
+	case MssqlDb:
+		return NewMssqlDialector(cfg), nil
+	case OracleDb:
+		return NewOracleDialector(cfg), nil
+	case Db2Db:
+		return NewDb2Dialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

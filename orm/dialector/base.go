@@ -108,6 +108,8 @@ func formatPlaceholders(src string, style PlaceholderStyle) string {
 		return formatDollarPlaceholders(src)
 	case PlaceholderColon:
 		return formatColonPlaceholders(src)
+	case PlaceholderAtP:
+		return formatAtPPlaceholders(src)
 	default:
 		return src
 	}
@@ -132,6 +134,18 @@ func formatColonPlaceholders(src string) string {
 		res = append(res, s)
 		if i < len(arr)-1 {
 			res = append(res, fmt.Sprintf(":%d", i+1))
+		}
+	}
+	return strings.Join(res, "")
+}
+
+func formatAtPPlaceholders(src string) string {
+	arr := strings.Split(src, "?")
+	var res []string
+	for i, s := range arr {
+		res = append(res, s)
+		if i < len(arr)-1 {
+			res = append(res, fmt.Sprintf("@p%d", i+1))
 		}
 	}
 	return strings.Join(res, "")

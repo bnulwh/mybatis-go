@@ -132,6 +132,15 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"gbase8s", GBase8sDb},
 		{"gbase", GBase8sDb},
 		{"gbase-8s", GBase8sDb},
+		{"mssql", MssqlDb},
+		{"sqlserver", MssqlDb},
+		{"mssql-server", MssqlDb},
+		{"oracle", OracleDb},
+		{"oracledb", OracleDb},
+		{"oracle-db", OracleDb},
+		{"db2", Db2Db},
+		{"ibmdb2", Db2Db},
+		{"db2-luw", Db2Db},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -190,6 +199,15 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if GBase8sDb.Family() != FamilyInformix {
 		t.Errorf("GBase8sDb.Family() = %q, want %q", GBase8sDb.Family(), FamilyInformix)
 	}
+	if MssqlDb.Family() != FamilyMSSQL {
+		t.Errorf("MssqlDb.Family() = %q, want %q", MssqlDb.Family(), FamilyMSSQL)
+	}
+	if OracleDb.Family() != FamilyOracle {
+		t.Errorf("OracleDb.Family() = %q, want %q", OracleDb.Family(), FamilyOracle)
+	}
+	if Db2Db.Family() != FamilyDB2 {
+		t.Errorf("Db2Db.Family() = %q, want %q", Db2Db.Family(), FamilyDB2)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -212,6 +230,9 @@ func Test_GetDriverName(t *testing.T) {
 		{OceanBaseOracleDb, "oceanbase-oracle"},
 		{DamengDb, "dameng"},
 		{GBase8sDb, "gbase8s"},
+		{MssqlDb, "sqlserver"},
+		{OracleDb, "oracle"},
+		{Db2Db, "go_ibm_db"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -426,6 +447,10 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Username: "SYS", Type: OceanBaseOracleDb}, "SYS"},
 		{ConnectParams{DBName: "mydb", Username: "SYSDBA", Type: DamengDb}, "SYSDBA"},
 		{ConnectParams{DBName: "mydb", Username: "informix", Type: GBase8sDb}, "INFORMIX"},
+		{ConnectParams{DBName: "mydb", Type: MssqlDb}, "dbo"},
+		{ConnectParams{DBName: "mydb", Schema: "myschema", Type: MssqlDb}, "myschema"},
+		{ConnectParams{DBName: "mydb", Username: "SYSTEM", Type: OracleDb}, "SYSTEM"},
+		{ConnectParams{DBName: "mydb", Username: "db2inst1", Type: Db2Db}, "DB2INST1"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -491,7 +516,18 @@ func Test_GenerateDSN(t *testing.T) {
 	if got := GenerateDSN(gbase8sParams); got != "informix:123456@10.0.0.1:9088/testdb" {
 		t.Errorf("GenerateDSN gbase8s = %q", got)
 	}
-}
+	mssqlParams := ConnectParams{Host: "10.0.0.1", Port: 1433, Username: "sa", Password: "123456", DBName: "testdb", Type: MssqlDb}
+	if got := GenerateDSN(mssqlParams); got != "sqlserver://sa:123456@10.0.0.1:1433?database=testdb" {
+		t.Errorf("GenerateDSN mssql = %q", got)
+	}
+	oracleParams := ConnectParams{Host: "10.0.0.1", Port: 1521, Username: "system", Password: "123456", DBName: "testdb", Type: OracleDb}
+	if got := GenerateDSN(oracleParams); got != "system/123456@10.0.0.1:1521/testdb" {
+		t.Errorf("GenerateDSN oracle = %q", got)
+	}
+	db2Params := ConnectParams{Host: "10.0.0.1", Port: 50000, Username: "db2inst1", Password: "123456", DBName: "testdb", Type: Db2Db}
+	if got := GenerateDSN(db2Params); got != "HOSTNAME=10.0.0.1;PORT=50000;DATABASE=testdb;UID=db2inst1;PWD=123456" {
+		t.Errorf("GenerateDSN db2 = %q", got)
+	}}
 
 func Test_NewForType(t *testing.T) {
 	d, err := NewForType(PostgresDb, &testConfig{dbType: PostgresDb})
@@ -549,6 +585,18 @@ func Test_NewForType(t *testing.T) {
 	d14, err := NewForType(GBase8sDb, &testConfig{dbType: GBase8sDb})
 	if err != nil || d14.Name() != "gbase8s" {
 		t.Errorf("NewForType gbase8s failed: %v, name=%q", err, d14.Name())
+	}
+	d15, err := NewForType(MssqlDb, &testConfig{dbType: MssqlDb})
+	if err != nil || d15.Name() != "mssql" {
+		t.Errorf("NewForType mssql failed: %v, name=%q", err, d15.Name())
+	}
+	d16, err := NewForType(OracleDb, &testConfig{dbType: OracleDb})
+	if err != nil || d16.Name() != "oracle" {
+		t.Errorf("NewForType oracle failed: %v, name=%q", err, d16.Name())
+	}
+	d17, err := NewForType(Db2Db, &testConfig{dbType: Db2Db})
+	if err != nil || d17.Name() != "db2" {
+		t.Errorf("NewForType db2 failed: %v, name=%q", err, d17.Name())
 	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")
@@ -706,5 +754,179 @@ func Test_GBase8sPlaceholderStyle(t *testing.T) {
 	d := NewGBase8sDialector(&testConfig{dbType: GBase8sDb})
 	if d.PlaceholderStyle() != PlaceholderQuestion {
 		t.Errorf("gbase8s placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderQuestion)
+	}
+}
+
+func Test_MssqlDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("sqlserver") {
+		t.Error("sqlserver driver should be registered by go-mssqldb init")
+	}
+}
+
+func Test_MssqlFormatPrepareSQL(t *testing.T) {
+	d := NewMssqlDialector(&testConfig{dbType: MssqlDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = @p1 and b = @p2"
+	if got != want {
+		t.Errorf("mssql format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_MssqlNeedsReturning(t *testing.T) {
+	d := NewMssqlDialector(&testConfig{dbType: MssqlDb})
+	if d.NeedsReturning() {
+		t.Error("mssql should not need RETURNING")
+	}
+}
+
+func Test_MssqlDialectorName(t *testing.T) {
+	d := NewMssqlDialector(&testConfig{dbType: MssqlDb})
+	if d.Name() != "mssql" {
+		t.Errorf("mssql dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_MssqlFamily(t *testing.T) {
+	d := NewMssqlDialector(&testConfig{dbType: MssqlDb})
+	if d.Family() != FamilyMSSQL {
+		t.Errorf("mssql family failed, got: %q want: %q", d.Family(), FamilyMSSQL)
+	}
+}
+
+func Test_MssqlPlaceholderStyle(t *testing.T) {
+	d := NewMssqlDialector(&testConfig{dbType: MssqlDb})
+	if d.PlaceholderStyle() != PlaceholderAtP {
+		t.Errorf("mssql placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderAtP)
+	}
+}
+
+func Test_MssqlApplyPagination(t *testing.T) {
+	d := NewMssqlDialector(&testConfig{dbType: MssqlDb})
+	got1 := d.ApplyPagination("SELECT * FROM t", 10, 0)
+	if got1 != "SELECT * FROM t OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY" {
+		t.Errorf("mssql pagination offset=0 failed, got: %q", got1)
+	}
+	got2 := d.ApplyPagination("SELECT * FROM t", 10, 5)
+	if got2 != "SELECT * FROM t OFFSET 5 ROWS FETCH NEXT 10 ROWS ONLY" {
+		t.Errorf("mssql pagination offset>0 failed, got: %q", got2)
+	}
+	got3 := d.ApplyPagination("SELECT * FROM t", 0, 5)
+	if got3 != "SELECT * FROM t" {
+		t.Errorf("mssql pagination limit=0 failed, got: %q", got3)
+	}
+}
+
+func Test_OracleDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("oracle") {
+		t.Error("oracle driver should be registered by go-ora init")
+	}
+}
+
+func Test_OracleFormatPrepareSQL(t *testing.T) {
+	d := NewOracleDialector(&testConfig{dbType: OracleDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = :1 and b = :2"
+	if got != want {
+		t.Errorf("oracle format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_OracleNeedsReturning(t *testing.T) {
+	d := NewOracleDialector(&testConfig{dbType: OracleDb})
+	if d.NeedsReturning() {
+		t.Error("oracle should not need RETURNING")
+	}
+}
+
+func Test_OracleDialectorName(t *testing.T) {
+	d := NewOracleDialector(&testConfig{dbType: OracleDb})
+	if d.Name() != "oracle" {
+		t.Errorf("oracle dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_OracleFamily(t *testing.T) {
+	d := NewOracleDialector(&testConfig{dbType: OracleDb})
+	if d.Family() != FamilyOracle {
+		t.Errorf("oracle family failed, got: %q want: %q", d.Family(), FamilyOracle)
+	}
+}
+
+func Test_OraclePlaceholderStyle(t *testing.T) {
+	d := NewOracleDialector(&testConfig{dbType: OracleDb})
+	if d.PlaceholderStyle() != PlaceholderColon {
+		t.Errorf("oracle placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderColon)
+	}
+}
+
+func Test_OracleApplyPagination(t *testing.T) {
+	d := NewOracleDialector(&testConfig{dbType: OracleDb})
+	got1 := d.ApplyPagination("SELECT * FROM t", 10, 0)
+	if got1 != "SELECT * FROM t OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY" {
+		t.Errorf("oracle pagination offset=0 failed, got: %q", got1)
+	}
+	got2 := d.ApplyPagination("SELECT * FROM t", 10, 5)
+	if got2 != "SELECT * FROM t OFFSET 5 ROWS FETCH NEXT 10 ROWS ONLY" {
+		t.Errorf("oracle pagination offset>0 failed, got: %q", got2)
+	}
+	got3 := d.ApplyPagination("SELECT * FROM t", 0, 5)
+	if got3 != "SELECT * FROM t" {
+		t.Errorf("oracle pagination limit=0 failed, got: %q", got3)
+	}
+}
+
+func Test_Db2FormatPrepareSQL(t *testing.T) {
+	d := NewDb2Dialector(&testConfig{dbType: Db2Db})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = :1 and b = :2"
+	if got != want {
+		t.Errorf("db2 format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_Db2NeedsReturning(t *testing.T) {
+	d := NewDb2Dialector(&testConfig{dbType: Db2Db})
+	if d.NeedsReturning() {
+		t.Error("db2 should not need RETURNING")
+	}
+}
+
+func Test_Db2DialectorName(t *testing.T) {
+	d := NewDb2Dialector(&testConfig{dbType: Db2Db})
+	if d.Name() != "db2" {
+		t.Errorf("db2 dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_Db2Family(t *testing.T) {
+	d := NewDb2Dialector(&testConfig{dbType: Db2Db})
+	if d.Family() != FamilyDB2 {
+		t.Errorf("db2 family failed, got: %q want: %q", d.Family(), FamilyDB2)
+	}
+}
+
+func Test_Db2PlaceholderStyle(t *testing.T) {
+	d := NewDb2Dialector(&testConfig{dbType: Db2Db})
+	if d.PlaceholderStyle() != PlaceholderColon {
+		t.Errorf("db2 placeholder style failed, got: %v want: %v", d.PlaceholderStyle(), PlaceholderColon)
+	}
+}
+
+func Test_Db2ApplyPagination(t *testing.T) {
+	d := NewDb2Dialector(&testConfig{dbType: Db2Db})
+	got1 := d.ApplyPagination("SELECT * FROM t", 10, 0)
+	if got1 != "SELECT * FROM t OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY" {
+		t.Errorf("db2 pagination offset=0 failed, got: %q", got1)
+	}
+	got2 := d.ApplyPagination("SELECT * FROM t", 10, 5)
+	if got2 != "SELECT * FROM t OFFSET 5 ROWS FETCH NEXT 10 ROWS ONLY" {
+		t.Errorf("db2 pagination offset>0 failed, got: %q", got2)
+	}
+	got3 := d.ApplyPagination("SELECT * FROM t", 0, 5)
+	if got3 != "SELECT * FROM t" {
+		t.Errorf("db2 pagination limit=0 failed, got: %q", got3)
 	}
 }

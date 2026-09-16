@@ -80,6 +80,26 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r17 != GBase8sDb || err != nil {
 		t.Error("test parseDatabaseType gbase failed.")
 	}
+	r18, err := dialector.ParseDatabaseType("sqlserver")
+	if r18 != MssqlDb || err != nil {
+		t.Error("test parseDatabaseType sqlserver failed.")
+	}
+	r19, err := dialector.ParseDatabaseType("mssql")
+	if r19 != MssqlDb || err != nil {
+		t.Error("test parseDatabaseType mssql failed.")
+	}
+	r20, err := dialector.ParseDatabaseType("oracle")
+	if r20 != OracleDb || err != nil {
+		t.Error("test parseDatabaseType oracle failed.")
+	}
+	r21, err := dialector.ParseDatabaseType("db2")
+	if r21 != Db2Db || err != nil {
+		t.Error("test parseDatabaseType db2 failed.")
+	}
+	r22, err := dialector.ParseDatabaseType("ibmdb2")
+	if r22 != Db2Db || err != nil {
+		t.Error("test parseDatabaseType ibmdb2 failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -162,6 +182,21 @@ func Test_parseAddr(t *testing.T) {
 	tp15, host15, port15, db15, err := parseAddr(mp)
 	if tp15 != "gbase8s" || host15 != "10.1.2.3" || port15 != 9088 || db15 != "gbase_test" || err != nil {
 		t.Error("test parseAddr gbase8s failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:sqlserver://10.1.2.3:1433/mssql_test"
+	tp16, host16, port16, db16, err := parseAddr(mp)
+	if tp16 != "sqlserver" || host16 != "10.1.2.3" || port16 != 1433 || db16 != "mssql_test" || err != nil {
+		t.Error("test parseAddr sqlserver failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:oracle://10.1.2.3:1521/orcl"
+	tp17, host17, port17, db17, err := parseAddr(mp)
+	if tp17 != "oracle" || host17 != "10.1.2.3" || port17 != 1521 || db17 != "orcl" || err != nil {
+		t.Error("test parseAddr oracle failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:db2://10.1.2.3:50000/db2test"
+	tp18, host18, port18, db18, err := parseAddr(mp)
+	if tp18 != "db2" || host18 != "10.1.2.3" || port18 != 50000 || db18 != "db2test" || err != nil {
+		t.Error("test parseAddr db2 failed.")
 	}
 }
 

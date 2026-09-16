@@ -6,6 +6,7 @@ import (
 	"github.com/bnulwh/mybatis-go/orm"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
+	_ "github.com/microsoft/go-mssqldb"
 	_ "modernc.org/sqlite"
 )
 
@@ -19,7 +20,7 @@ func main() {
 	var dbType, host, user, pwd, dbName, dir, prefix, tables string
 	var port int
 	var mp bool
-	flag.StringVar(&dbType, "type", "mysql", "数据库类型: mysql/postgres/kingbase/sqlite/tidb/tdsql/polardb/opengauss/gaussdb/highgo/vastbase/oceanbase/oceanbase-oracle/dameng/gbase8s")
+	flag.StringVar(&dbType, "type", "mysql", "数据库类型: mysql/postgres/kingbase/sqlite/tidb/tdsql/polardb/opengauss/gaussdb/highgo/vastbase/oceanbase/oceanbase-oracle/dameng/gbase8s/mssql/oracle/db2")
 	flag.StringVar(&host, "host", "localhost", "数据库地址: localhost")
 	flag.IntVar(&port, "port", 3306, "数据库端口")
 	flag.StringVar(&user, "username", "", "用户名(sqlite 无需填写)")
