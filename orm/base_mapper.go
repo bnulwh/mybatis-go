@@ -42,11 +42,20 @@ func (in *BaseMapper) executeStream(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
 	args := arg.buildArgs()
+	// P0-1：显式 ${ew} 占位模式，Wrapper 以 ew 键并入渲染参数（生成 SQL 前注入）
+	wrapperExplicit := arg.Wrapper != nil && hasNamedSlot(sqlFunc, "ew")
+	if wrapperExplicit {
+		args = injectWrapperArg(args, arg.Wrapper)
+	}
 	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
 	sqlStr = normalizeSQL(sqlStr)
 	if err != nil {
 		log.Warnf("generate sql failed: %v", err)
 		return reflect.Value{}, err
+	}
+	// P0-1：自动注入模式（语句无 ${ew} 占位时改写 SQL；stream 仅 select）
+	if arg.Wrapper != nil && !wrapperExplicit {
+		sqlStr = applyQueryWrapper(sqlStr, arg.Wrapper)
 	}
 	log.Debugf("sql: %v", sqlStr)
 	// P0-5：Before 钩子（可改写 SQL），After 钩子与 UpdateUsage defer 并列
@@ -232,11 +241,20 @@ func (in *BaseMapper) executePage(sqlFunc *types.SqlFunction, arg ProxyArg) (val
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
 	args := arg.buildArgs()
+	// P0-1：显式 ${ew} 占位模式，Wrapper 以 ew 键并入渲染参数（生成 SQL 前注入）
+	wrapperExplicit := arg.Wrapper != nil && hasNamedSlot(sqlFunc, "ew")
+	if wrapperExplicit {
+		args = injectWrapperArg(args, arg.Wrapper)
+	}
 	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
 	sqlStr = normalizeSQL(sqlStr)
 	if err != nil {
 		log.Warnf("generate sql failed: %v", err)
 		return reflect.Value{}, err
+	}
+	// P0-1：自动注入模式，在 buildCountSQL 之前注入（count/page 天然一致）
+	if arg.Wrapper != nil && !wrapperExplicit {
+		sqlStr = applyQueryWrapper(sqlStr, arg.Wrapper)
 	}
 	// P0-5：Before 钩子一对包裹 count+page 全程（在 buildCountSQL 之前注入，保证 count/page 一致）
 	sqlStr = runBeforeHooks(context.Background(), in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs)
@@ -280,11 +298,23 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	log.Debugf("func: %v ,state : %v", sqlFunc, gDbConn.Statement)
 	//log.Debugf("state: %v", gDbConn.Statement)
 	args := arg.buildArgs()
+	// P0-1：显式 ${ew} 占位模式，Wrapper 以 ew 键并入渲染参数（生成 SQL 前注入）
+	wrapperExplicit := arg.Wrapper != nil && hasNamedSlot(sqlFunc, "ew")
+	if wrapperExplicit {
+		args = injectWrapperArg(args, arg.Wrapper)
+	}
 	sqlStr, sqlargs, err := sqlFunc.GenerateSQL(args...)
 	sqlStr = normalizeSQL(sqlStr)
 	if err != nil {
 		log.Warnf("generate sql failed: %v", err)
 		return reflect.Value{}, err
+	}
+	// P0-1：自动注入模式（语句无 ${ew} 占位时改写 SQL；P0 限定 select）
+	if arg.Wrapper != nil && !wrapperExplicit {
+		if sqlFunc.Type != types.SelectFunction {
+			return reflect.Value{}, fmt.Errorf("%v.%v: QueryWrapper only support select functions", in.Namespace, sqlFunc.Id)
+		}
+		sqlStr = applyQueryWrapper(sqlStr, arg.Wrapper)
 	}
 	log.Debugf("sql: %v", sqlStr)
 	// P0-5：Before 钩子（可改写 SQL），After 钩子与 UpdateUsage defer 并列（覆盖全部执行路径）

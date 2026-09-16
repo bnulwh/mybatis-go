@@ -184,15 +184,76 @@ rows2, _ := mp.SelectBatchIds([]int64{1, 2})
 
 ## 7. 限制与后续（已知边界）
 
-- 仅生成「全表 / 按主键」的内置 CRUD；**Wrapper（`ew.customSqlSegment`）动态条件暂不支持**——条件查询仍用 RuoYi 传统 XML `<if>` 写法。
+- 仅生成「全表 / 按主键」的内置 CRUD；动态条件查询用 QueryWrapper（见 §8）或 RuoYi 传统 XML `<if>` 写法。
 - 内存自动生成要求 XML 含可推导的 resultMap：type 为业务模型 + 至少一个 `<id>`/`<result>` 基本列 + 一个 `<id>` 主键；不满足则不生成（编译器/加载器不报错）。
 - 若 Java 端存在**无 XML 的自定义方法**（如 `selectUserRoleGroup` 关联查询），仍需 GoExtraMapper 或手写 XML 补充。
 - codegen 的 foreach→切片仅对**标量参数**生效；`map`/`struct`/`Slice` 参数不包切片（避免生成 `[]map` 等错误签名）。
 
-## 8. 验证命令
+## 8. QueryWrapper 条件构造器（P0-1）
+
+字符串列名 + 链式调用的条件构造器，替代手写 WHERE。**两种用法：**
+
+### 8.1 自动注入（推荐）
+
+mapper 方法声明 `*orm.QueryWrapper` 参数（可与 `*orm.PageParam` 自由组合），框架执行前把条件注入 SQL：
+
+```go
+type UserMapper struct {
+    orm.BaseMapper
+    SelectByWrapper     func(w *orm.QueryWrapper) ([]models.SysUserModel, error)
+    SelectPageByWrapper func(pp *orm.PageParam, w *orm.QueryWrapper) (*orm.Page, error)
+}
+
+rows, _ := mp.SelectByWrapper(orm.NewQueryWrapper().
+    LikeRight("user_name", "ad").
+    Between("age", 18, 30).
+    OrderByDesc("create_time"))
+```
+
+**注入规则**：原 SQL 已含 WHERE → 追加 `AND (seg)`；否则追加 `WHERE (seg)`；
+原 SQL 尾部已有 `ORDER BY`/`LIMIT` 等子句时条件插在其**之前**；
+Wrapper 的 `GroupBy`/`Having`/`OrderBy` 追加在原尾部子句之后，`Last` 恒置末尾；
+分页场景（`*PageParam` + Wrapper）注入发生在 COUNT 派生之前，Total 与 Records 天然一致。
+空 Wrapper 原样执行。**P0 限定 select**：insert/update/delete 方法携带 Wrapper 返回错误。
+
+### 8.2 显式 `${ew}` 占位
+
+XML 中写 `where ${ew}`（配合 `<if>` 组合时注意空 Wrapper 会产生悬空 where）：
+
+```xml
+<select id="selectByWrapperEw" resultType="map">
+  select id, user_name from sys_user where ${ew}
+</select>
+```
+
+```go
+rows, _ := mp.SelectByWrapperEw(orm.NewQueryWrapper().Ge("id", 3).OrderByDesc("id"))
+// → select ... where id >= 3 ORDER BY id DESC
+```
+
+### 8.3 API 一览
+
+| 分类 | 方法 |
+|------|------|
+| 比较 | `Eq` `Ne` `Gt` `Ge` `Lt` `Le` |
+| 模糊 | `Like`（%v%）`NotLike` `LikeLeft`（%v）`LikeRight`（v%） |
+| 区间/空 | `Between` `NotBetween` `IsNull` `IsNotNull` |
+| 集合 | `In`（空集合 → 1=0）`NotIn`（空集合 → 1=1） |
+| 连接 | `Or()`（下一条件 OR 连接）`Nested(func(*QueryWrapper))`（括号组）`Apply(rawSQL)` |
+| 子句 | `GroupBy(cols...)` `Having(rawSQL)` `OrderByAsc`/`OrderByDesc` `Last(rawSQL)`（恒置末尾）`Select(cols...)`（GetSQLSelectSegment 输出） |
+| 输出 | `GetSQLSegment()`（无 WHERE 前缀）/ `GetSQLWhereSegment()`（带 WHERE） |
+
+### 8.4 值内联与注入风险
+
+条件**值**经 `sqlfragment.FormatValue` 转义（字符串加引号、单引号→双引号），与框架 `${}` 值内联行为同源；
+但**列名与原生片段（`Apply`/`Having`/`Last`）直接拼接**，不接受用户输入拼入；
+值内联与占位符化相比仍有注入面（与框架 `${}` 现状一致的已知限制），长期占位符化方案见调优章节。
+
+## 9. 验证命令
 
 ```bash
 go test -count=1 -run 'Test_TableStruct|Test_MPGeneratedSQL|Test_ContainsForEach|Test_GenerateDefine_ForEachSlice' ./types/
 go test -count=1 -run 'Test_MPBuiltin' ./types/   # 内存自动生成回归（含 samples RuoYi 真实回归）
+go test -count=1 -run 'Test_QueryWrapper|Test_SqliteQueryWrapper' ./orm/   # Wrapper 单元 + 端到端
 go run ./cmd/sqlitedemo   # 端到端冒烟
 ```

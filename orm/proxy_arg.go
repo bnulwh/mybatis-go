@@ -10,14 +10,22 @@ type ProxyArg struct {
 	Args       []reflect.Value
 	ArgsLen    int
 	PageParam  *PageParam
+	Wrapper    *QueryWrapper // P0-1：QueryWrapper 参数（自动提取，照搬 PageParam 模式）
 }
 
 func NewProxyArg(tagArgs []TagArg, args []reflect.Value) ProxyArg {
 	var pp *PageParam
+	var qw *QueryWrapper
 	var filtered []reflect.Value
 	for _, arg := range args {
 		if arg.Type() == pageParamType {
 			pp = arg.Interface().(*PageParam)
+			continue
+		}
+		if arg.Type() == queryWrapperType {
+			if !arg.IsNil() {
+				qw = arg.Interface().(*QueryWrapper)
+			}
 			continue
 		}
 		filtered = append(filtered, arg)
@@ -31,6 +39,7 @@ func NewProxyArg(tagArgs []TagArg, args []reflect.Value) ProxyArg {
 		ArgsLen:    len(filtered),
 		TagArgsLen: len(tagArgs),
 		PageParam:  pp,
+		Wrapper:    qw,
 	}
 }
 

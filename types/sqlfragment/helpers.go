@@ -94,9 +94,17 @@ func formatString(ms string) string {
 	return buf.String()
 }
 
-// formatValue 值内联渲染：字符串加引号、数值原样、time.Time 加引号格式化、
-// nil 按 SQL null 渲染（S-09 nil 参数反射零值 panic 防御）。
-func formatValue(m interface{}) string {
+// SQLSegmentProvider 提供 SQL 片段的对象（如 orm.QueryWrapper）：
+// 值内联渲染时（#{} 与 ${} 两路径）以 GetSQLSegment() 原样输出（不加引号）。
+// sqlfragment 定义接口、orm 侧实现，依赖方向保持 orm → sqlfragment 单向。
+type SQLSegmentProvider interface {
+	GetSQLSegment() string
+}
+
+// FormatValue 值内联渲染（导出版，orm QueryWrapper 等复用）：字符串加引号、
+// 数值原样、time.Time 加引号格式化、nil 按 SQL null 渲染（S-09）；
+// 实现 SQLSegmentProvider 的值原样输出其 SQL 片段。
+func FormatValue(m interface{}) string {
 	if m == nil {
 		// S-09：nil 参数反射零值 panic 防御，按 SQL NULL 渲染
 		return "null"
@@ -114,9 +122,17 @@ func formatValue(m interface{}) string {
 	case "time.Time":
 		return fmt.Sprintf("'%v'", m.(time.Time).Format("2006-01-02 15:04:05.000000000"))
 	default:
+		if sp, ok := m.(SQLSegmentProvider); ok {
+			return sp.GetSQLSegment()
+		}
 		log.Warnf("not support convert type %v", typ)
 	}
 	return ""
+}
+
+// formatValue FormatValue 的包内别名（既有节点渲染调用点不变）。
+func formatValue(m interface{}) string {
+	return FormatValue(m)
 }
 
 // validValue <if test> 非空判定：字符串看长度、切片/map 看元素数、
@@ -153,8 +169,12 @@ func validValue(m interface{}) bool {
 	return true
 }
 
-// rawFormatValue 返回 ${...} 原始替换值：字符串原样注入（不加引号），其余按 %v。
+// rawFormatValue 返回 ${...} 原始替换值：字符串原样注入（不加引号），其余按 %v；
+// 实现 SQLSegmentProvider 的值原样输出其 SQL 片段（${ew} 显式占位路径）。
 func rawFormatValue(m interface{}) string {
+	if sp, ok := m.(SQLSegmentProvider); ok {
+		return sp.GetSQLSegment()
+	}
 	if s, ok := m.(string); ok {
 		return s
 	}
