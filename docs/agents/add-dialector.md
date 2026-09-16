@@ -319,7 +319,7 @@ type UserInfoModelMapper struct {
 func init() {
     log.ConfigLocalFileSystemLogger("logs", "opengaussdemo")  // ← 改名
     orm.SetLogger(log.StandardLogger())
-    orm.Initialize("application-opengauss.properties")         // ← 改名
+    orm.Initialize("cmd/opengaussdemo/application-opengauss.properties")  // ← 改名
     orm.RegisterModel(new(UserInfoModel))
     orm.RegisterMapper(new(UserInfoModelMapper))
 }
@@ -342,32 +342,25 @@ func main() {
 
 ---
 
-### 步骤 5：`application-<name>.properties` — 配置模板
+### 步骤 5：`application-<name>.properties` + `README.md` — 配置模板与说明
 
-放在项目根目录。
+与 demo 同目录，放在 `cmd/<name>demo/` 下，并为 demo 目录编写 README.md（数据库描述、配置说明、驱动引入方式、运行命令，参考既有 demo 目录）。
 
-#### MySQL 族模板
+#### 统一模板
 
 ```properties
-# <数据库中文名>（MySQL 兼容，默认端口 <PORT>）
-spring.datasource.url= jdbc:<name>://localhost:<PORT>/<dbname>?useUnicode=true&characterEncoding=utf-8&useSSL=false
+# <数据库中文名>（<方言族/兼容说明>，默认端口 <PORT>）
+spring.datasource.url= jdbc:<name>://localhost:<PORT>/<dbname>
 spring.datasource.username= root
 spring.datasource.password= 123456
+# 连接池设置（可选，省略则使用框架默认值）
 spring.datasource.max-idle= 100
 spring.datasource.max-open= 100
-spring.datasource.max-timeout=100
+spring.datasource.max-timeout= 100
 mybatis.mapper-locations= resources/mapper
 ```
 
-#### PostgreSQL 族模板
-
-```properties
-# <数据库中文名>（PostgreSQL 兼容）
-spring.datasource.url= jdbc:<name>://localhost:5432/<dbname>
-spring.datasource.username= root
-spring.datasource.password= 123456
-mybatis.mapper-locations= resources/mapper
-```
+MySQL 兼容族的 URL 可追加 `?useUnicode=true&characterEncoding=utf-8&useSSL=false`；SQLite 等文件型数据库省略 username/password/池设置。
 
 ---
 
@@ -498,7 +491,7 @@ go test -count=1 ./...
 ```bash
 git add orm/dialector/types.go orm/dialector/<name>.go orm/dialector/kingbase_test.go \
         orm/interfaces.go orm/database_config_test.go \
-        cmd/<name>demo/ application-<name>.properties \
+        cmd/<name>demo/ \
         cmd/schema2code/main.go README.md
 git commit -m "feat: <中文名>数据库适配 — <英文名> (<族>兼容族)
 
@@ -508,7 +501,7 @@ git commit -m "feat: <中文名>数据库适配 — <英文名> (<族>兼容族)
 - 新增 orm/dialector/<name>.go（内嵌 <Parent>Dialector）
 - NewForType 支持 <Name>Db
 - JDBC URL 解析支持 jdbc:<name>:// 格式
-- 新增 cmd/<name>demo 示例 + application-<name>.properties 配置模板
+- 新增 cmd/<name>demo 示例 + application-<name>.properties 配置模板 + demo README
 - schema2code -type 支持 <name>
 - dialector + orm 单测覆盖
 - README 更新: [x] 标记/驱动表/配置/示例/结构/更新日志"
@@ -527,7 +520,8 @@ git push
 | `orm/interfaces.go` | 修改 | 导出新 DatabaseType 常量 |
 | `orm/database_config_test.go` | 修改 | 追加 JDBC URL 解析 + 类型解析测试 |
 | `cmd/<name>demo/main.go` | **新增** | 可运行 demo |
-| `application-<name>.properties` | **新增** | 配置模板 |
+| `cmd/<name>demo/application-<name>.properties` | **新增** | 配置模板（与 demo 同目录） |
+| `cmd/<name>demo/README.md` | **新增** | demo 说明（配置/驱动/运行） |
 | `cmd/schema2code/main.go` | 修改 | usage 字符串追加新类型 |
 | `README.md` | 修改 | 特性/清单/驱动表/配置/示例/结构/更新日志 |
 
@@ -586,6 +580,6 @@ go get github.com/opengauss-international/opengauss-connector-go-pq
 - [ ] `GenerateDSN` 生成正确 DSN
 - [ ] JDBC URL `jdbc:<name>://host:port/db` 可被 `parseAddr` 正确解析
 - [ ] `cmd/<name>demo/main.go` 可编译
-- [ ] `application-<name>.properties` 配置模板正确
+- [ ] `cmd/<name>demo/application-<name>.properties` 配置模板正确
 - [ ] `README.md` 已更新（清单/驱动表/配置/示例/结构/更新日志）
 - [ ] `git push` 推送成功

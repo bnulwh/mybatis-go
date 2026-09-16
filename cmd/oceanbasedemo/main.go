@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "oceanbasedemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-oceanbase.properties")
+	orm.Initialize("cmd/oceanbasedemo/application-oceanbase.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

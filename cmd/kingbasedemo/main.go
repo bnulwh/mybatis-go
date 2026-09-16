@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "kingbasedemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-kingbase.properties")
+	orm.Initialize("cmd/kingbasedemo/application-kingbase.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("logs", "clickhousedemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-clickhouse.properties")
+	orm.Initialize("cmd/clickhousedemo/application-clickhouse.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

@@ -34,7 +34,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("logs", "polardbdemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-polardb.properties")
+	orm.Initialize("cmd/polardbdemo/application-polardb.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

@@ -34,7 +34,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("logs", "sqlitedemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-sqlite.properties")
+	orm.Initialize("cmd/sqlitedemo/application-sqlite.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

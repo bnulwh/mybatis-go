@@ -34,7 +34,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "gbase8sdemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-gbase8s.properties")
+	orm.Initialize("cmd/gbase8sdemo/application-gbase8s.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

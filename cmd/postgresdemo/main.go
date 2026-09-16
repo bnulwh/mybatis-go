@@ -34,7 +34,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "postgresdemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-pg.properties")
+	orm.Initialize("cmd/postgresdemo/application-pg.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

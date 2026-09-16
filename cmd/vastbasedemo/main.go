@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "vastbasedemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-vastbase.properties")
+	orm.Initialize("cmd/vastbasedemo/application-vastbase.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

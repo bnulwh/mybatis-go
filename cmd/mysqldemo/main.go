@@ -13,7 +13,7 @@ import (
 func init() {
 	logrus.ConfigLocalFileSystemLogger("./logs", "mysqldemo")
 	orm.SetLogger(logrus.StandardLogger())
-	err := orm.Initialize("application-mysql.properties")
+	err := orm.Initialize("cmd/mysqldemo/application-mysql.properties")
 	if err != nil {
 		panic(err)
 	}

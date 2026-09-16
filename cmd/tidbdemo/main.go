@@ -34,7 +34,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("logs", "tidbdemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-tidb.properties")
+	orm.Initialize("cmd/tidbdemo/application-tidb.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

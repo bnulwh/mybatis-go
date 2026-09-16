@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "gaussdbdemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-gaussdb.properties")
+	orm.Initialize("cmd/gaussdbdemo/application-gaussdb.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

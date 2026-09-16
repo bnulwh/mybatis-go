@@ -332,7 +332,7 @@ orm.UseDataSource("report")
 
 ## 配置文件
 
-支持 Spring Boot 风格的 `.properties` 文件，仓库根目录附有各数据库的示例配置。
+支持 Spring Boot 风格的 `.properties` 文件，各数据库的示例配置位于对应的 demo 目录（`cmd/<数据库>demo/application-*.properties`，详见各 demo 目录下的 README）。
 
 ### PostgreSQL
 
@@ -767,7 +767,7 @@ go build -o schema2code cmd/schema2code/main.go
 
 ```bash
 go run ./cmd/sqlitedemo      # SQLite（自动建表 + Mapper 全流程，生成 test.db）
-go run ./cmd/postgresdemo    # PostgreSQL（需先准备 application-pg.properties 指向的库）
+go run ./cmd/postgresdemo    # PostgreSQL（需先准备 cmd/postgresdemo/application-pg.properties 指向的库）
 go run ./cmd/mysqldemo       # MySQL
 go run ./cmd/kingbasedemo    # KingbaseES
 go run ./cmd/tidbdemo        # TiDB（MySQL 协议兼容，默认端口 4000）
@@ -864,6 +864,8 @@ go run ./cmd/clickhousedemo # ClickHouse（OLAP 列式引擎，无事务）
 ├── resources/mapper/    # XML Mapper 文件
 └── samples/             # RuoYi Mapper 兼容性回归样本（KingbaseES 方言，S-01~S-11 已全部修复）
 ```
+
+> 各数据库 demo 目录（`cmd/<数据库>demo/`）内含对应的 `application-*.properties` 连接配置模板与 README 说明，运行示例前请先修改其中的连接信息。
 
 ## 测试
 

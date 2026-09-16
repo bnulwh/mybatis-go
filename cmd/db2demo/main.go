@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("logs", "db2demo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-db2.properties")
+	orm.Initialize("cmd/db2demo/application-db2.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

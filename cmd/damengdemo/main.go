@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "damengdemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-dameng.properties")
+	orm.Initialize("cmd/damengdemo/application-dameng.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

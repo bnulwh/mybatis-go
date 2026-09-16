@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "mssqldemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-mssql.properties")
+	orm.Initialize("cmd/mssqldemo/application-mssql.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }

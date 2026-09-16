@@ -33,7 +33,7 @@ type UserInfoModelMapper struct {
 func init() {
 	log.ConfigLocalFileSystemLogger("/var/log", "oboracledemo")
 	orm.SetLogger(log.StandardLogger())
-	orm.Initialize("application-oboracle.properties")
+	orm.Initialize("cmd/oboracledemo/application-oboracle.properties")
 	orm.RegisterModel(new(UserInfoModel))
 	orm.RegisterMapper(new(UserInfoModelMapper))
 }
