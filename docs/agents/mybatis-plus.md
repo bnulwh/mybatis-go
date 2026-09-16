@@ -249,11 +249,49 @@ rows, _ := mp.SelectByWrapperEw(orm.NewQueryWrapper().Ge("id", 3).OrderByDesc("i
 但**列名与原生片段（`Apply`/`Having`/`Last`）直接拼接**，不接受用户输入拼入；
 值内联与占位符化相比仍有注入面（与框架 `${}` 现状一致的已知限制），长期占位符化方案见调优章节。
 
-## 9. 验证命令
+## 9. struct `db` tag 元数据（P0-2）
+
+resultMap 之外的第三种元数据来源：**`orm.RegisterModel` 时解析 struct `db` tag**，MP 内置 CRUD 生成时**表名/主键/逻辑列以 tag 为准**（优先于 resultMap 推导），无需依赖表结构查询。
+
+### 9.1 tag 一览
+
+```go
+type SysUserModel struct {
+    UserId    int64     `db:"user_id,pk"`      // 显式主键列
+    UserName  string    `db:"user_name"`       // 显式列名（无 tag 字段默认 camelToSnake）
+    IsRemoved bool      `db:"is_removed,logic"` // 显式逻辑删除列
+    Version   int       `db:"version,version"`  // 乐观锁版本列（解析入 VersionColumn）
+    CreatedAt time.Time `db:"created_at,fill:insert"` // 填充标记（见 9.4）
+    Ignored   string    `db:"-"`                // 不映射
+}
+
+func (m SysUserModel) TableName() string { return "sys_user" } // 显式表名（缺省：短名去 Model 后缀 camelToSnake）
+```
+
+### 9.2 生效条件与时机
+
+- **必须 `orm.RegisterModel(&SysUserModel{})` 且在 `InitializeFromSettings` 之前**（provider 在 XML 加载期查 Infos 缓存）。
+- 触发 provider 覆盖的门槛：`TableName()` 显式表名 / `pk` 显式主键 / `logic` 显式逻辑列三者任一（**仅列改名或 fill 标记不触发**，仍走 resultMap 推导）。
+- XML 含 resultMap 且缺 MP 内置方法时（§方式 D），按 tag 表结构生成。
+
+### 9.3 语义
+
+- 显式逻辑列：select 自动加过滤、`deleteById`/`deleteBatchIds` 改写 UPDATE；set 值按 Go 类型（bool→`true/false`、string→`'1'/'0'`、数值→`1/0`）；该列统一排除出 resultMap 与 insert/update 列清单（`isLogicColumn`）。
+- 无主键（`pk` 缺失）→ 不生成，回退 resultMap 推导路径。
+
+### 9.4 fill 标记（当前范围）
+
+`fill:insert|update|insert_update` 解析入 `ModelInfo`，经 `FillColumns(when)` 查询；**当前 MP 生成不消费**，保留给 Hook 自动填充等横切逻辑（P0-5 `HookBeforeExecute` 可结合使用）。
+
+## 10. 验证命令
 
 ```bash
 go test -count=1 -run 'Test_TableStruct|Test_MPGeneratedSQL|Test_ContainsForEach|Test_GenerateDefine_ForEachSlice' ./types/
 go test -count=1 -run 'Test_MPBuiltin' ./types/   # 内存自动生成回归（含 samples RuoYi 真实回归）
-go test -count=1 -run 'Test_QueryWrapper|Test_SqliteQueryWrapper' ./orm/   # Wrapper 单元 + 端到端
+go test -count=1 -run 'Test_QueryWrapper|Test_SqliteQueryWrapper|Test_ApplyQueryWrapper' ./orm/   # Wrapper 单元 + 端到端（P0-1）
+go test -count=1 -run 'Test_ParseModelInfo|Test_RegisterModelInfoCache|Test_SqliteMPBuiltinWithTag' ./orm/   # db tag 元数据（P0-2）
+go test -count=1 -run 'Test_RegisterHook|Test_SqliteBeforeHookRewriteSQL|Test_SqliteAfterHookCapture|Test_HookPageConsistency' ./orm/   # Hook 拦截链（P0-5）
+go test -count=1 -run 'Test_RegisterTypeHandler|Test_SqliteTypeHandler' ./orm/   # 自定义 TypeHandler（P0-4）
+go test -count=1 ./types/sqlfragment/   # 动态 SQL 引擎 + <trim>（P0-3）
 go run ./cmd/sqlitedemo   # 端到端冒烟
 ```
