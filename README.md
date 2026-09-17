@@ -880,6 +880,11 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **v0.3.7（Go 版本固定 1.24.0，2026-09-17）**：工具链与依赖对齐 —
+  - go.mod 由 `go 1.25.0` 降回 `go 1.24.0`（本机/CI 工具链即 go 1.24.0，此前 GOTOOLCHAIN=auto 自动切换到 1.25+ 属非预期）
+  - 依赖降级对齐（更高版本要求 go ≥ 1.25）：go-mssqldb v1.11.0→v1.9.7、clickhouse-go v2.48.0→v2.42.0（连带 ch-go v0.69.0、otel 1.39.0、x/sys 0.39.0 等 indirect 重解析）；`go mod vendor` 重新生成
+  - 项目约定固化：AGENTS.md 硬性约定 + docs/agents/conventions.md「Go 版本」节（依赖的 go 要求必须 ≤ 1.24.0，超出降级选版；建议 GOTOOLCHAIN=local）
+  - 全量 build / vet / test 在 go 1.24.0（GOTOOLCHAIN=local）下通过
 - **v0.3.6（G0 事务上下文改造 + G1 gormish 链式 API + S1 Querier 代码生成，2026-09-17）**：GORM/sqlc 两条路线首期落地（见 docs/可行性报告-gorm-sqlc.md）—
   - **S1 sqlc 风格 Querier 代码生成（2026-09-17）**：XML 存量静态 select 抽取 → 类型安全 Querier（sqlc A 方案，见 §3.4/§5.1）—
   - **静态性判定 `types/sqlfragment.ExtractStaticSQL`**：`ExtractStaticSQL(items) (sql, params, ok)`——仅 simpleSql 与纯文本 `<include>` 判静态（include 含动态标签则整句跳过）；`#{}`→`?` 按出现顺序（与 `PrepareSqlWithMap` 逐个 Replace 语义一致），`StaticParam{Name, JdbcType}` 保序返回；`${}`（raw 注入）/6 类动态标签（if/foreach/choose/where/set/trim）/空片段判非静态
