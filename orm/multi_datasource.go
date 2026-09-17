@@ -101,6 +101,12 @@ func UseDataSource(name string) error {
 	return nil
 }
 
+// GetActiveDataSource 返回当前活跃数据源（gDbConn）；未初始化时返回 nil。
+// gormish.Open 等需要显式持有 *DB 实例的场景使用。
+func GetActiveDataSource() *DB {
+	return gDbConn
+}
+
 // GetDataSource 获取指定名称的数据源。
 func GetDataSource(name string) (*DB, error) {
 	db, ok := gDataSources.get(name)

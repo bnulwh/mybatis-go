@@ -131,6 +131,13 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 		defer db.invalidateTableNames()
 		defer db.invalidateTableStructures()
 	}
+	// G0：context 携带的事务（WithTx）优先于 TCC 全局事务槽
+	if t := TxFromContext(ctx); t != nil {
+		defer db.updateExecStatement(start, true)
+		cur := time.Now()
+		defer db.Statement.updateDBExecStatement(cur)
+		return t.tx.ExecContext(ctx, query, args...)
+	}
 	if t := db.currentTx(); t != nil {
 		defer db.updateExecStatement(start, true)
 		cur := time.Now()
@@ -150,6 +157,13 @@ func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{
 	start := time.Now()
 	query = db.applyTablePrefix(query)
 	query = db.formatSQL(query, args)
+	// G0：context 携带的事务（WithTx）优先于 TCC 全局事务槽
+	if t := TxFromContext(ctx); t != nil {
+		defer db.updateQueryStatement(start, true)
+		cur := time.Now()
+		defer db.Statement.updateDBQueryStatement(cur)
+		return t.tx.QueryContext(ctx, query, args...)
+	}
 	if t := db.currentTx(); t != nil {
 		defer db.updateQueryStatement(start, true)
 		cur := time.Now()
@@ -169,6 +183,13 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interfa
 	start := time.Now()
 	query = db.applyTablePrefix(query)
 	query = db.formatSQL(query, args)
+	// G0：context 携带的事务（WithTx）优先于 TCC 全局事务槽
+	if t := TxFromContext(ctx); t != nil {
+		defer db.updateQueryStatement(start, true)
+		cur := time.Now()
+		defer db.Statement.updateDBQueryStatement(cur)
+		return t.tx.QueryRowContext(ctx, query, args...)
+	}
 	if t := db.currentTx(); t != nil {
 		defer db.updateQueryStatement(start, true)
 		cur := time.Now()
