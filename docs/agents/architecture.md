@@ -75,9 +75,10 @@
  │    │       │     └── kingbase.go    KingbaseDialector (嵌PG)      │
  │    │       │                      + pq.Driver 注册 init()        │
  │    │       │                                                     │
- │    │       ├──► interfaces.go    类型别名(= dialector.X)         │
- │    │       ├──► prepared_stmt.go PreparedStmtDB 预编译缓存       │
- │    │       └──► transaction.go   Transaction 事务               │
+  │    │       ├──► interfaces.go    类型别名(= dialector.X)         │
+  │    │       ├──► prepared_stmt.go PreparedStmtDB 预编译缓存       │
+  │    │       └──► transaction.go   Transaction 事务               │
+  │    │                      WithTx/TxFromContext ctx事务 (G0)    │
  │    └─────────────────────────────────────────────────────────────┘
  │
  ├─── ┌─────────────────────────────────────────────────────────────┐
@@ -90,8 +91,9 @@
  │    │       │             buildCountSQL()                         │
  │    │       │             └──► dialector.ApplyPagination()        │
  │    │       │                                                     │
- │    │       ├──► row_stream.go     RowStream 流式读取             │
- │    │       └──► table_prefix.go   applyTablePrefix() 改写表名   │
+  │    │       ├──► row_stream.go     RowStream 流式读取             │
+  │    │       ├──► scan_rows.go      QueryTo 强类型扫描直通道 (G0)  │
+  │    │       └──► table_prefix.go   applyTablePrefix() 改写表名   │
  │    │              isDDLStatement() / invalidateTableNames()      │
  │    └─────────────────────────────────────────────────────────────┘
  │
@@ -116,7 +118,8 @@
   │    │       │            + Infos map[string]*ModelInfo (P0-2)    │
   │    │       ├──► proxy_value.go   proxy() / proxyValue() 代理注入│
   │    │       ├──► proxy_arg.go     ProxyArg 参数封装              │
-  │    │       │            (PageParam + QueryWrapper 双提取, P0-1) │
+  │    │       │            (PageParam + QueryWrapper + Ctx 三提取,  │
+  │    │       │             P0-1 / G0)                            │
   │    │       ├──► param_type.go    ParamType 参数类型解析          │
   │    │       └──► embed_fs.go      RegisterMapperFS 内嵌加载      │
   │    └─────────────────────────────────────────────────────────────┘
@@ -137,8 +140,41 @@
   │    │                    splitWrapperTail / injectWrapperArg     │
   │    └─────────────────────────────────────────────────────────────┘
   │
- ├─── ┌─────────────────────────────────────────────────────────────┐
- │    │                 元数据层 (Metadata Layer)                    │
+  ├─── ┌─────────────────────────────────────────────────────────────┐
+  │    │           链式 API 层 (orm/gormish 包, G1)                   │
+  │    │                                                             │
+  │    │  session.go       DB / Open / Use / New / WithContext      │
+  │    │                    Transaction / Table / Model             │
+  │    │  query.go         Select/Where/Or/Order/Limit/Offset/      │
+  │    │                    Group/Having/Distinct/Raw +             │
+  │    │                    Find/First/Last/Count/Scan              │
+  │    │  crud.go          Create/Update/Updates/Delete/Exec        │
+  │    │  builder.go       statement 克隆(写时复制) / SQL 组装 /     │
+  │    │                    模型元数据回退(无tag本地推导)            │
+   │    │       │   单向依赖 orm:                                      │
+   │    │       ├──► (db *DB) QueryToContext 扫描直通道 (G0)          │
+   │    │       ├──► (db *DB) ExecContext 执行(前缀改写+占位符转换)   │
+   │    │       └──► (db *DB) WithTx 回调事务 (G0)                    │
+   │    └─────────────────────────────────────────────────────────────┘
+   │
+   ├─── ┌─────────────────────────────────────────────────────────────┐
+   │    │      Querier 代码生成层 (types + cmd/sqlc, S1)               │
+   │    │                                                             │
+   │    │  types/sqlfragment/static_extract.go                        │
+   │    │       ExtractStaticSQL 静态性判定(simpleSql/纯文本include,   │
+   │    │       #{}→? 按出现序, ${}/动态标签→非静态)                   │
+   │    │  types/querier_gen.go  GenerateQuerierFiles 生成器           │
+   │    │       (model + XxxQuerier 接口 + New 构造 + 实现,            │
+   │    │        免连库: resultMap jdbcType/resultType 双轨定型,       │
+   │    │        QuerierSkip/QuerierGenStats 跳过原因统计)             │
+   │    │  cmd/sqlc/main.go    命令薄壳(-p/-d/-m/-v)                   │
+   │    │       │   生成代码运行时(独立产物, 不依赖 types):             │
+   │    │       └──► (db *DB) QueryToContext 扫描直通道 (G0)           │
+   │    │             (占位符转换/表前缀/ctx 事务由 orm 层承担)         │
+   │    └─────────────────────────────────────────────────────────────┘
+  │
+  ├─── ┌─────────────────────────────────────────────────────────────┐
+  │    │                 元数据层 (Metadata Layer)                    │
  │    │                                                             │
  │    │  schema_cache.go   tableStructureCache / columnSchemaHint  │
  │    │  table_structure.go    newTableStruct() 表结构查询          │
@@ -264,6 +300,7 @@ orm.RegisterMapper(new(UserMapper))
   ▼
 userMapper.SelectById(1)
   └── 代理函数 ──► BaseMapper.executeMethod()
+        ├── [G0] ProxyArg.Ctx ──► context.Context 参数自动提取（无则 Background）
         ├── SqlFunction.GenerateSQL(args) ──► 生成参数化 SQL + 参数列表
         ├── normalizeSQL()
         ├── [P0-1] QueryWrapper 注入 ──► applyQueryWrapper（携带 *QueryWrapper 参数时）
@@ -276,9 +313,50 @@ userMapper.SelectById(1)
         │     └── PG: INSERT ... RETURNING col ──► QueryContext
         │     └── MySQL/SQLite: LastInsertId()
         ├── db.ExecContext / db.QueryContext ──► ConnPool
+        │     └── [G0] TxFromContext(ctx) ──► ctx 携带的 WithTx 事务优先于 TCC 全局槽
         ├── convert2Results(rows, result) ──► 反射映射到目标类型
         │     └── [P0-4] convertFieldValue ──► 自定义 TypeHandler 优先转换
         └── [P0-5] runAfterHooks ──► HookAfterExecute（Error/Duration/Cost）
+
+orm.WithTx(ctx, fn)（G0，独立于上述链路）
+  ├── TxFromContext(ctx) 非空 ──► 嵌套：直接 fn(ctx) 复用外层事务
+  ├── beginDetachedTx ──► 开启不占全局槽的轻量事务
+  ├── ctx = context.WithValue(ctx, tx) ──► fn(ctx)
+  │     └── fn 内 ExecuteContext/QueryContext/QueryToContext/Mapper(ctx,...)
+  │           └── 均经 TxFromContext 命中本事务
+  └── fn nil→Commit / err→Rollback / panic→Rollback+rethrow
+
+orm.QueryTo(&users, sql, args...)（G0，强类型扫描直通道）
+  └── scanRowsTo ──► gDbConn.QueryContext
+        └── scanRowsInto ──► 按 dst 形态分派
+              ├── *struct ──► buildScanBindings ──► 首行 Scan → fillStructFromBindings
+              ├── *[]struct / *[]*struct ──► 逐行 Scan → fill（遵循 DefaultRowLimit）
+              ├── *[]map[string]interface{}（S1）──► 逐行 createMapWithConverters
+              ├── *[]标量（S1，单列）──► 逐行 convertFieldValue
+              ├── *map[string]interface{} ──► prepareColumns + createMapWithConverters
+              └── 标量指针 ──► 单列 convertFieldValue
+              （列→字段匹配：db tag 列名索引优先 → findStreamField 四策略）
+
+gormish.Open().Table(t).Where(...).Find(&users)（G1，链式 API，独立包）
+  ├── 链式方法 ──► clone() 克隆 statement（切片写时复制，多克隆互不污染）
+  └── finisher ──► buildSelect/buildCount/insertColumns 组装 `?` 占位 SQL
+        ├── Find/First/Last/Count/Scan ──► db.QueryToContext（复用 G0 直通道）
+        └── Create/Update/Updates/Delete/Exec ──► db.ExecContext
+              （orm 执行层：applyTablePrefix + formatSQL 方言转换 + TxFromContext）
+gormish.DB.Transaction(fn)（G1）
+  └── orm.DB.WithTx(ctx, fn)（G0：嵌套复用外层事务、不占 TCC 全局槽）
+
+cmd/sqlc（S1：XML 存量静态 select → Querier 代码生成）
+  ├── NewSqlMappers(mapperDir) ──► 遍历全部 SqlMapper
+  ├── ExtractStaticSQL(fn.Items) ──► 静态性判定
+  │     ├── simpleSql/纯文本 include ──► 拼接 SQL + StaticParam{Name,JdbcType} 保序
+  │     └── ${}/if/foreach/choose/where/set/trim ──► 非静态 → QuerierSkip 记原因跳过
+  ├── GenerateQuerierFiles(dir, pkg) ──► 每 mapper 一个 <base>_querier.go
+  │     ├── model：resultMap jdbcType 定型(db:"col,pk") / resultType 声明定型
+  │     ├── 接口 + New 构造(db nil → orm.GetActiveDataSource()) + 实现
+  │     └── gofmt + go/parser 语法校验
+  └── 生成代码运行时：querier.SelectXxx(ctx, args...) ──► db.QueryToContext(ctx, &dst, sql, args...)
+        （G0 直通道：占位符转换/表前缀/TxFromContext 全部由 orm 层承担）
 ```
 
 ---
@@ -297,6 +375,16 @@ userMapper.SelectById(1)
 | `SetModelStructureProvider` 钩子（P0-2） | types 不能 import orm（依赖单向），struct db tag 元数据经回调注入 MP CRUD 生成期 |
 | Hook panic recover（P0-5） | 拦截链是横切基础设施，单个钩子故障不应中断业务 SQL 执行 |
 | QueryWrapper 值接收者 `GetSQLSegment`（P0-1） | 单 map 参数路径经 `convert2Map`/`safeIndirectInterface` 解引用为值类型，值/指针两形态均须满足 `SQLSegmentProvider` |
+| WithTx 不占 TCC 全局槽（G0） | 回调事务经 `context.WithValue` 携带、`TxFromContext` 提取；`Begin/Commit/Rollback` 全局槽旧语义零改动，两种事务模型并存、ctx 优先 |
+| Mapper ctx 参数严格匹配 `context.Context`（G0） | `NewProxyArg` 提取用 `arg.Type() == contextType` 而非 `Implements`，避免误提取自定义 ctx 实现；不影响 SQL 参数按位绑定 |
+| QueryTo 扫描缓冲一次分配（G0） | `prepareColumns` 缓冲 + 「列→字段索引」绑定表在首行前一次预编译，每行仅 Scan + 反射 Set，无 map 中转与字符串查列 |
+| gormish finisher 返回 (value, error)（G1） | 贴合项目双返回值约定；链上误用（如 Where 非法类型）聚合到 finisher 一次性报错，不采用 GORM 式 db.Error 链式错误 |
+| gormish statement 克隆 + 写时复制（G1） | 链式方法返回克隆句柄（切片字段深拷贝），同一 base 派生的多克隆互不污染（GORM 同款语义），克隆开销 O(条件数) |
+| gormish 模型元数据两级解析（G1） | 优先 `orm.GetModelInfo`（db tag / RegisterModel 缓存），无 tag 结构体回退 gormish 本地推导（snake_case + TableName() + ID 主键）；不改 `orm.ParseModelInfo`「无 tag 返回 nil」语义，避免误触发 MP 内置 CRUD 生成 |
+| S1 静态性判定放 sqlfragment 包（S1） | simpleSql/sqlInclude 未导出，`ExtractStaticSQL` 与 `PrepareSqlWithMap` 拼接语义一致（片段间空格连接、`#{}` 按出现顺序替换），生成 SQL 与运行时语义严格对齐 |
+| S1 生成代码走 QueryToContext 而非裸 database/sql（S1） | `?` 占位符方言转换、表名前缀改写、ctx 携带 WithTx 事务、TypeHandler/db tag 扫描全部由 orm 层承担；生成产物只依赖 `orm` + `context`（+time），零反射代理开销 |
+| S1 select 恒返回切片 + 免连库双轨定型（S1） | 与既有 generateDefine 语义一致（空结果返回空切片而非 ErrNoRows）；类型只取 XML 元数据（resultMap jdbcType / resultType 声明），生成期无需连库内省，CI 可离线生成 |
+| S1 动态语句跳过而非哨兵占位（S1） | 哨兵会破坏类型安全承诺（参数无法静态定型）；跳过并经 `QuerierSkip` 记录原因，动态语句继续走 XML Mapper 反射代理，两套 API 按语句粒度自然分工 |
 
 ---
 

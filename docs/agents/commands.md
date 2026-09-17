@@ -20,12 +20,14 @@
 |------|------|
 | `go build -o generator cmd/generator/main.go` | 编译 generator 工具 |
 | `go build -o schema2code cmd/schema2code/main.go` | 编译 schema2code 工具 |
+| `go build -o sqlc cmd/sqlc/main.go` | 编译 sqlc 工具 |
 | `go run ./cmd/sqlitedemo` | 运行 SQLite 示例（自动建表 + Mapper 全流程，生成 test.db） |
 
 ## 入口点
 
 - `cmd/generator/main.go` — 从 XML Mapper 文件生成 Go 模型/Mapper 代码
 - `cmd/schema2code/main.go` — 从数据库表结构生成 Go 模型/Mapper 代码（`-mp` 生成 MyBatis-Plus 内置 CRUD：BaseMapper 标准方法名 insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）
+- `cmd/sqlc/main.go` — 从 XML Mapper 抽取静态 `<select>` 生成类型安全 Querier（S1，免连库；`-p` 输出包名默认 querier，`-d` 输出目录默认 querier，`-m` mapper 目录默认 resources/mapper，`-v` 打印跳过原因；动态语句自动跳过）
 - `cmd/postgresdemo/main.go` — PostgreSQL 使用示例
 - `cmd/mysqldemo/main.go` — MySQL 使用示例
 - `cmd/kingbasedemo/main.go` — 人大金仓 KingbaseES 使用示例
