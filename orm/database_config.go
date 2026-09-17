@@ -38,6 +38,12 @@ type MyBatisSetting struct {
 	TablePrefixMap     map[string]string
 	TablePrefixSetTTL  time.Duration
 	TableStructureTTL  time.Duration
+	SafeUpdate         bool
+	IdType             string
+	SnowflakeWorkerID  int64
+	CacheEnabled       bool
+	LocalCacheSize     int
+	LocalCacheTTL      time.Duration
 }
 
 type Config struct {
@@ -164,6 +170,12 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			TablePrefixMap:    parseTablePrefixMap(m),
 			TablePrefixSetTTL: parseTablePrefixSetTTL(m),
 			TableStructureTTL: parseTableStructureTTL(m),
+			SafeUpdate:        parseBool(m, "mybatis.configuration.safe-update", false),
+			IdType:            strings.TrimSpace(m["mybatis.configuration.id-type"]),
+			SnowflakeWorkerID: parseInt64(m, "mybatis.configuration.snowflake-worker-id", 1),
+			CacheEnabled:      parseBool(m, "mybatis.configuration.cache-enabled", false),
+			LocalCacheSize:    parseInt(m, "mybatis.configuration.local-cache-size", 1024),
+			LocalCacheTTL:     parseDuration(m, "mybatis.configuration.local-cache-ttl", 3600),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,
@@ -331,4 +343,31 @@ func parseInt(m map[string]string, key string, def int64) int {
 		nval = int64(def)
 	}
 	return int(nval)
+}
+
+func parseInt64(m map[string]string, key string, def int64) int64 {
+	val, ok := m[key]
+	if !ok {
+		return def
+	}
+	nval, err := strconv.ParseInt(strings.TrimSpace(val), 10, 64)
+	if err != nil {
+		return def
+	}
+	return nval
+}
+
+func parseDuration(m map[string]string, key string, defSeconds int64) time.Duration {
+	val, ok := m[key]
+	if !ok {
+		return time.Duration(defSeconds) * time.Second
+	}
+	s := strings.TrimSpace(val)
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return time.Duration(n) * time.Second
+	}
+	return time.Duration(defSeconds) * time.Second
 }

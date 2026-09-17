@@ -12,6 +12,7 @@ type ColumnStructure struct {
 	DbType  string
 	Comment string
 	Primary bool
+	Fill    string
 }
 
 func newColumnStructure(row map[string]interface{}) *ColumnStructure {

@@ -94,6 +94,7 @@ func createMapWithConverters(ptrs []interface{}, colTypes []*sql.ColumnType, con
 }
 
 func convert2Result(mp map[string]interface{}, rmp *types.ResultMap, fieldIdx map[string][]int, row int) (interface{}, []ResultConvertError, error) {
+	rmp = resolveDiscriminator(rmp, mp)
 	name := types.GetShortName(rmp.TypeName)
 	inst, err := gCache.createModel(name)
 	if err != nil {
@@ -102,6 +103,39 @@ func convert2Result(mp map[string]interface{}, rmp *types.ResultMap, fieldIdx ma
 	}
 	colErrs := setColumnValuesPrepared(inst, rmp, mp, fieldIdx)
 	return reflect.Indirect(inst).Interface(), colErrs, nil
+}
+
+func resolveDiscriminator(rmp *types.ResultMap, row map[string]interface{}) *types.ResultMap {
+	var disc *types.ResultItem
+	for _, item := range rmp.Results {
+		if item.Kind == types.ResultItemKindDiscriminator {
+			disc = item
+			break
+		}
+	}
+	if disc == nil || len(disc.DiscriminatorCases) == 0 {
+		return rmp
+	}
+	colVal, ok := row[disc.Column]
+	if !ok {
+		return rmp
+	}
+	colStr := fmt.Sprintf("%v", colVal)
+	for _, c := range disc.DiscriminatorCases {
+		if c.Value == colStr {
+			if c.ResultMap != nil {
+				return c.ResultMap
+			}
+			if c.ResultMapId != "" {
+				rm := gCache.findResultMap(c.ResultMapId)
+				if rm != nil {
+					c.ResultMap = rm
+					return rm
+				}
+			}
+		}
+	}
+	return rmp
 }
 func getResultType(resInfo types.SqlResult) reflect.Type {
 	if resInfo.ResultM != nil {

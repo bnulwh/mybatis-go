@@ -296,8 +296,13 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
 	log.Debugf("func: %v ,state : %v", sqlFunc, gDbConn.Statement)
-	//log.Debugf("state: %v", gDbConn.Statement)
 	args := arg.buildArgs()
+	if sqlFunc.Type == types.InsertFunction {
+		fillIdIfZero(arg.Ctx, arg)
+	}
+	if sqlFunc.Type == types.InsertFunction || sqlFunc.Type == types.UpdateFunction {
+		runFillHandlers(arg.Ctx, string(sqlFunc.Type), arg)
+	}
 	// P0-1：显式 ${ew} 占位模式，Wrapper 以 ew 键并入渲染参数（生成 SQL 前注入）
 	wrapperExplicit := arg.Wrapper != nil && hasNamedSlot(sqlFunc, "ew")
 	if wrapperExplicit {
@@ -324,6 +329,11 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	}()
 	switch sqlFunc.Type {
 	case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
+		if gDbConn != nil && gDbConn.Setting.SafeUpdate &&
+			(sqlFunc.Type == types.UpdateFunction || sqlFunc.Type == types.DeleteFunction) &&
+			!hasWhereClause(sqlStr) {
+			return reflect.Value{}, ErrSafeUpdateBlocked
+		}
 		// M-03：PostgreSQL / KingbaseES 不支持 LastInsertId()，
 		// 通过 RETURNING 子句读取自增主键（INSERT ... RETURNING col → Query + Scan）。
 		// MySQL / SQLite 仍走 LastInsertId() 路径，行为不变。
@@ -342,6 +352,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 			}
 			defer rows.Close()
 			backfillGeneratedKeyFromRows(arg, sqlFunc.KeyProperty, rows)
+			gSecondCache.Flush(in.Namespace)
 			return reflect.ValueOf(int64(1)), nil
 		}
 		result, err := executeWithResult(arg.Ctx, sqlStr, sqlargs...)
@@ -349,12 +360,27 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 			return reflect.Value{}, err
 		}
 		rf, _ := result.RowsAffected()
+		if sqlFunc.Type == types.UpdateFunction && sqlFunc.HasVersion && rf == 0 {
+			return reflect.Value{}, ErrOptimisticLock
+		}
 		// S-11：useGeneratedKeys + keyProperty 时把自增主键回填到入参
 		if sqlFunc.Type == types.InsertFunction && sqlFunc.UseGeneratedKeys && sqlFunc.KeyProperty != "" {
 			backfillGeneratedKey(arg, sqlFunc.KeyProperty, result)
 		}
+		gSecondCache.Flush(in.Namespace)
 		return reflect.ValueOf(int64(rf)), nil
 	case types.SelectFunction:
+		if !sqlFunc.UseCache {
+			goto queryDirect
+		}
+		if gSecondCache.isEnabled() {
+			ck := cacheKey(in.Namespace, sqlFunc.Id, sqlargs...)
+			if cached, hit := gSecondCache.Get(in.Namespace, ck); hit {
+				log.Debugf("cache hit: %s.%s", in.Namespace, sqlFunc.Id)
+				return cached, nil
+			}
+		}
+	queryDirect:
 		rows, err := queryRows(arg.Ctx, sqlStr, sqlargs...)
 		if err != nil {
 			return reflect.Value{}, err
@@ -367,6 +393,10 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		}
 		if log.IsDebugEnabled() {
 			log.Debugf("results: %v", types.ToJson(reflect.Indirect(results).Interface()))
+		}
+		if sqlFunc.UseCache && gSecondCache.isEnabled() {
+			ck := cacheKey(in.Namespace, sqlFunc.Id, sqlargs...)
+			gSecondCache.Set(in.Namespace, ck, results)
 		}
 		return results, nil
 	}

@@ -9,7 +9,8 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap`（含 `<association>` / `<collection>` 嵌套关联类型生成）
 - **自增主键回填**：`useGeneratedKeys` / `keyProperty` 支持，Insert 后自动回填自增主键到入参 struct 指针
 - **MyBatis-Plus 内置 CRUD**：`schema2code -mp` 从表结构直接生成 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）的 XML，原生加载、无需手写 GoExtraMapper；亦可在 **XML 含 resultMap 时加载期内存自动补生成**（无需落盘 CRUD XML），使用说明见 **docs/agents/mybatis-plus.md**
-- **struct `db` tag 元数据**：`db:"user_name"` 显式列名、`db:"id,pk"` 主键、`db:"deleted,logic"` 逻辑删除列、`db:"version"` 乐观锁版本列、`db:"create_time,fill:insert"` 填充标记（解析入 `ModelInfo.FillColumns`，供 Hook 自动填充等横切逻辑取用）、`db:"-"` 排除映射；`TableName() string` 方法指定表名；`orm.RegisterModel` 注册后 MP 内置 CRUD 按元数据精确生成（表名/主键/逻辑列以 tag 为准，无需依赖表结构查询）
+- **struct `db` tag 元数据**：`db:"user_name"` 显式列名、`db:"id,pk"` 主键、`db:"deleted,logic"` 逻辑删除列、`db:"version,version"` 乐观锁版本列、`db:"create_time,fill:insert"` 填充标记（解析入 `ModelInfo.FillColumns`，供 Hook 自动填充等横切逻辑取用）、`db:"-"` 排除映射；`TableName() string` 方法指定表名；`orm.RegisterModel` 注册后 MP 内置 CRUD 按元数据精确生成（表名/主键/逻辑列以 tag 为准，无需依赖表结构查询）
+- **P1 框架增强七件套**：① 乐观锁（`version,version` tag 驱动 MP `updateById` 自动 `version+1` + CAS 检测，失败返回 `orm.ErrOptimisticLock`）② 自动填充（`orm.RegisterFillHandler` 按 `fill:insert|insert_update` 标记在 insert/update 前注入审计字段）③ 二级缓存（`mybatis.configuration.cache-enabled`，namespace 级 LRU+TTL，DML 自动 flush）④ 批量操作（MP 内置 `insertBatch` 多行 VALUES + `orm.UpdateBatch` 事务分批）⑤ `<discriminator>` 鉴别器（按列值切换子 resultMap）⑥ ID 生成策略（`id-type=snowflake|uuid|assign_id` insert 前零值主键自动填充，`RegisterIdGenerator` 可扩展）⑦ SQL 安全防护（`safe-update=true` 后无 WHERE 的 UPDATE/DELETE 返回 `ErrSafeUpdateBlocked`）
 - **QueryWrapper 条件构造器**：`orm.NewQueryWrapper().Eq("col", v).LikeRight("name", "ad").Between("age", 18, 30).OrderByDesc("id")` 链式构造动态条件；mapper 方法声明 `*orm.QueryWrapper` 参数即可自动注入 SQL（原 SQL 有 WHERE 追加 `AND`、无 WHERE 补 `WHERE`，尾部 `ORDER BY`/`LIMIT` 之前插入；与 `*orm.PageParam` 组合时分页 COUNT 先派生，Total 与 Records 天然一致），XML 亦支持 `${ew}` 显式占位
 - **Hook 拦截链**：`orm.RegisterHook(HookBeforeExecute|HookAfterExecute, hook)` 在 SQL 生成后/执行前后双挂载点拦截全部 Mapper 执行路径（普通方法/流式查询/分页）；Before 可改写 SQL，After 可见 Error 与 Duration，适配 SQL 审计/多租户/乐观锁等横切场景；Hook panic 自动 recover 不中断执行链
 - **自定义 TypeHandler**：`orm.RegisterTypeHandlerFor[T](fn)` 为任意 Go 类型注册参数写入/结果扫描转换器（自定义时间、枚举、JSON 字段等），经 `convertFieldValue` 统一入口覆盖参数绑定、resultMap、无 resultMap 与流式查询全路径
@@ -880,6 +881,15 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **v0.3.8（P1 框架增强七件套，2026-09-17）**：MyBatis-Plus P1 级全部 7 项功能落地（见 docs/mybatis-plus-golang-checklist.md「P1」节）—
+  - **P1-1 乐观锁**：`db:"version,version"` tag 解析入 `TableStructure.VersionColumn`；MP 内置 `updateById` 自动生成 `version=version+1` SET + `AND version=#{version}` WHERE（`ensureMPBuiltinCRUD` 检出 VersionColumn 时置 `SqlFunction.HasVersion`）；CAS 检测——UPDATE 受影响行数为 0 时返回 `orm.ErrOptimisticLock`；`fill:insert` 列（如 create_time）不参与 update SET
+  - **P1-2 自动填充**：`orm.RegisterFillHandler(column, FillInsert|FillUpdate|FillInsertUpdate, fn(ctx, field))` 注册列级填充器，insert/update 在 GenerateSQL 前按 `db:"...,fill:insert|insert_update"` 标记注入（需指针接收者 entity）；手写 XML 由 `ColumnStructure.Fill` 驱动
+  - **P1-3 二级缓存**：`mybatis.configuration.cache-enabled`（默认 false）+ `local-cache-size`（默认 1024）+ `local-cache-ttl`（默认 3600s）；`orm/namespace_cache.go` namespace 级 LRU+TTL 缓存，SHA256(namespace.sqlID+args) 复合键；SELECT 命中直返，同 namespace 任意 DML 后整仓 flush（含 RETURNING 分支）；语句级开关 `useCache="false"` 跳过；`orm.SetCacheEnabled(on)` 运行时开关；`golang-lru/v2` 转 direct 依赖
+  - **P1-4 批量操作**：MP 内置 CRUD 新增 `insertBatch`（多行 VALUES `<foreach collection="list">`）；`orm.InsertBatch(ctx, insertFn, entities)` 反射透传切片；`orm.UpdateBatch(ctx, updateFn, entities, batchSize)` 事务内分批循环（默认批 50，失败整体回滚）
+  - **P1-5 `<discriminator>` 鉴别器**：`<resultMap>` 内 `<discriminator column="...">` + `<case value="..." resultMap="..."/>` 解析（`DiscriminatorCase`，子 resultMap 懒解析 + 首次命中缓存）；运行时 `resolveDiscriminator` 按行取鉴别列值匹配 case，切换子 resultMap 完成列映射（Go 无多态切片，限定同一 Go struct 类型）
+  - **P1-6 ID 生成策略**：`mybatis.configuration.id-type=snowflake|uuid|assign_id`（默认空=不自填）+ `snowflake-worker-id`；insert 前主键为零值时自动填充（需指针接收者 entity）；`orm.RegisterIdGenerator(name, fn)` 自定义策略 + `orm.SetDefaultIdType(name)`；Snowflake 自实现零新增依赖，UUID 复用 google/uuid
+  - **P1-7 SQL 安全防护**：`mybatis.configuration.safe-update=true`（默认 false）后 UPDATE/DELETE 无 WHERE 子句直接返回 `orm.ErrSafeUpdateBlocked`；词法检测复用表前缀 `tokenizeSQL`（不误判注释/字符串字面量/列名含 where）；`orm.SetSafeUpdate(on)` 运行时开关
+  - **端到端测试**：`orm/sqlite_p1_test.go` 12 用例（安全防护开/关 + 词法、Snowflake/UUID、乐观锁 CAS、insert/update 自动填充、insertBatch、discriminator video/audio 分流、二级缓存命中/失效、缓存默认关闭回归）；全量 `go build` / `go vet` / `go test` 通过
 - **v0.3.7（Go 版本固定 1.24.0，2026-09-17）**：工具链与依赖对齐 —
   - go.mod 由 `go 1.25.0` 降回 `go 1.24.0`（本机/CI 工具链即 go 1.24.0，此前 GOTOOLCHAIN=auto 自动切换到 1.25+ 属非预期）
   - 依赖降级对齐（更高版本要求 go ≥ 1.25）：go-mssqldb v1.11.0→v1.9.7、clickhouse-go v2.48.0→v2.42.0（连带 ch-go v0.69.0、otel 1.39.0、x/sys 0.39.0 等 indirect 重解析）；`go mod vendor` 重新生成

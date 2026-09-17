@@ -353,13 +353,13 @@
 
 | 优先级 | 功能 | 工作量 | 影响 |
 |--------|------|--------|------|
-| P1-1 | **乐观锁** | 小 | 并发场景必备 |
-| P1-2 | **自动填充** (create_time/update_time) | 小 | 审计字段自动化 |
-| P1-3 | **二级缓存** (namespace 级 LRU + 可扩展) | 中 | 高频只读查询优化 |
-| P1-4 | **批量操作** (insertBatch/updateBatch) | 中 | 批量场景性能 |
-| P1-5 | **`<discriminator>` 鉴别器** | 小 | 多态映射 |
-| P1-6 | **ID 生成策略** (Snowflake/UUID) | 小 | 分布式 ID |
-| P1-7 | **SQL 安全防护** (无 WHERE 阻断) | 小 | 防误操作 |
+| P1-1 | **乐观锁** | 小 | 并发场景必备（`db:"version,version"` tag + MP 生成的 `updateById` 自动 `version=version+1` + `WHERE version=#{version}` CAS；`RowsAffected==0` 返回 `orm.ErrOptimisticLock`；`SqlFunction.HasVersion` 标记，`ensureMPBuiltinCRUD` 有 VersionColumn 时自动置位，✅ 已完成） |
+| P1-2 | **自动填充** (create_time/update_time) | 小 | 审计字段自动化（`orm.RegisterFillHandler(column, FillInsert|FillUpdate|FillInsertUpdate, fn)` 按 `db:"...,fill:insert|insert_update"` 标记在 GenerateSQL 前注入；update 跳过 `fill:insert` 列防覆盖 create_time，✅ 已完成） |
+| P1-3 | **二级缓存** (namespace 级 LRU + 可扩展) | 中 | 高频只读查询优化（`mybatis.configuration.cache-enabled/local-cache-size/local-cache-ttl`；namespace 级 LRU+TTL，SHA256(namespace.sqlID+args) 键；SELECT 命中直返、DML 后整 namespace flush；`SqlFunction.UseCache/FlushCache` 语句级开关，默认关闭配置，✅ 已完成） |
+| P1-4 | **批量操作** (insertBatch/updateBatch) | 中 | 批量场景性能（MP 内置 `insertBatch` 多行 VALUES `<foreach>`；`orm.InsertBatch(ctx, fn, entities)` 反射调用；`orm.UpdateBatch(ctx, fn, entities, batchSize)` 事务分批，✅ 已完成） |
+| P1-5 | **`<discriminator>` 鉴别器** | 小 | 多态映射（XML 解析 `<discriminator column>` + `<case value resultMap>`，运行时按列值切换子 resultMap，case resultMap 懒解析缓存；Go 无多态切片，限定同一 struct 类型，✅ 已完成） |
+| P1-6 | **ID 生成策略** (Snowflake/UUID) | 小 | 分布式 ID（`mybatis.configuration.id-type=snowflake|uuid|assign_id` + `snowflake-worker-id`；`orm.RegisterIdGenerator`/`SetDefaultIdType` 可扩展；insert 前零值主键自动填充，内置 Snowflake 自实现，✅ 已完成） |
+| P1-7 | **SQL 安全防护** (无 WHERE 阻断) | 小 | 防误操作（`mybatis.configuration.safe-update=true` 后 UPDATE/DELETE 无 WHERE 返回 `orm.ErrSafeUpdateBlocked`；`orm.SetSafeUpdate` 运行时开关；词法扫描复用 tokenizeSQL 不误判注释/字符串，✅ 已完成） |
 
 ### P2 — 实用扩展（特定场景需要）
 

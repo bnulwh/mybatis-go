@@ -13,6 +13,12 @@ func SetLogger(logger log.Logger) {
 	log.SetLogger(logger)
 }
 
+func SetSafeUpdate(on bool) {
+	if gDbConn != nil && gDbConn.Config != nil {
+		gDbConn.Setting.SafeUpdate = on
+	}
+}
+
 func Initialize(filename string) error {
 	cm := LoadSettings(filename)
 	return InitializeFromSettings(cm)
@@ -28,6 +34,7 @@ func InitializeFromSettings(cm map[string]string) error {
 		gDataSources.reset()
 		gDataSources.add(defaultDataSourceName, db)
 	}
+	initSecondCache(cfg.Setting.CacheEnabled, cfg.Setting.LocalCacheSize, cfg.Setting.LocalCacheTTL)
 	return combineErrors(err1, err2)
 }
 

@@ -25,6 +25,7 @@ const (
 	MPSelectCountID    = "selectCount"
 	MPSelectBatchIDsID = "selectBatchIds"
 	MPDeleteBatchIDsID = "deleteBatchIds"
+	MPInsertBatchID    = "insertBatch"
 )
 
 func NewTableStruct(table string, res []map[string]interface{}) (*TableStructure, error) {
@@ -62,8 +63,9 @@ type TableStructure struct {
 	ColumnMap     map[string]*ColumnStructure
 	Table         string
 	PrimaryColumn *ColumnStructure
-	ModelName     string           // 显式模型名（内存生成 CRUD 时取 resultMap type 原值，空则按表名推导）
-	LogicColumn   *ColumnStructure // 显式逻辑删除列（db:",logic" tag 指定），优先于 deleted/del_flag 约定
+	ModelName     string
+	LogicColumn   *ColumnStructure
+	VersionColumn *ColumnStructure
 }
 
 func (ts *TableStructure) SaveToFile(filename, prefix string) error {
@@ -235,6 +237,14 @@ func (ts *TableStructure) isLogicColumn(name string) bool {
 	return ts.LogicColumn != nil && strings.EqualFold(ts.LogicColumn.Name, name)
 }
 
+func (ts *TableStructure) isVersionColumn(name string) bool {
+	return ts.VersionColumn != nil && strings.EqualFold(ts.VersionColumn.Name, name)
+}
+
+func isFillInsertOnly(fill string) bool {
+	return fill == "insert"
+}
+
 func (ts *TableStructure) writeResultMap(mapper *etree.Element, prefix string) {
 	resultMap := mapper.CreateElement("resultMap")
 	resultMap.CreateAttr("id", DefaultResultMapName)
@@ -310,6 +320,13 @@ func (ts *TableStructure) generateUpdateSQL() string {
 		if ts.isLogicColumn(column.Name) {
 			continue
 		}
+		if isFillInsertOnly(column.Fill) {
+			continue
+		}
+		if ts.isVersionColumn(column.Name) {
+			cvalues = append(cvalues, fmt.Sprintf("%s=%s+1", column.Name, column.Name))
+			continue
+		}
 		cvalues = append(cvalues, fmt.Sprintf("%s=#{%s,jdbcType=%s}", column.Name, column.getPropertyName(), column.getJdbcType()))
 	}
 	logicExcluded := 0
@@ -322,15 +339,38 @@ func (ts *TableStructure) generateUpdateSQL() string {
 		log.Warnf("check primary key for table %s", ts.Table)
 	}
 	cvs := strings.Join(cvalues, ",\n\t\t\t ")
-	sql := fmt.Sprintf("\n\t\tupdate %s \n\t\tset %s \n\t\t where %s=#{%s,jdbcType=%s}\n\t",
+	whereExtra := ""
+	if ts.VersionColumn != nil {
+		whereExtra = fmt.Sprintf(" and %s=#{%s,jdbcType=%s}", ts.VersionColumn.Name, ts.VersionColumn.getPropertyName(), ts.VersionColumn.getJdbcType())
+	}
+	sql := fmt.Sprintf("\n\t\tupdate %s \n\t\tset %s \n\t\t where %s=#{%s,jdbcType=%s}%s\n\t",
 		ts.Table,
 		cvs,
 		ts.PrimaryColumn.Name,
 		ts.PrimaryColumn.getPropertyName(),
 		ts.PrimaryColumn.getJdbcType(),
+		whereExtra,
 	)
 	return sql
 }
+
+func (ts *TableStructure) generateInsertBatchSQL() string {
+	var cnames []string
+	var cvalues []string
+	for _, column := range ts.Columns {
+		if ts.isLogicColumn(column.Name) {
+			continue
+		}
+		cnames = append(cnames, column.Name)
+		cvalues = append(cvalues, fmt.Sprintf("#{item.%s,jdbcType=%s}", column.getPropertyName(), column.getJdbcType()))
+	}
+	cns := strings.Join(cnames, ",")
+	cvs := strings.Join(cvalues, ",")
+	sql := fmt.Sprintf("\n\t\tinsert into %s \n\t\t(%s) \n\t\tvalues\n\t\t", ts.Table, cns)
+	fe := sql + "<foreach collection=\"list\" item=\"item\" separator=\",\">\n\t\t(" + cvs + ")\n\t\t</foreach>\n\t"
+	return fe
+}
+
 func (ts *TableStructure) generateSetDeletedSQL() string {
 	sql := fmt.Sprintf("\n\t\tupdate %s \n\t\tset deleted=true,delete_time=now() \n\t\t where %s=#{%s,jdbcType=%s}\n\t",
 		ts.Table,
@@ -465,6 +505,12 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	}
 	ts.writeMPInForeach(db, "id")
 	db.CreateText("\n\t")
+
+	// insertBatch：multi-row INSERT with <foreach>
+	ib := mapper.CreateElement("insert")
+	ib.CreateAttr("id", MPInsertBatchID)
+	ib.CreateAttr("parameterType", ts.getModelName(prefix))
+	ib.CreateText(ts.generateInsertBatchSQL())
 }
 
 // getMPPrimaryJdbcType 主键 JDBC 类型（MP 风格）：int64/uint64 主键 → java.lang.Long（codegen 生成 int64 签名），

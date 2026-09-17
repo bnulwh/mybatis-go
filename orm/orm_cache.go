@@ -189,3 +189,17 @@ func bindMapper(name string, mapper reflect.Value) {
 func getFullName(typ reflect.Type) string {
 	return typ.PkgPath() + "." + typ.Name()
 }
+
+func (in *ormCache) findResultMap(id string) *types.ResultMap {
+	if in.sqls == nil {
+		return nil
+	}
+	for _, mp := range in.sqls.NamedMappers {
+		for _, rm := range mp.Maps {
+			if rm.Id == id || strings.EqualFold(rm.Id, id) {
+				return rm
+			}
+		}
+	}
+	return nil
+}

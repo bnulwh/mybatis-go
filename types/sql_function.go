@@ -24,6 +24,9 @@ type SqlFunction struct {
 	UseGeneratedKeys bool   // <insert useGeneratedKeys="true">：自增主键回填开关（S-11）
 	KeyProperty      string // 回填目标属性名（如 jobId）
 	KeyColumn        string // 回填目标列名（如 job_id，可选）
+	HasVersion       bool   // 乐观锁：updateById 涉及 version 列，CAS 检测
+	FlushCache       bool   // 执行后刷新当前 namespace 缓存
+	UseCache         bool   // 是否启用二级缓存（默认 true，false 时跳过）
 	TotalUsage       int64
 	FailedUsage      int64
 	TotalDuration    int64

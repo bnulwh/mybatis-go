@@ -807,3 +807,15 @@ func matchParenIndex(tokens []sqlToken, index int) int {
 func isWordToken(t sqlToken, lower string) bool {
 	return t.typ == tkWord && strings.ToLower(t.text) == lower
 }
+
+// hasWhereClause 检测 SQL 中是否包含 WHERE 子句（排除字符串字面量与注释内的干扰）。
+// 复用 tokenizeSQL 词法扫描，遍历 token 寻找 tkWord 类型的 WHERE。
+func hasWhereClause(sqlStr string) bool {
+	tokens := tokenizeSQL(sqlStr)
+	for _, tok := range tokens {
+		if tok.typ == tkWord && strings.ToLower(tok.text) == "where" {
+			return true
+		}
+	}
+	return false
+}

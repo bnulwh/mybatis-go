@@ -9,22 +9,30 @@ import (
 type ResultItemKind string
 
 const (
-	ResultItemKindId          ResultItemKind = "id"
-	ResultItemKindResult      ResultItemKind = "result"
-	ResultItemKindAssociation ResultItemKind = "association"
-	ResultItemKindCollection  ResultItemKind = "collection"
+	ResultItemKindId            ResultItemKind = "id"
+	ResultItemKindResult        ResultItemKind = "result"
+	ResultItemKindAssociation   ResultItemKind = "association"
+	ResultItemKindCollection    ResultItemKind = "collection"
+	ResultItemKindDiscriminator ResultItemKind = "discriminator"
 )
 
+type DiscriminatorCase struct {
+	Value       string
+	ResultMapId string
+	ResultMap   *ResultMap
+}
+
 type ResultItem struct {
-	Column     string
-	Type       reflect.Type
-	Property   string
-	PrimaryKey bool
-	Kind       ResultItemKind
-	JavaType   string // association/collection 的 javaType 属性
-	OfType     string // collection 元素类型（ofType 属性）
-	ResultMap  string // 引用的嵌套 resultMap id
-	JdbcType   string // 原始 jdbcType 属性（可能为空，供内存生成 CRUD 时推导列类型）
+	Column             string
+	Type               reflect.Type
+	Property           string
+	PrimaryKey         bool
+	Kind               ResultItemKind
+	JavaType           string
+	OfType             string
+	ResultMap          string
+	JdbcType           string
+	DiscriminatorCases []DiscriminatorCase
 }
 
 // <id column="id" jdbcType="INTEGER" property="id" />
@@ -69,6 +77,24 @@ func parseResultItemFromXmlNode(elem xmlElement) *ResultItem {
 			OfType:    xn.Attrs["ofType"],
 			ResultMap: xn.Attrs["resultMap"],
 		}
+	case "discriminator":
+		di := &ResultItem{
+			Column: xn.Attrs["column"],
+			Kind:   ResultItemKindDiscriminator,
+		}
+		for _, child := range xn.Elements {
+			if child.ElementType != xmlNodeElem {
+				continue
+			}
+			cxn := child.Val.(xmlNode)
+			if strings.ToLower(cxn.Name) == "case" {
+				di.DiscriminatorCases = append(di.DiscriminatorCases, DiscriminatorCase{
+					Value:       cxn.Attrs["value"],
+					ResultMapId: cxn.Attrs["resultMap"],
+				})
+			}
+		}
+		return di
 	default:
 		log.Warnf("unsupport result item: %v", name)
 		return &ResultItem{

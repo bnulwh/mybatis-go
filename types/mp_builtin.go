@@ -13,7 +13,7 @@ import (
 var mpBuiltinIDs = []string{
 	MPInsertID, MPDeleteByIDID, MPUpdateByIDID, MPSelectByIDID,
 	MPSelectOneID, MPSelectListID, MPSelectPageID, MPSelectCountID,
-	MPSelectBatchIDsID, MPDeleteBatchIDsID,
+	MPSelectBatchIDsID, MPDeleteBatchIDsID, MPInsertBatchID,
 }
 
 // jdkTypeNames resultMap type 为 JDK 基础类型时不可推导表结构
@@ -74,9 +74,12 @@ func (in *SqlMapper) ensureMPBuiltinCRUD() {
 	added := 0
 	for _, fn := range filterSqlFunction(node.Elements, rms, sns, "__mp_builtin__") {
 		if in.NamedFunctions[fn.Id] != nil {
-			continue // 已有（手写或原 XML 自带），不覆盖
+			continue
 		}
 		fn.Owner = in.Namespace
+		if ts.VersionColumn != nil && fn.Id == MPUpdateByIDID {
+			fn.HasVersion = true
+		}
 		in.Functions = append(in.Functions, fn)
 		in.NamedFunctions[fn.Id] = fn
 		in.NamedFunctions[buildKey(fn.Id)] = fn

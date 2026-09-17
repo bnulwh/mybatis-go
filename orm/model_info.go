@@ -46,9 +46,10 @@ type FieldInfo struct {
 type ModelInfo struct {
 	GoType        reflect.Type
 	TableName     string
-	ExplicitTable bool // 是否经 TableName() 方法显式指定表名
+	ExplicitTable bool
 	Fields        []*FieldInfo
 	PrimaryColumn string
+	PrimaryField  *FieldInfo
 	LogicColumn   string
 	VersionColumn string
 }
@@ -141,6 +142,7 @@ func parseModelInfoFromType(typ reflect.Type) (*ModelInfo, error) {
 		info.Fields = append(info.Fields, fi)
 		if fi.Primary && info.PrimaryColumn == "" {
 			info.PrimaryColumn = fi.Column
+			info.PrimaryField = fi
 		}
 		if fi.Logic && info.LogicColumn == "" {
 			info.LogicColumn = fi.Column
@@ -215,6 +217,7 @@ func buildTableStructure(info *ModelInfo) *types.TableStructure {
 			Type:    f.Type,
 			DbType:  goTypeToDbType(f.Type),
 			Primary: f.Column == info.PrimaryColumn,
+			Fill:    f.Fill,
 		}
 		ts.Columns = append(ts.Columns, cs)
 		ts.ColumnMap[cs.Name] = cs
@@ -223,6 +226,9 @@ func buildTableStructure(info *ModelInfo) *types.TableStructure {
 		}
 		if info.LogicColumn != "" && f.Column == info.LogicColumn {
 			ts.LogicColumn = cs
+		}
+		if info.VersionColumn != "" && f.Column == info.VersionColumn {
+			ts.VersionColumn = cs
 		}
 	}
 	if ts.PrimaryColumn == nil {

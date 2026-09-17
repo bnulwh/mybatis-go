@@ -7,6 +7,7 @@ require (
 	github.com/beevik/etree v1.7.1
 	github.com/bnulwh/logrus v1.9.3
 	github.com/go-sql-driver/mysql v1.10.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/lib/pq v1.12.3
 	github.com/microsoft/go-mssqldb v1.9.7
 	github.com/sijms/go-ora/v2 v2.9.0
@@ -24,7 +25,6 @@ require (
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
