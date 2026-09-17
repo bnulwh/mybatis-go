@@ -29,6 +29,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - 日志一律走 `log` 包（`log.Debugf`/`Infof`/`Warnf`/`Errorf`），可替换实现。
 - XML Mapper 文件名与 `namespace` 对应，放 `resources/mapper`。
 - 导出类型/函数 PascalCase；测试函数命名 `Test_函数名`。
+- Go 版本固定 1.24（go.mod `go 1.24.0`）；依赖的 go 要求必须 ≤ 1.24.0，超出则降级选版。
 
 完整约定见 **docs/agents/conventions.md**。
 

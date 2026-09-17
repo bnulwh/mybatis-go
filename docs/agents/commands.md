@@ -36,6 +36,6 @@
 
 ## 项目信息
 
-- **语言/版本**: Go 1.21（go.mod；旧版声明为 1.14）
+- **语言/版本**: Go 1.24.0（go.mod；依赖升级须保持 go ≤ 1.24.0，见 docs/agents/conventions.md「Go 版本」）
 - **模块**: `github.com/bnulwh/mybatis-go`
 - **核心依赖**: `github.com/beevik/etree` (XML 解析), `github.com/go-sql-driver/mysql`, `github.com/lib/pq` (PostgreSQL/KingbaseES), `modernc.org/sqlite` (纯 Go SQLite), `github.com/bnulwh/logrus`
