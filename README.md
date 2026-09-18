@@ -202,6 +202,54 @@ func main() {
 
 完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go`、`cmd/kingbasedemo/main.go`、`cmd/tidbdemo/main.go`、`cmd/tdsqldemo/main.go`、`cmd/polardbdemo/main.go`、`cmd/opengaussdemo/main.go`、`cmd/gaussdbdemo/main.go`、`cmd/highgodemo/main.go`、`cmd/vastbasedemo/main.go`、`cmd/oceanbasedemo/main.go`、`cmd/oboracledemo/main.go`、`cmd/damengdemo/main.go`、`cmd/gbase8sdemo/main.go`、`cmd/mssqldemo/main.go`、`cmd/oracledemo/main.go` 和 `cmd/db2demo/main.go`。
 
+## 从 Java MyBatis / MyBatis-Plus 迁移
+
+既有 Java 项目的 Mapper XML **零改造**即可复用，配合 `xml2go` 逆向代码生成，三步完成迁移（`samples/` 目录即 RuoYi 真实 XML 的迁移样例：22 个 Mapper / 331 个方法一次生成、全部可用）：
+
+### 1. 拷贝 Mapper XML 与配置
+
+把 Java 工程的 Mapper XML 目录（如 `src/main/resources/mapper`）拷到 Go 工程；Spring Boot 风格 `.properties` 配置可直接沿用——`mybatis.mapper-locations`、数据源、表前缀（`mybatis.table-prefix` / MP 的 `mybatis-plus.global-config.db-config.table-prefix`）键与语义同 Java 侧一致。
+
+### 2. 一条命令生成 Go 代码
+
+```bash
+# 入口一：直接给 Java 侧配置文件（自动定位 mapper-locations 指向的 XML）
+go run ./cmd/xml2go -c src/main/resources/application.yml -d gen -p github.com/xxx/app
+# 入口二：已知 Mapper XML 目录
+go run ./cmd/xml2go -m resources/mapper -d gen -p github.com/xxx/app
+```
+
+- `-c` 支持 `.properties` / `.yml` / `.yaml` / `.xml`（`mybatis[-plus].mapper-locations`、`<mappers><mapper resource/>`、Spring `mapperLocations`，兼容 `classpath*:` 前缀与 `*`/`**` 通配）
+- 生成 `gen/models/`（模型 struct + `db:"column,pk/logic/version"` 元数据 + `TableName()`）与 `gen/mapper/`（`orm.BaseMapper` 代理 struct + init 自动注册 + `GetXxxMapper()` 单例），产物保证可编译
+- 动态 SQL（`<if>`/`<foreach>`/`<include>`…）、resultMap 嵌套关联、MyBatis-Plus 内置 CRUD（selectById/insertBatch…）全量语句照常生成，无需手写
+
+### 3. 引入、初始化、调用
+
+```go
+import (
+    _ "github.com/xxx/app/gen/models"
+    _ "github.com/xxx/app/gen/mapper"
+    "github.com/bnulwh/mybatis-go/orm"
+)
+
+func init() {
+    if err := orm.Initialize("application.properties"); err != nil {
+        panic(err)
+    }
+}
+
+func main() {
+    user, err := mapper.GetSysUserMapper().SelectUserByUserName("admin")
+}
+```
+
+### 迁移要点
+
+- **XML 零改造**：`#{}` / `${}` 参数绑定、动态 SQL、`<include>`、resultMap `<association>` / `<collection>` 均按 MyBatis 语义解析，原 XML 不需要任何修改
+- **MyBatis-Plus 兼容**：BaseMapper 标准方法名、逻辑删除（deleted / del_flag）、乐观锁、ID 生成策略（snowflake/uuid/assign_id）等 MP 特性已对齐；XML 含 resultMap 但缺内置方法时加载期自动补生成
+- **纯静态查询可选 sqlc**：`go run ./cmd/sqlc` 把无动态标签的 `<select>` 生成类型安全 Querier；动态语句/MP CRUD 用 xml2go，两者互补
+- 签名推导规则、验证步骤与已知边界见 **docs/agents/xml2go.md**；四款代码生成工具参数详见 **docs/code-generation.md**
+
 ## 功能专题与详细文档
 
 | 主题 | 说明 | 文档 |
