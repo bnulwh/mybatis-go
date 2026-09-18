@@ -22,6 +22,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **强类型扫描直通道**：`orm.QueryTo(&users, sql, args...)` 查询结果直接扫描到 struct / []struct / []*struct / 标量切片 / []map / map / 标量指针（不经 map 中转，扫描缓冲与字段索引一次预编译）；列名匹配优先 `db` tag 显式列名，回退原名 → 首字母大写 → 蛇形转驼峰 → 大小写不敏感四策略；类型转换优先自定义 TypeHandler；`QueryToContext` 支持 WithTx 事务与超时控制；Mapper 方法声明 `context.Context` 参数即可自动参与 ctx 事务
 - **gormish 链式 API（G1）**：`gormish.Open()` 获取链式句柄，GORM 风格链式查询/CRUD——`Table/Model/Select/Where/Or/Order/Limit/Offset/Group/Having/Distinct/Raw` 链式子句 + `Find/First/Last/Count/Scan/Create/Update/Updates/Delete/Exec` finisher；链式方法克隆语句状态（多克隆互不污染），finisher 返回 `(value, error)` 双返回值；条件一律 `?` 占位 + 参数绑定（经方言自动转换为 `$n`/`:n`/`@pn`，表名前缀自动改写）；结果扫描复用 QueryTo 直通道（db tag / TypeHandler / DefaultRowLimit 自动生效）；`Create` 零值主键视为自增列并回填（PG 族经 RETURNING），批量插入多行 VALUES；`First/Last` 未显式排序时按主键排序 LIMIT 1；`Update/Updates/Delete` 无 WHERE 条件报错防全表；`Transaction(fn)` 回调事务（基于 `orm.WithTx`，嵌套复用、不占 TCC 槽）
 - **sqlc 风格 Querier 代码生成（S1）**：`go run ./cmd/sqlc` 扫描 XML Mapper，把静态 `<select>`（无动态标签、无 `${}`）抽取为类型安全的 Querier 接口 + 实现（model / `XxxQuerier` 接口 / `NewXxxQuerier(db)` 构造，一个 mapper 一个文件）；免连库——resultMap 按 jdbcType、resultType 按声明类型定型，标量参数按占位符名具名定型；动态语句自动跳过（`-v` 查看原因）；生成代码走 `QueryToContext`（方言占位符转换 / 表名前缀 / ctx 事务全部由 orm 层承担），select 恒返回切片；resultMap model 带 `db:"column,pk"` tag
+- **xml2go 逆向代码生成**：`go run ./cmd/xml2go -m samples -d gen -p github.com/xxx/app` 从既有 MyBatis/MyBatis-Plus XML 全量语句（含动态 SQL、MP 内置 CRUD）生成 `<output>/models/`（模型 struct + `db:"column,pk/logic/version"` 元数据 + TableName）与 `<output>/mapper/`（orm.BaseMapper 代理 struct + init 注册 + sync.Once 单例 getter），与手写 Mapper 语义一致、产物保证可编译（跨 Mapper 模型去重、引用未生成模型的语句跳过并记录原因）；与 sqlc 互补——动态语句/MP CRUD 选 xml2go，纯静态查询选 sqlc（见 docs/agents/xml2go.md）
 - **大结果集流式读取**：`orm.QueryStream` / Mapper 流式 select 方法返回 `*orm.RowStream`，`Next()` 逐行消费、内存 O(1)，百万行结果集也不会 OOM（配合全局行数上限 `orm.SetDefaultRowLimit` 兜底）
 - **内嵌 Mapper（go:embed）**：`orm.RegisterMapperFS` 直接读取 `embed.FS`，XML 无需解出到临时目录即可用于单文件二进制部署；亦支持「内嵌为基础 + 磁盘覆盖」合并加载（见「内嵌 Mapper」章节）
 - **零 CGO 依赖**：SQLite 走纯 Go 驱动（`modernc.org/sqlite`），交叉编译与静态链接无额外工具链要求
@@ -767,6 +768,23 @@ go build -o schema2code cmd/schema2code/main.go
 - `-tables` 可选，指定表名（逗号分隔），为空则生成全部表
 - `-mp` 可选，生成 MyBatis-Plus 内置 CRUD XML（BaseMapper 标准方法名；批量方法自动生成切片签名，如 `DeleteBatchIds func([]int64)`；`SelectCount` 返回 `[]int64`）
 
+### xml2go — 从 XML Mapper 逆向生成 Go 代码
+
+```bash
+go build -o xml2go cmd/xml2go/main.go
+# 从既有 MyBatis/MyBatis-Plus XML 全量语句（含动态 SQL、MP 内置 CRUD）生成 Go 模型 + Mapper 代理
+./xml2go -m resources/mapper -d gen -p github.com/xxx/app
+```
+
+参数说明：
+- `-m` XML Mapper 目录（默认 `resources/mapper`）
+- `-d` 输出目录（默认 `gen`，内含 `models/`、`mapper/` 两个子目录）
+- `-p` 输出目录自身的模块导入路径前缀（生成 import 为 `<prefix>/models` 等；留空退化为裸导入，GOPATH 兼容）
+- `-skip-mp` 可选，跳过 MyBatis-Plus 内置 CRUD 字段
+- `-v` 可选，打印跳过语句及原因
+
+生成代码用法与手写 Mapper 一致（`mapper.GetSysUserMapper().SelectUserByUserName("admin")`）；完整签名推导规则与已知边界见 **docs/agents/xml2go.md**。
+
 ## 运行示例
 
 ```bash
@@ -881,6 +899,13 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **v0.3.9（xml2go 逆向代码生成，2026-09-18）**：从既有 MyBatis / MyBatis-Plus XML 全量语句生成可直接编译运行的 Go 代码 —
+  - **引擎 `types.GenerateXml2GoFiles`（`types/xml2go_gen.go`）**：输入 `SqlMappers`（免连库），输出 `<output>/models/<短名>.go`（模型 struct：`db:"<列名>,pk/logic/version"` 元数据 tag——id/result 列 `,pk`、逻辑删除列 deleted/del_flag `,logic`、版本列 `,version`，association/collection 记 `db:"-"`；json tag；条件 `import "time"`；`TableName()` 方法）+ `<output>/mapper/<Mapper短名>.go`（`orm.BaseMapper` 内嵌 + 函数字段 + `init()` 注册模型与 Mapper + `sync.Once` 单例 `GetXxxMapper()`）；跨 Mapper 模型去重（首个 resultMap 生效）、Mapper 短名/函数字段名冲突跳过、引用未生成模型的语句跳过并记录原因（产物恒可编译）；全部产物 gofmt + `go/parser` 语法校验
+  - **签名推导与 orm 注册期校验逐条对齐**：struct 参数为指针 `*models.X`（P1 ID 回填/自动填充要求可寻址）；无 parameterType 语句按占位符逐个生成具名 `interface{}` 参数（与运行期按位绑定对齐），含 `<foreach>` 时退化为单 `map[string]interface{}`；`parameterType="map"` → map 参数；基础类型 + foreach → 切片参数；MP `insertBatch` → `[]*models.X`；`selectPage` 固定 `*orm.PageParam` / `*orm.Page`；返回类型——resultMap → `[]models.X`、resultType=map/未注册 pojo → `[]map[string]interface{}`、resultType=业务模型且已生成 → `[]models.X`（M-04 运行期转换）、resultType 标量 → `[]标量`、DML → `int64`
+  - **命令 `cmd/xml2go`**：`-m` mapper 目录（默认 resources/mapper）`-d` 输出目录（默认 gen）`-p` 输出目录导入路径前缀 `-skip-mp` 跳过 MP 内置方法 `-v` 打印跳过原因；逐 Mapper 一行统计 + 总计
+  - **端到端测试 `types/xml2go_gen_test.go`**：4 用例（基础生成内容断言：db tag/指针参数/逐槽 AutoDerive 参数/MP 内置/init 注册/getter；SkipMP；SkipUnknownModel；samples 真实回归：20 个模型文件、22 个 mappers、331 个函数、0 跳过）+ 临时模块端到端类型检查（生成产物 + replace 指向本仓库 `go build ./...` 通过）+ 注册链路冒烟（import 触发全部 init，`orm.GetModelInfo` 元数据校验）
+  - **文档**：docs/agents/xml2go.md（选型对比 / 运行方式 / 签名推导规则 / 验证步骤 / 已知边界）+ cmd/xml2go/README.md；README / AGENTS.md / docs/agents/commands.md 同步
+  - **已知边界**：跨 Mapper 嵌套 resultMap 引用（`resultMap="XxxMapper.YyyResult"`）静态不可解析，字段退化为 `interface{}`（运行期仍按全局 resultMap 正常转换）；`${}` 注入占位符生成具名 `interface{}` 参数；与 sqlc 互补——动态语句/MP CRUD 选 xml2go，纯静态查询选 sqlc
 - **v0.3.8（P1 框架增强七件套，2026-09-17）**：MyBatis-Plus P1 级全部 7 项功能落地（见 docs/mybatis-plus-golang-checklist.md「P1」节）—
   - **P1-1 乐观锁**：`db:"version,version"` tag 解析入 `TableStructure.VersionColumn`；MP 内置 `updateById` 自动生成 `version=version+1` SET + `AND version=#{version}` WHERE（`ensureMPBuiltinCRUD` 检出 VersionColumn 时置 `SqlFunction.HasVersion`）；CAS 检测——UPDATE 受影响行数为 0 时返回 `orm.ErrOptimisticLock`；`fill:insert` 列（如 create_time）不参与 update SET
   - **P1-2 自动填充**：`orm.RegisterFillHandler(column, FillInsert|FillUpdate|FillInsertUpdate, fn(ctx, field))` 注册列级填充器，insert/update 在 GenerateSQL 前按 `db:"...,fill:insert|insert_update"` 标记注入（需指针接收者 entity）；手写 XML 由 `ColumnStructure.Fill` 驱动

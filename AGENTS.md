@@ -19,7 +19,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - `orm/` — 主框架包（初始化、Mapper 代理、SQL 执行、事务、多数据源、方言）
 - `types/` — XML 解析引擎（Mapper 定义、SQL 片段、结果映射、代码生成）
 - `utils/` `log/` `mapper/` — 工具包 / 日志接口 / 生成的 Mapper 示例
-- `cmd/` — 各数据库 demo 与 generator/schema2code 工具
+- `cmd/` — 各数据库 demo 与 generator/schema2code/sqlc/xml2go 工具
 - `samples/` — RuoYi Mapper 兼容性测试样本（KingbaseES 方言）
 
 ## 硬性约定（每次改动必须遵守）
@@ -42,6 +42,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 | 新增数据库 dialector 适配 | docs/agents/add-dialector.md（决策清单 + 逐步操作 + 模板 + 验证清单） |
 | 数据表名前缀功能（表位置改写算法/配置优先级/边界） | docs/agents/table-prefix.md |
 | 完整命令表 / 工具编译 / 入口点 | docs/agents/commands.md |
+| xml2go 逆向代码生成（XML → Go 模型 + Mapper 代理） | docs/agents/xml2go.md（选型对比 / 运行方式 / 签名推导规则 / 验证步骤 / 已知边界） |
 | MyBatis-Plus 内置 CRUD 的使用 / 生成 | docs/agents/mybatis-plus.md（schema2code -mp / BaseMapper 方法映射 / 逻辑删除 / 批量签名） |
 | samples 兼容性缺陷（S-01~S-11） | TODO.md「📁 samples 目录」段落（修复时务必同步更新） |
 | 自动提交 / hooks 配置 | docs/agents/auto-commit.md |
