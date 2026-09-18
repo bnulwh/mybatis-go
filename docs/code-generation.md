@@ -1,6 +1,21 @@
 # 代码生成
 
-## generator — 从 XML Mapper 生成 Go 代码
+## 工具安装
+
+四款工具均为独立 main 包，支持 `go install` 一键安装（二进制落入 `$GOBIN` / `$GOPATH/bin`，无需克隆仓库）；也可在仓库内 `go build -o <name> cmd/<name>/main.go` 或 `go run ./cmd/<name>`：
+
+```bash
+go install github.com/bnulwh/mybatis-go/cmd/xml2go@latest      # XML Mapper → Go 模型 + Mapper 代理
+go install github.com/bnulwh/mybatis-go/cmd/schema2code@latest # 数据库表结构 → Go
+go install github.com/bnulwh/mybatis-go/cmd/sqlc@latest        # 静态 select → 类型安全 Querier
+go install github.com/bnulwh/mybatis-go/cmd/generator@latest   # 已弃用，由 xml2go 取代
+```
+
+> `go install <pkg>@latest` 走 module proxy 解析依赖并编译，安装后的二进制用法与下文各工具的 `./<name>` 形式一致。
+
+## generator（已弃用）— 从 XML Mapper 生成 Go 代码
+
+> **Deprecated**：generator 是 v0.1 早期产物，已被 **xml2go** 全面取代，仅为兼容保留；新项目请直接使用 [xml2go](#xml2go--从-xml-mapper-逆向生成-go-代码)。
 
 ```bash
 go build -o generator cmd/generator/main.go
@@ -8,17 +23,31 @@ go build -o generator cmd/generator/main.go
 ```
 
 参数说明：
-- `-p` 包名（默认 `temp`）
+- `-p` 包名（默认 `temp`；实际未生效，产物固定 `package mapper` / `package models`）
 - `-d` 输出目录（默认 `temp`）
 - `-m` XML Mapper 文件目录（默认 `resources/mapper`）
+
+### generator 与 xml2go 对比
+
+| 能力 | generator（弃用） | xml2go |
+|------|------------------|--------|
+| 包名 / 导入 | 硬编码 `package mapper`、裸 `import "models"`（`-p` 被忽略），仅 GOPATH 布局可用 | `-p` 模块前缀生成 `<prefix>/models` 导入，标准 module 工程直接编译 |
+| 模型元数据 | 仅 json tag；`deleted` / `delete_time` 列粗暴跳过 | `db:"column,pk/logic/version"` + json + `TableName()`；逻辑删除按 MP 约定（deleted / del_flag） |
+| MyBatis-Plus 内置 CRUD | 无 | 自动识别 / 补生成，`-skip-mp` 可关 |
+| 跨 Mapper 模型去重 / 冲突处理 | 无 | 首个 resultMap 生效，Mapper 短名 / 字段名冲突跳过并记录原因 |
+| 产物可编译保证 | 无（引用未生成模型即编译失败） | 引用未生成模型的语句跳过，产物恒可编译；生成后 gofmt + `go/parser` 校验 |
+| 配置文件入口 | 无 | `-c` 直接读 Java 侧 .properties / .yml / .yaml / .xml 自动定位 XML |
+| 签名推导 | 旧版推导，与 orm 注册期校验未对齐 | 与 orm 注册期校验逐条对齐（指针参数 / 分页 / foreach / 批量切片） |
+| 单例 getter | `Get<短名>()` | `GetXxxMapper()` |
+| 跳过原因 / 统计输出 | 无 | 逐 Mapper 统计 + `-v` 打印跳过原因 |
 
 ## schema2code — 从数据库表结构生成代码
 
 ```bash
-go build -o schema2code cmd/schema2code/main.go
-./schema2code -type mysql -host localhost -port 3306 -username root -password 123456 -db mydb -output temp
+go install github.com/bnulwh/mybatis-go/cmd/schema2code@latest
+schema2code -type mysql -host localhost -port 3306 -username root -password 123456 -db mydb -output temp
 # MyBatis-Plus 内置 CRUD：加 -mp 生成 BaseMapper 标准方法名（insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）
-./schema2code -type postgres -host localhost -port 5432 -username root -password 123456 -db mydb -prefix sys_ -tables sys_user -output temp -mp
+schema2code -type postgres -host localhost -port 5432 -username root -password 123456 -db mydb -prefix sys_ -tables sys_user -output temp -mp
 ```
 
 参数说明：
@@ -35,11 +64,11 @@ go build -o schema2code cmd/schema2code/main.go
 ## xml2go — 从 XML Mapper 逆向生成 Go 代码
 
 ```bash
-go build -o xml2go cmd/xml2go/main.go
+go install github.com/bnulwh/mybatis-go/cmd/xml2go@latest
 # 入口一：已知 Mapper XML 目录
-./xml2go -m resources/mapper -d gen -p github.com/xxx/app
+xml2go -m resources/mapper -d gen -p github.com/xxx/app
 # 入口二：直接给 MyBatis/MyBatis-Plus 配置文件（先解析 mapper 位置再生成）
-./xml2go -c src/main/resources/application.yml -d gen -p github.com/xxx/app
+xml2go -c src/main/resources/application.yml -d gen -p github.com/xxx/app
 ```
 
 参数说明：
@@ -55,7 +84,8 @@ go build -o xml2go cmd/xml2go/main.go
 ## sqlc — 从静态 select 生成类型安全 Querier
 
 ```bash
-go run ./cmd/sqlc -m resources/mapper -d querier -p querier
+go install github.com/bnulwh/mybatis-go/cmd/sqlc@latest
+sqlc -m resources/mapper -d querier -p querier
 ```
 
 参数说明：

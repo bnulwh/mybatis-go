@@ -14,19 +14,22 @@
 | `bash coverage.sh` | 生成覆盖率 HTML 报告 |
 | `bash scripts/auto-commit.sh [秒]` | 自动提交监视（见 docs/agents/auto-commit.md） |
 
-## 工具编译
+## 工具编译与安装
 
 | 命令 | 说明 |
 |------|------|
-| `go build -o generator cmd/generator/main.go` | 编译 generator 工具 |
-| `go build -o schema2code cmd/schema2code/main.go` | 编译 schema2code 工具 |
-| `go build -o sqlc cmd/sqlc/main.go` | 编译 sqlc 工具 |
-| `go build -o xml2go cmd/xml2go/main.go` | 编译 xml2go 工具 |
+| `go install github.com/bnulwh/mybatis-go/cmd/xml2go@latest` | 安装 xml2go 工具到 $GOBIN（推荐，无需克隆仓库） |
+| `go install github.com/bnulwh/mybatis-go/cmd/schema2code@latest` | 安装 schema2code 工具到 $GOBIN |
+| `go install github.com/bnulwh/mybatis-go/cmd/sqlc@latest` | 安装 sqlc 工具到 $GOBIN |
+| `go install github.com/bnulwh/mybatis-go/cmd/generator@latest` | 安装 generator（已弃用，由 xml2go 取代） |
+| `go build -o schema2code cmd/schema2code/main.go` | 仓库内编译 schema2code 工具 |
+| `go build -o sqlc cmd/sqlc/main.go` | 仓库内编译 sqlc 工具 |
+| `go build -o xml2go cmd/xml2go/main.go` | 仓库内编译 xml2go 工具 |
 | `go run ./cmd/sqlitedemo` | 运行 SQLite 示例（自动建表 + Mapper 全流程，生成 test.db） |
 
 ## 入口点
 
-- `cmd/generator/main.go` — 从 XML Mapper 文件生成 Go 模型/Mapper 代码
+- `cmd/generator/main.go` — 从 XML Mapper 文件生成 Go 模型/Mapper 代码（**已弃用**，由 xml2go 取代，仅为兼容保留）
 - `cmd/schema2code/main.go` — 从数据库表结构生成 Go 模型/Mapper 代码（`-mp` 生成 MyBatis-Plus 内置 CRUD：BaseMapper 标准方法名 insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）
 - `cmd/sqlc/main.go` — 从 XML Mapper 抽取静态 `<select>` 生成类型安全 Querier（S1，免连库；`-p` 输出包名默认 querier，`-d` 输出目录默认 querier，`-m` mapper 目录默认 resources/mapper，`-v` 打印跳过原因；动态语句自动跳过）
 - `cmd/xml2go/main.go` — 从 XML Mapper 全量语句（含动态 SQL / MP 内置 CRUD）生成 Go 模型 + Mapper 代理 struct（`-m` mapper 目录默认 resources/mapper，`-c` 直接给 mybatis/mybatis-plus 配置文件 .properties/.yml/.yaml/.xml 先解析 XML 位置再生成，`-d` 输出目录默认 gen，`-p` 输出目录导入路径前缀，`-skip-mp` 跳过 MP 内置方法，`-v` 打印跳过原因；见 docs/agents/xml2go.md）

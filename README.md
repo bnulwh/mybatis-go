@@ -16,7 +16,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **自定义 TypeHandler**：`orm.RegisterTypeHandlerFor[T](fn)` 为任意 Go 类型注册参数写入/结果扫描转换器（自定义时间、枚举、JSON 字段等），经 `convertFieldValue` 统一入口覆盖参数绑定、resultMap、无 resultMap 与流式查询全路径
 - **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES、TiDB、TDSQL、PolarDB-MySQL、openGauss、GaussDB、HighGo DB、Vastbase、OceanBase（MySQL/Oracle 模式）、达梦 DM8、GBase 8s（南大通用）、MS SQL Server、Oracle、IBM DB2、ClickHouse，国产数据库适配已完成
 - **Schema 缓存列类型推断**：查询结果列类型自动从 `information_schema` 推断（无需手写 resultMap 即可正确映射 time/bool/数字类型），可配置 TTL，DDL 后自动失效
-- **代码生成**：内置 `generator`（XML → Go）和 `schema2code`（数据库表 → Go）工具
+- **代码生成**：xml2go（XML Mapper 逆向 → Go 模型 + Mapper 代理）、schema2code（数据库表 → Go）、sqlc（静态 select → 类型安全 Querier）三款工具，均支持 `go install` 一键安装（generator 已弃用，由 xml2go 取代）
 - **预编译缓存**：Prepared Statement 自动缓存和复用
 - **事务支持**：`orm.Begin()` / `Commit()` / `Rollback()` TCC 风格全局事务（开启后 Mapper 方法与 SQL 自动参与）；`orm.WithTx(ctx, fn)` 回调式事务（fn 返回 nil 提交 / 返回 error 或 panic 回滚，嵌套调用复用外层事务，不占用 TCC 全局槽，多 goroutine 可并发各自开启）；context 携带事务优先于全局槽
 - **强类型扫描直通道**：`orm.QueryTo(&users, sql, args...)` 查询结果直接扫描到 struct / []struct / []*struct / 标量切片 / []map / map / 标量指针（不经 map 中转，扫描缓冲与字段索引一次预编译）；列名匹配优先 `db` tag 显式列名，回退原名 → 首字母大写 → 蛇形转驼峰 → 大小写不敏感四策略；类型转换优先自定义 TypeHandler；`QueryToContext` 支持 WithTx 事务与超时控制；Mapper 方法声明 `context.Context` 参数即可自动参与 ctx 事务
@@ -213,10 +213,12 @@ func main() {
 ### 2. 一条命令生成 Go 代码
 
 ```bash
+# 安装工具（一次即可，二进制落入 $GOBIN）
+go install github.com/bnulwh/mybatis-go/cmd/xml2go@latest
 # 入口一：直接给 Java 侧配置文件（自动定位 mapper-locations 指向的 XML）
-go run ./cmd/xml2go -c src/main/resources/application.yml -d gen -p github.com/xxx/app
+xml2go -c src/main/resources/application.yml -d gen -p github.com/xxx/app
 # 入口二：已知 Mapper XML 目录
-go run ./cmd/xml2go -m resources/mapper -d gen -p github.com/xxx/app
+xml2go -m resources/mapper -d gen -p github.com/xxx/app
 ```
 
 - `-c` 支持 `.properties` / `.yml` / `.yaml` / `.xml`（`mybatis[-plus].mapper-locations`、`<mappers><mapper resource/>`、Spring `mapperLocations`，兼容 `classpath*:` 前缀与 `*`/`**` 通配）
@@ -262,7 +264,7 @@ func main() {
 | 内嵌 Mapper（go:embed） | XML 随二进制分发，单文件部署，支持磁盘覆盖热修 | [docs/features.md](docs/features.md) |
 | 注入自定义 DB / DSN | 连接代理、测试桩、已有连接池复用 | [docs/configuration.md](docs/configuration.md) |
 | 性能优化 | 预编译语句缓存、反射预编译、扫描目标复用、流式读取 | [docs/features.md](docs/features.md) |
-| 代码生成 | generator / schema2code / xml2go / sqlc 四款工具 | [docs/code-generation.md](docs/code-generation.md) |
+| 代码生成 | xml2go / schema2code / sqlc（generator 已弃用），支持 `go install` 安装 | [docs/code-generation.md](docs/code-generation.md) |
 
 ## 运行示例
 
