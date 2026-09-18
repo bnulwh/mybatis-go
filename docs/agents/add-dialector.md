@@ -461,7 +461,7 @@ go test -count=1 ./...
 
 #### 7d. 配置章节
 
-在「KingbaseES 配置」之后新增 `<中文名>` 配置章节，含 properties 示例。
+在 docs/configuration.md「配置文件」的「KingbaseES（人大金仓）」小节之后新增 `<中文名>` 配置小节，含 properties 示例。
 
 #### 7e. 运行示例
 
@@ -474,11 +474,11 @@ go test -count=1 ./...
 
 #### 7g. 编程式配置
 
-追加 `orm.InitializeDatabase("<name>", ...)` 示例行。
+在 docs/configuration.md「编程式配置」追加 `orm.InitializeDatabase("<name>", ...)` 示例行。
 
 #### 7h. 更新日志
 
-在「更新日志」顶部追加新版本条目。
+在 CHANGELOG.md 顶部追加新版本条目（README「更新日志」仅保留指向 CHANGELOG.md 的链接）。
 
 #### 7i. schema2code
 
@@ -492,7 +492,7 @@ go test -count=1 ./...
 git add orm/dialector/types.go orm/dialector/<name>.go orm/dialector/kingbase_test.go \
         orm/interfaces.go orm/database_config_test.go \
         cmd/<name>demo/ \
-        cmd/schema2code/main.go README.md
+        cmd/schema2code/main.go README.md docs/configuration.md CHANGELOG.md
 git commit -m "feat: <中文名>数据库适配 — <英文名> (<族>兼容族)
 
 - 新增 DatabaseType 常量: <Name>Db，Family() 映射 Family<Family>
@@ -504,7 +504,7 @@ git commit -m "feat: <中文名>数据库适配 — <英文名> (<族>兼容族)
 - 新增 cmd/<name>demo 示例 + application-<name>.properties 配置模板 + demo README
 - schema2code -type 支持 <name>
 - dialector + orm 单测覆盖
-- README 更新: [x] 标记/驱动表/配置/示例/结构/更新日志"
+- README 更新: [x] 标记/驱动表/示例/结构；docs/configuration.md 配置+编程式示例；CHANGELOG.md 更新日志"
 git push
 ```
 
@@ -523,7 +523,9 @@ git push
 | `cmd/<name>demo/application-<name>.properties` | **新增** | 配置模板（与 demo 同目录） |
 | `cmd/<name>demo/README.md` | **新增** | demo 说明（配置/驱动/运行） |
 | `cmd/schema2code/main.go` | 修改 | usage 字符串追加新类型 |
-| `README.md` | 修改 | 特性/清单/驱动表/配置/示例/结构/更新日志 |
+| `README.md` | 修改 | 特性/清单/驱动表/示例/结构 |
+| `docs/configuration.md` | 修改 | 配置小节 + 编程式配置示例行 |
+| `CHANGELOG.md` | 修改 | 顶部追加新版本条目 |
 
 ---
 
@@ -581,5 +583,5 @@ go get github.com/opengauss-international/opengauss-connector-go-pq
 - [ ] JDBC URL `jdbc:<name>://host:port/db` 可被 `parseAddr` 正确解析
 - [ ] `cmd/<name>demo/main.go` 可编译
 - [ ] `cmd/<name>demo/application-<name>.properties` 配置模板正确
-- [ ] `README.md` 已更新（清单/驱动表/配置/示例/结构/更新日志）
+- [ ] `README.md` 已更新（清单/驱动表/示例/结构）；docs/configuration.md 已加配置小节；CHANGELOG.md 已加条目
 - [ ] `git push` 推送成功

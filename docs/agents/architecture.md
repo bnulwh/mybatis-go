@@ -429,7 +429,7 @@ cmd/sqlc（S1：XML 存量静态 select → Querier 代码生成）
 5. orm/dialector/kingbase_test.go + orm/database_config_test.go
    └── 追加单元测试
 
-6. README.md 更新
+6. README.md 更新（含 docs/configuration.md 配置小节与 CHANGELOG.md 更新日志）
 ```
 
 ---

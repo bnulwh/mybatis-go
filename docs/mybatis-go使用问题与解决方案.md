@@ -253,7 +253,7 @@ type SysUserMapper struct {
 
 - **现象**：`mybatis.mapper-locations` 指向目录时 `filterMapperFiles` 用 `filepath.Walk` **递归**收集全部 `.xml`。
 - **要点**：XML 可以按子目录组织（`mybatis/system/`、`mybatis/monitor/`、`mapper/mdm/`）。但 `mybatis-config.xml`（根标签 configuration、无 namespace）会被解析成空 mapper，框架已自动跳过（`loadMapper` 判定根标签非 `mapper` 或无 `namespace` 时返回 nil，S-10），业务层无需再自行过滤。
-- **配套**：Go 部署时用 `go:embed` 内嵌 XML，**无需再解出到临时目录**——`orm.RegisterMapperFS(fsys, patterns...)` 直接读取 `embed.FS` 在内存中解析（见 README「内嵌 Mapper（go:embed）」）。
+- **配套**：Go 部署时用 `go:embed` 内嵌 XML，**无需再解出到临时目录**——`orm.RegisterMapperFS(fsys, patterns...)` 直接读取 `embed.FS` 在内存中解析（见 docs/features.md「内嵌 Mapper（go:embed）」）。
 
 ---
 
