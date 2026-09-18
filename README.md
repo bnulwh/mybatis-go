@@ -22,7 +22,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **强类型扫描直通道**：`orm.QueryTo(&users, sql, args...)` 查询结果直接扫描到 struct / []struct / []*struct / 标量切片 / []map / map / 标量指针（不经 map 中转，扫描缓冲与字段索引一次预编译）；列名匹配优先 `db` tag 显式列名，回退原名 → 首字母大写 → 蛇形转驼峰 → 大小写不敏感四策略；类型转换优先自定义 TypeHandler；`QueryToContext` 支持 WithTx 事务与超时控制；Mapper 方法声明 `context.Context` 参数即可自动参与 ctx 事务
 - **gormish 链式 API（G1）**：`gormish.Open()` 获取链式句柄，GORM 风格链式查询/CRUD——`Table/Model/Select/Where/Or/Order/Limit/Offset/Group/Having/Distinct/Raw` 链式子句 + `Find/First/Last/Count/Scan/Create/Update/Updates/Delete/Exec` finisher；链式方法克隆语句状态（多克隆互不污染），finisher 返回 `(value, error)` 双返回值；条件一律 `?` 占位 + 参数绑定（经方言自动转换为 `$n`/`:n`/`@pn`，表名前缀自动改写）；结果扫描复用 QueryTo 直通道（db tag / TypeHandler / DefaultRowLimit 自动生效）；`Create` 零值主键视为自增列并回填（PG 族经 RETURNING），批量插入多行 VALUES；`First/Last` 未显式排序时按主键排序 LIMIT 1；`Update/Updates/Delete` 无 WHERE 条件报错防全表；`Transaction(fn)` 回调事务（基于 `orm.WithTx`，嵌套复用、不占 TCC 槽）
 - **sqlc 风格 Querier 代码生成（S1）**：`go run ./cmd/sqlc` 扫描 XML Mapper，把静态 `<select>`（无动态标签、无 `${}`）抽取为类型安全的 Querier 接口 + 实现（model / `XxxQuerier` 接口 / `NewXxxQuerier(db)` 构造，一个 mapper 一个文件）；免连库——resultMap 按 jdbcType、resultType 按声明类型定型，标量参数按占位符名具名定型；动态语句自动跳过（`-v` 查看原因）；生成代码走 `QueryToContext`（方言占位符转换 / 表名前缀 / ctx 事务全部由 orm 层承担），select 恒返回切片；resultMap model 带 `db:"column,pk"` tag
-- **xml2go 逆向代码生成**：`go run ./cmd/xml2go -m samples -d gen -p github.com/xxx/app` 从既有 MyBatis/MyBatis-Plus XML 全量语句（含动态 SQL、MP 内置 CRUD）生成 `<output>/models/`（模型 struct + `db:"column,pk/logic/version"` 元数据 + TableName）与 `<output>/mapper/`（orm.BaseMapper 代理 struct + init 注册 + sync.Once 单例 getter），与手写 Mapper 语义一致、产物保证可编译（跨 Mapper 模型去重、引用未生成模型的语句跳过并记录原因）；与 sqlc 互补——动态语句/MP CRUD 选 xml2go，纯静态查询选 sqlc（见 docs/agents/xml2go.md）
+- **xml2go 逆向代码生成**：`go run ./cmd/xml2go -m samples -d gen -p github.com/xxx/app` 从既有 MyBatis/MyBatis-Plus XML 全量语句（含动态 SQL、MP 内置 CRUD）生成 `<output>/models/`（模型 struct + `db:"column,pk/logic/version"` 元数据 + TableName）与 `<output>/mapper/`（orm.BaseMapper 代理 struct + init 注册 + sync.Once 单例 getter），与手写 Mapper 语义一致、产物保证可编译（跨 Mapper 模型去重、引用未生成模型的语句跳过并记录原因）；亦可用 `-c <配置文件>` 直接给 Java 侧 MyBatis/MyBatis-Plus 配置（.properties/.yml/.yaml/.xml：mapper-locations / `<mappers>` / mapperLocations，支持 classpath* 前缀、`**` 通配、config-location 链式解析），先定位 XML 再生成；与 sqlc 互补——动态语句/MP CRUD 选 xml2go，纯静态查询选 sqlc（见 docs/agents/xml2go.md）
 - **大结果集流式读取**：`orm.QueryStream` / Mapper 流式 select 方法返回 `*orm.RowStream`，`Next()` 逐行消费、内存 O(1)，百万行结果集也不会 OOM（配合全局行数上限 `orm.SetDefaultRowLimit` 兜底）
 - **内嵌 Mapper（go:embed）**：`orm.RegisterMapperFS` 直接读取 `embed.FS`，XML 无需解出到临时目录即可用于单文件二进制部署；亦支持「内嵌为基础 + 磁盘覆盖」合并加载（见「内嵌 Mapper」章节）
 - **零 CGO 依赖**：SQLite 走纯 Go 驱动（`modernc.org/sqlite`），交叉编译与静态链接无额外工具链要求
@@ -772,11 +772,14 @@ go build -o schema2code cmd/schema2code/main.go
 
 ```bash
 go build -o xml2go cmd/xml2go/main.go
-# 从既有 MyBatis/MyBatis-Plus XML 全量语句（含动态 SQL、MP 内置 CRUD）生成 Go 模型 + Mapper 代理
+# 入口一：已知 Mapper XML 目录
 ./xml2go -m resources/mapper -d gen -p github.com/xxx/app
+# 入口二：直接给 MyBatis/MyBatis-Plus 配置文件（先解析 mapper 位置再生成）
+./xml2go -c src/main/resources/application.yml -d gen -p github.com/xxx/app
 ```
 
 参数说明：
+- `-c` mybatis/mybatis-plus 配置文件（.properties/.yml/.yaml/.xml），先从配置解析 Mapper XML 位置（`mybatis[-plus].mapper-locations`、`<mappers><mapper resource/>`、`<property name="mapperLocations">`；支持 `classpath*:` 前缀、`*`/`**` 通配、逗号多值、`config-location` 链式解析）再生成；设置时 `-m` 被忽略
 - `-m` XML Mapper 目录（默认 `resources/mapper`）
 - `-d` 输出目录（默认 `gen`，内含 `models/`、`mapper/` 两个子目录）
 - `-p` 输出目录自身的模块导入路径前缀（生成 import 为 `<prefix>/models` 等；留空退化为裸导入，GOPATH 兼容）
@@ -899,6 +902,12 @@ go test -v -count=1 ./... -coverprofile=cover.out
 
 ## 更新日志
 
+- **v0.3.10（xml2go 配置文件直入，2026-09-18）**：`cmd/xml2go -c` 直接给 MyBatis / MyBatis-Plus 配置文件生成 Go 代码 —
+  - **`types.LoadMappersFromMyBatisConfig`（`types/mybatis_config.go`）**：从配置文件解析 Mapper XML 位置并加载，返回解析明细（`MyBatisConfigInfo{ConfigFile, BaseDir, Locations, XmlFiles}`）；支持三种配置形态——① Spring Boot `.properties`：`mybatis[-plus].mapper-locations`（兼容驼峰 `mapperLocations`）；② `.yml`/`.yaml`：`mybatis`/`mybatis-plus` 节点下 `mapper-locations`（标量/行内列表/块列表）；③ `.xml`：mybatis-config.xml（`<mappers><mapper resource|url/>`）与 Spring/MP Spring XML（`<property name="mapperLocations" value|<list><value>`）；仅 `config-location` 时链式解析（最深 3 层，resource 仍按最外层配置的 classpath 根）
+  - **位置展开 `ExpandMapperLocations`**：`classpath*:`/`classpath:`/`file:` 前缀剥离；相对路径以配置文件所在目录为 classpath 根，未命中回退父/祖父目录（兼容「配置在 mybatis/ 子目录、XML 在资源根」布局）；`*`/`?`/`**` 通配（`**` 跨目录层级，自实现 rune 级 glob→正则 + 静态根 WalkDir，Windows 盘符卷名正确处理）；逗号/分号多值；结果仅保留 .xml、去重排序
+  - **命令 `cmd/xml2go -c`**：配置文件入口优先于 `-m`；打印「config → N 位置模式 → M 个 XML」解析摘要
+  - **依赖**：`go.yaml.in/yaml/v3 v3.0.4` 由 indirect 提升为直接依赖（已在依赖图中，无新增下载）
+  - **端到端测试 `types/mybatis_config_test.go`**：8 用例（properties 驼峰键 / yaml 块列表+`**` 递归 / mybatis-config.xml resource+file URL / Spring XML `<list>` / config-location 链式 / 不支持扩展名与空解析错误分支 / 父目录回退）+ CLI 冒烟（模拟 Java 工程 `src/main/resources/application.yml` + samples XML → 22 mappers / 331 functions，与 `-m samples` 一致）；全量 build/vet/test 通过
 - **v0.3.9（xml2go 逆向代码生成，2026-09-18）**：从既有 MyBatis / MyBatis-Plus XML 全量语句生成可直接编译运行的 Go 代码 —
   - **引擎 `types.GenerateXml2GoFiles`（`types/xml2go_gen.go`）**：输入 `SqlMappers`（免连库），输出 `<output>/models/<短名>.go`（模型 struct：`db:"<列名>,pk/logic/version"` 元数据 tag——id/result 列 `,pk`、逻辑删除列 deleted/del_flag `,logic`、版本列 `,version`，association/collection 记 `db:"-"`；json tag；条件 `import "time"`；`TableName()` 方法）+ `<output>/mapper/<Mapper短名>.go`（`orm.BaseMapper` 内嵌 + 函数字段 + `init()` 注册模型与 Mapper + `sync.Once` 单例 `GetXxxMapper()`）；跨 Mapper 模型去重（首个 resultMap 生效）、Mapper 短名/函数字段名冲突跳过、引用未生成模型的语句跳过并记录原因（产物恒可编译）；全部产物 gofmt + `go/parser` 语法校验
   - **签名推导与 orm 注册期校验逐条对齐**：struct 参数为指针 `*models.X`（P1 ID 回填/自动填充要求可寻址）；无 parameterType 语句按占位符逐个生成具名 `interface{}` 参数（与运行期按位绑定对齐），含 `<foreach>` 时退化为单 `map[string]interface{}`；`parameterType="map"` → map 参数；基础类型 + foreach → 切片参数；MP `insertBatch` → `[]*models.X`；`selectPage` 固定 `*orm.PageParam` / `*orm.Page`；返回类型——resultMap → `[]models.X`、resultType=map/未注册 pojo → `[]map[string]interface{}`、resultType=业务模型且已生成 → `[]models.X`（M-04 运行期转换）、resultType 标量 → `[]标量`、DML → `int64`

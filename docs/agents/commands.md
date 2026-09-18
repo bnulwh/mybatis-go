@@ -29,7 +29,7 @@
 - `cmd/generator/main.go` — 从 XML Mapper 文件生成 Go 模型/Mapper 代码
 - `cmd/schema2code/main.go` — 从数据库表结构生成 Go 模型/Mapper 代码（`-mp` 生成 MyBatis-Plus 内置 CRUD：BaseMapper 标准方法名 insert/deleteById/updateById/selectById/selectList/selectOne/selectPage/selectCount/selectBatchIds/deleteBatchIds）
 - `cmd/sqlc/main.go` — 从 XML Mapper 抽取静态 `<select>` 生成类型安全 Querier（S1，免连库；`-p` 输出包名默认 querier，`-d` 输出目录默认 querier，`-m` mapper 目录默认 resources/mapper，`-v` 打印跳过原因；动态语句自动跳过）
-- `cmd/xml2go/main.go` — 从 XML Mapper 全量语句（含动态 SQL / MP 内置 CRUD）生成 Go 模型 + Mapper 代理 struct（`-m` mapper 目录默认 resources/mapper，`-d` 输出目录默认 gen，`-p` 输出目录导入路径前缀，`-skip-mp` 跳过 MP 内置方法，`-v` 打印跳过原因；见 docs/agents/xml2go.md）
+- `cmd/xml2go/main.go` — 从 XML Mapper 全量语句（含动态 SQL / MP 内置 CRUD）生成 Go 模型 + Mapper 代理 struct（`-m` mapper 目录默认 resources/mapper，`-c` 直接给 mybatis/mybatis-plus 配置文件 .properties/.yml/.yaml/.xml 先解析 XML 位置再生成，`-d` 输出目录默认 gen，`-p` 输出目录导入路径前缀，`-skip-mp` 跳过 MP 内置方法，`-v` 打印跳过原因；见 docs/agents/xml2go.md）
 - `cmd/postgresdemo/main.go` — PostgreSQL 使用示例
 - `cmd/mysqldemo/main.go` — MySQL 使用示例
 - `cmd/kingbasedemo/main.go` — 人大金仓 KingbaseES 使用示例

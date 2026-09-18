@@ -11,13 +11,29 @@ xml2go 面向全量语句（含动态 SQL / MP 内置 CRUD）生成反射代理 
 
 ## 用法
 
+### 已知 XML Mapper 目录（`-m`）
+
 ```bash
 go build -o xml2go main.go
-./xml2go -m resources/mapper -d gen -p github.com/xxx/app
+./xml2go -m <工程>/src/main/resources/mapper -d gen -p github.com/xxx/app
 ```
+
+### 只有 MyBatis / MyBatis-Plus 配置文件（`-c`）
+
+先从配置解析 Mapper XML 位置（mapper-locations / `<mappers>` / mapperLocations），再生成：
+
+```bash
+./xml2go -c <工程>/src/main/resources/application.yml -d gen -p github.com/xxx/app   # .yml/.yaml/.properties
+./xml2go -c <工程>/src/main/resources/mybatis/mybatis-config.xml -d gen -p github.com/xxx/app
+./xml2go -c <工程>/src/main/resources/spring-datasource.xml -d gen -p github.com/xxx/app  # Spring XML
+```
+
+支持 `mybatis[-plus].mapper-locations`（classpath*:/classpath: 前缀、`*`/`**` 通配、逗号多值、
+config-location 链式解析）；相对路径以配置文件所在目录为 classpath 根，未命中回退父/祖父目录。
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
+| `-c` | 空 | mybatis/mybatis-plus 配置文件（.properties/.yml/.yaml/.xml），设置时 `-m` 被忽略 |
 | `-m` | `resources/mapper` | XML Mapper 目录 |
 | `-d` | `gen` | 输出目录（内含 `models/`、`mapper/`） |
 | `-p` | 空 | 输出目录自身的模块导入路径前缀（生成 import 为 `<prefix>/models` 等；留空退化为裸导入） |
