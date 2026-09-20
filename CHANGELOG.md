@@ -1,6 +1,10 @@
 # 更新日志
 
-- **v0.3.11（P3-4 SQL 格式化输出 + P3-5 执行计划自动分析，2026-09-20）**：
+- **v0.3.11（P3-3 连接池监控 + P3-4 SQL 格式化输出 + P3-5 执行计划自动分析，2026-09-20）**：
+  - **P3-3 连接池监控**：
+    - **`orm/pool_stats.go`**：`PoolStats()`（当前活跃源）、`PoolStatsFor(name)`（指定源）、`PoolStatsAll()`（全部源 `map[string]sql.DBStats`）、`PoolStatsString()`（格式化输出，多源每源一行）
+    - **定期日志**：`mybatis.configuration.pool-stats-interval=60`（秒，默认 0=关闭）+ 运行时 `StartPoolStatsLogger(interval)` / `StopPoolStatsLogger()` / `SetPoolStatsInterval(d)`；`Close()` 时自动停止
+    - **单元测试**：`orm/pool_stats_test.go` 6 用例（无连接零值、不存在源错误、空 map、格式化字符串、间隔设置、启停）；端到端 `Test_SqlitePoolStats`
   - **P3-4 SQL 格式化输出**：
     - **`orm/pretty_sql.go`**：`FormatSQLWithArgs(sql, args, style)` 替换占位符为格式化参数值（字符串引号、nil→NULL、时间→`'2006-01-02 15:04:05'`、`[]byte`→`x'hex'`、`sql.Null*` 尊重 Valid）；支持 4 种占位符风格——`?`（MySQL/SQLite）、`$n`（PostgreSQL/KingbaseES）、`:n`（Oracle/DB2）、`@pN`（SQL Server）
     - **`PrettySQL(sql)`**：关键字换行缩进格式化器（SELECT/FROM/WHERE/AND/OR/JOIN/ON/SET/VALUES/ORDER BY/GROUP BY/HAVING/LIMIT/INSERT INTO/UPDATE/DELETE FROM）；AND/OR 缩进于 WHERE 之下；子查询自动加缩进

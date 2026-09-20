@@ -42,6 +42,9 @@ func InitializeFromSettings(cm map[string]string) error {
 		SetSlowSQLThreshold(cfg.Setting.SlowSQLThreshold)
 		registerExplainSlowHook()
 	}
+	if cfg.Setting.PoolStatsInterval > 0 {
+		StartPoolStatsLogger(cfg.Setting.PoolStatsInterval)
+	}
 	return combineErrors(err1, err2)
 }
 
@@ -160,6 +163,7 @@ func getRealValue(val string, em map[string]string) string {
 }
 
 func Close() {
+	StopPoolStatsLogger()
 	gDataSources.closeAll()
 	gDataSources.reset()
 	gDbConn = nil

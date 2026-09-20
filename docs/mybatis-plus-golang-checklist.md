@@ -112,7 +112,7 @@
 |---|------|-----------|-----------|------|------|
 | 8.1 | 多数据源切换 | Spring AbstractRoutingDS | ✅ 完全可行 | ✅ 已实现 | UseDataSource(name) |
 | 8.2 | 连接池配置 | HikariCP/Druid | ✅ 完全可行 | ✅ 已实现 | Go 用 database/sql 内置池 |
-| 8.3 | 连接池监控 | 活跃/空闲/等待 | 🔶 可实现 | — | database/sql.DB.Stats() |
+| 8.3 | 连接池监控 | 活跃/空闲/等待 | ✅ 完全可行 | ✅ 已实现 | PoolStats/PoolStatsFor/PoolStatsAll + 定期日志 |
 | 8.4 | 数据源动态增删 | 运行时注册/注销 | ✅ 完全可行 | ✅ 已实现 | AddDataSource/GetDataSource |
 | 8.5 | 读写分离 | 主从路由 | 🔶 可实现 | — | 多数据源 + 路由策略 |
 | 8.6 | 分库分表路由 | ShardingSphere | 🟡 需大幅改造 | — | 超出框架范畴；表前缀 map 已部分覆盖 |
@@ -380,7 +380,7 @@
 |--------|------|--------|------|
 | P3-1 | **ActiveRecord 模式** | 中 | 个人偏好 |
 | P3-2 | **读写分离路由** | 中 | 高可用场景 |
-| P3-3 | **连接池监控** | 小 | 运维可观测 |
+| P3-3 | **连接池监控** | 小 | ✅ 已实现 | PoolStats + pool-stats-interval |
 | P3-4 | **SQL 格式化输出** | 小 | ✅ 已实现 | pretty-sql |
 | P3-5 | **执行计划自动分析** | 小 | ✅ 已实现 | explain-slow-sql + slow-sql-threshold |
 | P3-6 | **自定义模板代码生成** | 中 | 灵活定制 |

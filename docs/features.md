@@ -208,3 +208,50 @@ orm.SlowSQLThreshold()                         // 查询当前阈值
 
 - 仅对 `SELECT` 语句触发，INSERT/UPDATE/DELETE 不触发
 - 基于内置 After 钩子实现，不影响正常执行流程
+
+## 连接池监控
+
+基于 `database/sql.DBStats` 提供连接池运行时状态查询与定期日志输出。
+
+### API
+
+```go
+// 当前活跃数据源连接池状态
+st := orm.PoolStats()
+fmt.Printf("InUse=%d Idle=%d WaitCount=%d\n", st.InUse, st.Idle, st.WaitCount)
+
+// 指定数据源
+st, err := orm.PoolStatsFor("secondary")
+
+// 全部数据源
+all := orm.PoolStatsAll() // map[string]sql.DBStats
+
+// 格式化输出（日志友好）
+log.Info(orm.PoolStatsString())
+```
+
+### 定期日志
+
+```properties
+mybatis.configuration.pool-stats-interval=60
+```
+
+每 60 秒自动输出连接池状态到 INFO 日志。设为 0（默认）关闭。
+
+运行时控制：
+
+```go
+orm.StartPoolStatsLogger(30 * time.Second) // 启动，每 30s 输出
+orm.StopPoolStatsLogger()                  // 停止
+orm.SetPoolStatsInterval(60 * time.Second) // 动态调整间隔
+```
+
+### 输出示例
+
+```log
+[INFO] Pool Stats:
+[default] MaxOpenConnections=100 OpenConnections=2 InUse=1 Idle=1 WaitCount=0 WaitDuration=0s MaxIdleClosed=0 MaxIdleTimeClosed=0 MaxLifetimeClosed=0
+```
+
+- 多数据源时每个源一行
+- `Close()` 时自动停止定期输出

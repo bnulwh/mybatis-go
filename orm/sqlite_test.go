@@ -373,3 +373,47 @@ func Test_SqliteExplainSlowSQL(t *testing.T) {
 		t.Error("explain slow SQL should be enabled")
 	}
 }
+
+func Test_SqlitePoolStats(t *testing.T) {
+	dir := initSqliteTest(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+
+	st := PoolStats()
+	if st.MaxOpenConnections == 0 && st.OpenConnections == 0 {
+		t.Error("expected non-zero pool stats after init")
+	}
+
+	all := PoolStatsAll()
+	if len(all) == 0 {
+		t.Error("expected at least one datasource in PoolStatsAll")
+	}
+	for name, s := range all {
+		if name != "default" {
+			t.Errorf("expected 'default' datasource, got %q", name)
+		}
+		if s.OpenConnections == 0 && s.MaxOpenConnections == 0 {
+			t.Errorf("expected non-zero stats for %s", name)
+		}
+	}
+
+	str := PoolStatsString()
+	if str == "no active datasource" {
+		t.Error("expected stats string with data")
+	}
+
+	stFor, err := PoolStatsFor("default")
+	if err != nil {
+		t.Errorf("PoolStatsFor failed: %v", err)
+	}
+	if stFor.OpenConnections == 0 && stFor.MaxOpenConnections == 0 {
+		t.Error("expected non-zero stats from PoolStatsFor")
+	}
+
+	_, err = PoolStatsFor("nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent datasource")
+	}
+}

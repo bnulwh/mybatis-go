@@ -47,6 +47,7 @@ type MyBatisSetting struct {
 	PrettySQL          bool
 	ExplainSlowSQL     bool
 	SlowSQLThreshold   time.Duration
+	PoolStatsInterval  time.Duration
 }
 
 type Config struct {
@@ -182,6 +183,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			PrettySQL:         parseBool(m, "mybatis.configuration.pretty-sql", false),
 			ExplainSlowSQL:    parseBool(m, "mybatis.configuration.explain-slow-sql", false),
 			SlowSQLThreshold:  parseDuration(m, "mybatis.configuration.slow-sql-threshold", 3000),
+			PoolStatsInterval: parseDuration(m, "mybatis.configuration.pool-stats-interval", 0),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,
