@@ -153,7 +153,7 @@
 | 10.11 | `selectByMap(Map)` | 按列值查询 | 🔶 可实现 | — | Go 用 map[string]any 或 struct tag |
 | 10.12 | `deleteByMap(Map)` | 按列值删除 | 🔶 可实现 | — | 同上 |
 | 10.13 | `update(Wrapper)` | 按条件更新 | 🔶 可实现 | — | 依赖 Wrapper |
-| 10.14 | `insertOrUpdate(T)` | 存在则更新 | 🔶 可实现 | — | 需主键判断 + dialect UPSERT |
+| 10.14 | `insertOrUpdate(T)` | 存在则更新 | 🔶 可实现 | ✅ 已实现 | 方言 upsert：PG/SQLite ON CONFLICT、MySQL ON DUPLICATE KEY、MSSQL/Oracle MERGE |
 | 10.15 | `insertBatch(Collection)` | 批量插入 | 🔶 可实现 | — | 需 foreach 批量 SQL 或 COPY 协议 |
 | 10.16 | `insertBatchSomeColumn(Collection)` | 指定列批量插入 | 🔶 可实现 | — | |
 
@@ -200,7 +200,7 @@
 | # | 功能 | Java 实现 | Go 可行性 | 状态 | 备注 |
 |---|------|-----------|-----------|------|------|
 | 13.1 | Entity CRUD 方法 | 继承 Model | 🔶 可实现 | — | Go 用组合 + 代码生成；或嵌入 BaseMapper |
-| 13.2 | `entity.insertOrUpdate()` | 自判断 | 🔶 可实现 | — | |
+| 13.2 | `entity.insertOrUpdate()` | 自判断 | 🔶 可实现 | ✅ 已实现 | 方言 upsert |
 | 13.3 | `entity.selectById()` | 查询 | 🔶 可实现 | — | |
 
 ### 14. IService / Service 层
@@ -372,7 +372,7 @@
 | P2-5 | **`databaseId` 多数据库 SQL 选择** | 小 | 跨库 SQL 差异 |
 | P2-6 | **存储过程调用** | 小 | 遗留数据库 |
 | P2-7 | **Service 层代码生成** | 中 | 可选 |
-| P2-8 | **`insertOrUpdate`** | 中 | Upsert 语义 |
+| P2-8 | **`insertOrUpdate`** | 中 | ✅ 已实现 | Upsert 语义（PG/SQLite/MySQL/MSSQL/Oracle） |
 
 ### P3 — 锦上添花
 

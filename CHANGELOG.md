@@ -1,6 +1,6 @@
 # 更新日志
 
-- **v0.3.11（P3-2 读写分离 + P3-3 连接池监控 + P3-4 SQL 格式化输出 + P3-5 执行计划自动分析，2026-09-20）**：
+- **v0.3.11（P3-2 读写分离 + P3-3 连接池监控 + P3-4 SQL 格式化输出 + P3-5 执行计划自动分析 + P2-8 insertOrUpdate，2026-09-20）**：
   - **P3-2 读写分离路由**：
     - **`orm/readwrite_split.go`**：`SetReadWriteSplitting(on)` / `ReadWriteSplittingEnabled()` + `SetReplicaNames(names)` / `GetReplicaNames()` + `RegisterReplica(name, ...)` / `PickReplica()`
     - **路由机制**：Mapper SELECT 方法自动路由到副本（轮询），INSERT/UPDATE/DELETE 走主库；事务内（`Begin`/`WithTx`）强制主库；无可用副本降级到主库
@@ -22,7 +22,14 @@
     - **配置**：`mybatis.configuration.explain-slow-sql=true`（默认 false）+ `mybatis.configuration.slow-sql-threshold=3000`（毫秒，默认 3000）+ 运行时 `orm.SetExplainSlowSQL(on)` / `orm.SetSlowSQLThreshold(d)` / `orm.SlowSQLThreshold()`
     - **集成**：内置 After 钩子（`registerExplainSlowHook`），在 `InitializeFromSettings` 中按配置自动注册；仅对 SELECT 触发
     - **单元测试**：`orm/explain_slow_test.go` 6 用例（EXPLAIN 前缀 7 种方言、配置开关、阈值设置、非 SELECT 跳过、低于阈值跳过、无连接回退）；端到端 `Test_SqliteExplainSlowSQL`
-  - **文档**：docs/features.md 新增「SQL 格式化输出」+「执行计划自动分析」专题 + docs/configuration.md 配置项补齐 + checklist 23.3/23.4/P3-4/P3-5 ✅
+  - **P2-8 insertOrUpdate（Upsert 语义）**：
+    - **`orm/upsert.go`**：方言级 upsert SQL 生成——PostgreSQL `ON CONFLICT ... DO UPDATE SET col=EXCLUDED.col`、MySQL `ON DUPLICATE KEY UPDATE col=VALUES(col)`、SQLite `ON CONFLICT ... DO UPDATE SET col=EXCLUDED.col`、MSSQL `MERGE INTO ... USING ... WHEN MATCHED/NOT MATCHED`、Oracle `MERGE INTO ... USING SELECT FROM DUAL`
+    - **`types/mp_builtin.go`**：`UpsertSQLArgs` 结构体 + `upsertSQLProvider`/`upsertSQLByFamily` 双回调注入（跨包依赖规避）+ `SetUpsertSQLProvider`/`SetUpsertSQLByFamily` + `SqlMapper.EnsureUpsertFunction(family)` 两阶段生成（XML 加载期跳过 → DB 初始化后注入）
+    - **`types/table_struct.go`**：`MPInsertOrUpdateID` 常量 + `generateInsertOrUpdateSQL()` 方法（PK 列排除 UPDATE SET、逻辑删除列排除列列表）+ `writeMPFunctions` 条件写入 `insertOrUpdate` XML 元素
+    - **两阶段生成**：XML 加载期（`ensureMPBuiltinCRUD`）时 `gDbConn` 未初始化，upsert SQL 无法确定方言；DB 初始化后 `ensureUpsertFunctions()` 调用 `SqlMapper.EnsureUpsertFunction()` 动态注入方法
+    - **不支持的方言**（ClickHouse/DB2/Informix）静默跳过 `insertOrUpdate` 生成
+    - **单元测试**：`orm/upsert_test.go`（PostgreSQL/MySQL/SQLite/MSSQL/Oracle SQL 生成 + 不支持方言跳过）+ `types/table_struct_test.go`（`Test_InsertOrUpdate_NoProvider`、insertOrUpdate SQL 验证）；端到端 `Test_SqliteInsertOrUpdate`
+  - **文档**：docs/features.md 新增「SQL 格式化输出」+「执行计划自动分析」专题 + docs/configuration.md 配置项补齐 + docs/agents/mybatis-plus.md 新增 insertOrUpdate 方法表 + §3.1 方言 upsert 专题 + checklist 23.3/23.4/P3-4/P3-5/P2-8 ✅
 
 - **v0.3.10（xml2go 配置文件直入，2026-09-18）**：`cmd/xml2go -c` 直接给 MyBatis / MyBatis-Plus 配置文件生成 Go 代码 —
   - **`types.LoadMappersFromMyBatisConfig`（`types/mybatis_config.go`）**：从配置文件解析 Mapper XML 位置并加载，返回解析明细（`MyBatisConfigInfo{ConfigFile, BaseDir, Locations, XmlFiles}`）；支持三种配置形态——① Spring Boot `.properties`：`mybatis[-plus].mapper-locations`（兼容驼峰 `mapperLocations`）；② `.yml`/`.yaml`：`mybatis`/`mybatis-plus` 节点下 `mapper-locations`（标量/行内列表/块列表）；③ `.xml`：mybatis-config.xml（`<mappers><mapper resource|url/>`）与 Spring/MP Spring XML（`<property name="mapperLocations" value|<list><value>`）；仅 `config-location` 时链式解析（最深 3 层，resource 仍按最外层配置的 classpath 根）

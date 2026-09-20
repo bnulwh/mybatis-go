@@ -13,7 +13,7 @@ import (
 var mpBuiltinIDs = []string{
 	MPInsertID, MPDeleteByIDID, MPUpdateByIDID, MPSelectByIDID,
 	MPSelectOneID, MPSelectListID, MPSelectPageID, MPSelectCountID,
-	MPSelectBatchIDsID, MPDeleteBatchIDsID, MPInsertBatchID,
+	MPSelectBatchIDsID, MPDeleteBatchIDsID, MPInsertBatchID, MPInsertOrUpdateID,
 }
 
 // jdkTypeNames resultMap type 为 JDK 基础类型时不可推导表结构
@@ -42,6 +42,33 @@ var modelStructureProvider func(typeName string) *TableStructure
 // 提供器命中时优先于 resultMap 推导：表名、列、主键、逻辑删除列均以 tag 元数据为准。
 func SetModelStructureProvider(fn func(typeName string) *TableStructure) {
 	modelStructureProvider = fn
+}
+
+// UpsertSQLArgs upsert SQL 生成参数（由 TableStructure 填充，传递给 dialect）。
+type UpsertSQLArgs struct {
+	Table      string
+	PkColumn   string
+	Columns    []string
+	Properties []string
+	JdbcTypes  []string
+}
+
+// upsertSQLProvider upsert SQL 提供器：由 orm 包在初始化时注入，
+// 根据表结构参数生成方言特定的 INSERT ... ON CONFLICT/ON DUPLICATE KEY/MERGE 语句。
+// 返回空字符串表示方言不支持 upsert（此时不生成 insertOrUpdate 方法）。
+var upsertSQLProvider func(args UpsertSQLArgs) string
+
+// SetUpsertSQLProvider 注册 upsert SQL 提供器（orm 包 init 时调用）。
+func SetUpsertSQLProvider(fn func(args UpsertSQLArgs) string) {
+	upsertSQLProvider = fn
+}
+
+// upsertSQLByFamily 按数据库族生成 upsert SQL（由 orm 包在 ensureUpsertFunctions 中调用）。
+var upsertSQLByFamily func(family string, args UpsertSQLArgs) string
+
+// SetUpsertSQLByFamily 注册按数据库族生成 upsert SQL 的回调（orm 包 init 时调用）。
+func SetUpsertSQLByFamily(fn func(family string, args UpsertSQLArgs) string) {
+	upsertSQLByFamily = fn
 }
 
 // ensureMPBuiltinCRUD：Mapper 缺少 MP 内置 CRUD 时，若存在可推导表结构的 resultMap
@@ -88,6 +115,75 @@ func (in *SqlMapper) ensureMPBuiltinCRUD() {
 	}
 	if added > 0 {
 		log.Infof("mapper %v: generated %d mybatis-plus builtin crud functions in memory (table %s)", in.Namespace, added, ts.Table)
+	}
+}
+
+// EnsureUpsertFunction 在数据库连接就绪后补生成 insertOrUpdate 方法。
+// XML 加载期因 gDbConn 未就绪，upsertSQLProvider 返回空串导致 insertOrUpdate 未生成；
+// 此方法在 orm.InitializeFromSettings 设置 gDbConn 后调用，
+// 通过 upsertSQLByFamily 回调按当前数据库方言生成 upsert SQL 并注入 Mapper。
+func (in *SqlMapper) EnsureUpsertFunction(family string) {
+	if in.NamedFunctions[MPInsertOrUpdateID] != nil {
+		return
+	}
+	if upsertSQLByFamily == nil {
+		return
+	}
+	ts, rm := buildTableStructureFromResultMap(in)
+	if ts == nil || ts.PrimaryColumn == nil {
+		return
+	}
+	var columns, properties, jdbcTypes []string
+	for _, column := range ts.Columns {
+		if ts.isLogicColumn(column.Name) {
+			continue
+		}
+		columns = append(columns, column.Name)
+		properties = append(properties, column.getPropertyName())
+		jdbcTypes = append(jdbcTypes, column.getJdbcType())
+	}
+	args := UpsertSQLArgs{
+		Table:      ts.Table,
+		PkColumn:   ts.PrimaryColumn.Name,
+		Columns:    columns,
+		Properties: properties,
+		JdbcTypes:  jdbcTypes,
+	}
+	sql := upsertSQLByFamily(family, args)
+	if sql == "" {
+		return
+	}
+	doc := etree.NewDocument()
+	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8"`)
+	mapper := doc.CreateElement("mapper")
+	mapper.CreateAttr("namespace", "__upsert__")
+	ts.writeBaseColumnList(mapper)
+	iu := mapper.CreateElement("insert")
+	iu.CreateAttr("id", MPInsertOrUpdateID)
+	iu.CreateAttr("parameterType", ts.getModelName(""))
+	iu.CreateText("\n\t\t" + sql + "\n\t")
+	bts, err := doc.WriteToBytes()
+	if err != nil {
+		log.Warnf("generate upsert for %v failed: %v", in.Namespace, err)
+		return
+	}
+	node, err := parseXmlNode(bytes.NewReader(bts))
+	if err != nil || node == nil {
+		log.Warnf("parse upsert for %v failed: %v", in.Namespace, err)
+		return
+	}
+	sns := makeNamedSql(filterSqlElement(node.Elements))
+	rms := map[string]*ResultMap{buildKey(DefaultResultMapName): rm}
+	for _, fn := range filterSqlFunction(node.Elements, rms, sns, "__upsert__") {
+		if in.NamedFunctions[fn.Id] != nil {
+			continue
+		}
+		fn.Owner = in.Namespace
+		in.Functions = append(in.Functions, fn)
+		in.NamedFunctions[fn.Id] = fn
+		in.NamedFunctions[buildKey(fn.Id)] = fn
+		in.NamedFunctions[strings.ToLower(fn.Id)] = fn
+		log.Infof("mapper %v: generated insertOrUpdate (upsert) for table %s", in.Namespace, ts.Table)
 	}
 }
 

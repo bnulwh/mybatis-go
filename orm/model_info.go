@@ -251,4 +251,6 @@ func modelStructureProviderCallback(typeName string) *types.TableStructure {
 
 func init() {
 	types.SetModelStructureProvider(modelStructureProviderCallback)
+	types.SetUpsertSQLProvider(upsertSQLProviderCallback)
+	types.SetUpsertSQLByFamily(upsertSQLByFamilyCallback)
 }

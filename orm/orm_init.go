@@ -35,6 +35,7 @@ func InitializeFromSettings(cm map[string]string) error {
 		gDataSources.add(defaultDataSourceName, db)
 		SetPrettySQL(cfg.Setting.PrettySQL)
 	}
+	ensureUpsertFunctions()
 	initSecondCache(cfg.Setting.CacheEnabled, cfg.Setting.LocalCacheSize, cfg.Setting.LocalCacheTTL)
 	SetPrettySQL(cfg.Setting.PrettySQL)
 	if cfg.Setting.ExplainSlowSQL {

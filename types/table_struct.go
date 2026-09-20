@@ -26,6 +26,7 @@ const (
 	MPSelectBatchIDsID = "selectBatchIds"
 	MPDeleteBatchIDsID = "deleteBatchIds"
 	MPInsertBatchID    = "insertBatch"
+	MPInsertOrUpdateID = "insertOrUpdate"
 )
 
 func NewTableStruct(table string, res []map[string]interface{}) (*TableStructure, error) {
@@ -511,6 +512,14 @@ func (ts *TableStructure) writeMPFunctions(mapper *etree.Element, prefix string)
 	ib.CreateAttr("id", MPInsertBatchID)
 	ib.CreateAttr("parameterType", ts.getModelName(prefix))
 	ib.CreateText(ts.generateInsertBatchSQL())
+
+	// insertOrUpdate：dialect-specific upsert（需 upsertSQLProvider 注入）
+	if sql := ts.generateInsertOrUpdateSQL(); sql != "" {
+		iu := mapper.CreateElement("insert")
+		iu.CreateAttr("id", MPInsertOrUpdateID)
+		iu.CreateAttr("parameterType", ts.getModelName(prefix))
+		iu.CreateText(sql)
+	}
 }
 
 // getMPPrimaryJdbcType 主键 JDBC 类型（MP 风格）：int64/uint64 主键 → java.lang.Long（codegen 生成 int64 签名），
@@ -586,4 +595,34 @@ func (ts *TableStructure) generateMPDeleteByIDSQL() string {
 	}
 	return fmt.Sprintf("\n\t\tdelete from %s where %s=#{%s,jdbcType=%s}\n\t",
 		ts.Table, ts.PrimaryColumn.Name, ts.PrimaryColumn.getPropertyName(), ts.PrimaryColumn.getJdbcType())
+}
+
+// generateInsertOrUpdateSQL 生成方言特定的 upsert SQL；
+// 依赖 orm 注入的 upsertSQLProvider（根据当前数据库方言生成 INSERT ... ON CONFLICT /
+// ON DUPLICATE KEY UPDATE / MERGE 语句）；未注入或方言不支持时返回空串（不生成方法）。
+func (ts *TableStructure) generateInsertOrUpdateSQL() string {
+	if upsertSQLProvider == nil {
+		return ""
+	}
+	var columns, properties, jdbcTypes []string
+	for _, column := range ts.Columns {
+		if ts.isLogicColumn(column.Name) {
+			continue
+		}
+		columns = append(columns, column.Name)
+		properties = append(properties, column.getPropertyName())
+		jdbcTypes = append(jdbcTypes, column.getJdbcType())
+	}
+	args := UpsertSQLArgs{
+		Table:      ts.Table,
+		PkColumn:   ts.PrimaryColumn.Name,
+		Columns:    columns,
+		Properties: properties,
+		JdbcTypes:  jdbcTypes,
+	}
+	sql := upsertSQLProvider(args)
+	if sql == "" {
+		return ""
+	}
+	return "\n\t\t" + sql + "\n\t"
 }

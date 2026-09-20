@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -8,6 +9,25 @@ import (
 	"testing"
 	"time"
 )
+
+func generateTestUpsertSQL(args UpsertSQLArgs) string {
+	var cnames, cvalues, updates []string
+	for i, col := range args.Columns {
+		prop := args.Properties[i]
+		jt := args.JdbcTypes[i]
+		cnames = append(cnames, col)
+		cvalues = append(cvalues, fmt.Sprintf("#{%s,jdbcType=%s}", prop, jt))
+		if col != args.PkColumn {
+			updates = append(updates, fmt.Sprintf("%s=EXCLUDED.%s", col, col))
+		}
+	}
+	return fmt.Sprintf("insert into %s (%s) values (%s) on conflict (%s) do update set %s",
+		args.Table,
+		strings.Join(cnames, ","),
+		strings.Join(cvalues, ","),
+		args.PkColumn,
+		strings.Join(updates, ","))
+}
 
 // newMPTestTableStructure 构造一张含主键、普通列与逻辑删除列的表结构。
 func newMPTestTableStructure() *TableStructure {
@@ -32,6 +52,12 @@ func newMPTestTableStructure() *TableStructure {
 // Test_TableStruct_SaveMPToFile 生成的 MyBatis-Plus 风格 XML 可被 mybatis-go 正常加载，
 // 且 10 个 BaseMapper 内置方法齐全（M 系列 / P16：无需手写 GoExtraMapper）。
 func Test_TableStruct_SaveMPToFile(t *testing.T) {
+	origProvider := upsertSQLProvider
+	upsertSQLProvider = func(args UpsertSQLArgs) string {
+		return generateTestUpsertSQL(args)
+	}
+	defer func() { upsertSQLProvider = origProvider }()
+
 	ts := newMPTestTableStructure()
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "SysUserMapper.xml")
@@ -54,7 +80,7 @@ func Test_TableStruct_SaveMPToFile(t *testing.T) {
 	}
 	ids := []string{MPInsertID, MPDeleteByIDID, MPUpdateByIDID, MPSelectByIDID,
 		MPSelectOneID, MPSelectListID, MPSelectPageID, MPSelectCountID,
-		MPSelectBatchIDsID, MPDeleteBatchIDsID}
+		MPSelectBatchIDsID, MPDeleteBatchIDsID, MPInsertOrUpdateID}
 	for _, id := range ids {
 		if m.NamedFunctions[id] == nil {
 			t.Errorf("MP built-in function %q missing", id)
@@ -64,6 +90,12 @@ func Test_TableStruct_SaveMPToFile(t *testing.T) {
 
 // Test_MPGeneratedSQL 逐个验证内置方法生成的 SQL（含逻辑删除语义）。
 func Test_MPGeneratedSQL(t *testing.T) {
+	origProvider := upsertSQLProvider
+	upsertSQLProvider = func(args UpsertSQLArgs) string {
+		return generateTestUpsertSQL(args)
+	}
+	defer func() { upsertSQLProvider = origProvider }()
+
 	ts := newMPTestTableStructure()
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "SysUserMapper.xml")
@@ -140,6 +172,12 @@ func Test_MPGeneratedSQL(t *testing.T) {
 			t.Error("deleteBatchIds sql unexpected:", sql)
 		}
 	}
+	// insertOrUpdate：upsert（需 upsertSQLProvider）
+	if sql := getSQL(t, MPInsertOrUpdateID, map[string]interface{}{"id": int64(1), "userName": "admin"}); sql != "" {
+		if !strings.Contains(sql, "insert into sys_user") || !strings.Contains(sql, "on conflict") || !strings.Contains(sql, "do update set") {
+			t.Error("insertOrUpdate sql unexpected:", sql)
+		}
+	}
 	// PrepareSQL 冒烟：selectById 参数化
 	fn := m.NamedFunctions[MPSelectByIDID]
 	if fn != nil {
@@ -154,6 +192,12 @@ func Test_MPGeneratedSQL(t *testing.T) {
 // Test_TableStruct_SaveMPToFile_NoDeleted 无逻辑删除列时：deleteById/deleteBatchIds 走物理删除，
 // select 不带 deleted 过滤。
 func Test_TableStruct_SaveMPToFile_NoDeleted(t *testing.T) {
+	origProvider := upsertSQLProvider
+	upsertSQLProvider = func(args UpsertSQLArgs) string {
+		return generateTestUpsertSQL(args)
+	}
+	defer func() { upsertSQLProvider = origProvider }()
+
 	ts := newMPTestTableStructure()
 	// 移除逻辑删除列
 	var cols []*ColumnStructure
@@ -199,6 +243,12 @@ func Test_TableStruct_SaveMPToFile_NoDeleted(t *testing.T) {
 
 // Test_TableStruct_MPCodegen 生成的 MP mapper 能产出 Go 代码（generateDefine 方法名）。
 func Test_TableStruct_MPCodegen(t *testing.T) {
+	origProvider := upsertSQLProvider
+	upsertSQLProvider = func(args UpsertSQLArgs) string {
+		return generateTestUpsertSQL(args)
+	}
+	defer func() { upsertSQLProvider = origProvider }()
+
 	ts := newMPTestTableStructure()
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "SysUserMapper.xml")
@@ -213,7 +263,7 @@ func Test_TableStruct_MPCodegen(t *testing.T) {
 	}
 	content := string(mps.Mappers[0].generateContent("src"))
 	for _, name := range []string{"DeleteById", "UpdateById", "SelectById", "SelectList",
-		"SelectOne", "SelectPage", "SelectCount", "SelectBatchIds", "DeleteBatchIds"} {
+		"SelectOne", "SelectPage", "SelectCount", "SelectBatchIds", "DeleteBatchIds", "InsertOrUpdate"} {
 		if !strings.Contains(content, name) {
 			t.Errorf("generated mapper missing method %s", name)
 		}
@@ -237,6 +287,12 @@ func Test_TableStruct_MPCodegen(t *testing.T) {
 // 纯静态语句 → 不强制 parameterType（codegen 生成无参签名，杜绝错参）。
 // 不变式：parameterType 存在 ⟺ 语句含 #{} 或 <foreach>。
 func Test_GeneratedXML_AllStatementsHaveParameterType(t *testing.T) {
+	origProvider := upsertSQLProvider
+	upsertSQLProvider = func(args UpsertSQLArgs) string {
+		return generateTestUpsertSQL(args)
+	}
+	defer func() { upsertSQLProvider = origProvider }()
+
 	for _, mp := range []bool{false, true} {
 		ts := newMPTestTableStructure()
 		dir := t.TempDir()
@@ -289,5 +345,29 @@ func Test_GeneratedXML_AllStatementsHaveParameterType(t *testing.T) {
 				idx += len(tag) + rel
 			}
 		}
+	}
+}
+
+// Test_InsertOrUpdate_NoProvider 无 upsertSQLProvider 时不生成 insertOrUpdate 方法。
+func Test_InsertOrUpdate_NoProvider(t *testing.T) {
+	origProvider := upsertSQLProvider
+	upsertSQLProvider = nil
+	defer func() { upsertSQLProvider = origProvider }()
+
+	ts := newMPTestTableStructure()
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "SysUserMapper.xml")
+	if err := ts.SaveMPToFile(filename, ""); err != nil {
+		t.Error("SaveMPToFile failed:", err)
+		return
+	}
+	mps := NewSqlMappers(dir)
+	if mps == nil || len(mps.Mappers) == 0 {
+		t.Error("load generated MP mapper failed")
+		return
+	}
+	m := mps.Mappers[0]
+	if m.NamedFunctions[MPInsertOrUpdateID] != nil {
+		t.Error("insertOrUpdate should not be generated without upsertSQLProvider")
 	}
 }

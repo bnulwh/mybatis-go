@@ -41,9 +41,12 @@ func Test_MPBuiltin_AutoGenerate(t *testing.T) {
 	if m.NamedFunctions["selectUserList"] == nil {
 		t.Error("existing selectUserList should be kept")
 	}
-	// 10 个 MP 内置方法齐全
+	// 10 个 MP 内置方法齐全（insertOrUpdate 依赖 dialect，不在此检查）
 	var missing []string
 	for _, id := range mpBuiltinIDs {
+		if id == MPInsertOrUpdateID {
+			continue
+		}
 		if m.NamedFunctions[id] == nil {
 			missing = append(missing, id)
 		}

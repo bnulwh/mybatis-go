@@ -18,6 +18,7 @@ XML 方法 ID = Java `BaseMapper<T>` 标准方法名；codegen 自动识别 `<fo
 | `selectCount(Wrapper)` | `selectCount` | `SelectCount() ([]int64, error)` |
 | `selectBatchIds(Collection)` | `selectBatchIds` | `SelectBatchIds(ids []int64) ([]T, error)` |
 | `deleteBatchIds(Collection)` | `deleteBatchIds` | `DeleteBatchIds(ids []int64) (int64, error)` |
+| `insertOrUpdate(T)` | `insertOrUpdate` | `InsertOrUpdate(model T) (int64, error)` |
 
 > 批量方法签名：codegen 检测到函数体含 `<foreach>` 且参数为标量类型时，自动生成 `[]T`（如 `parameterType="Long"` → `[]int64`），运行时 `effectiveParamType` 按实际切片参数分派（S-05）。此能力对所有 Mapper 生效（samples `deleteConfigByIds` 亦生成 `[]int64`）。
 
@@ -111,6 +112,19 @@ SelectCount()            → select count(*) from sys_user where deleted = false
 SelectBatchIds([1,2])    → select id, user_name from sys_user where id in ( 1, 2) and deleted = false
 DeleteBatchIds([1,2])    → update sys_user set deleted=true,delete_time=now() where id in ( 1, 2)
 ```
+
+### 3.1 `insertOrUpdate` 方言 Upsert 语义
+
+`insertOrUpdate` 根据当前数据库方言自动生成对应的 upsert SQL：
+
+| 数据库族 | SQL 模式 |
+|---------|---------|
+| PostgreSQL / KingbaseES / OpenGauss / SQLite | `INSERT INTO ... VALUES (...) ON CONFLICT (pk) DO UPDATE SET col=EXCLUDED.col` |
+| MySQL / TiDB / OceanBase | `INSERT INTO ... VALUES (...) ON DUPLICATE KEY UPDATE col=VALUES(col)` |
+| MSSQL | `MERGE INTO ... USING (VALUES (...)) AS source ON ... WHEN MATCHED THEN UPDATE SET ... WHEN NOT MATCHED THEN INSERT ...` |
+| Oracle / DM | `MERGE INTO ... USING (SELECT ... FROM DUAL) source ON ... WHEN MATCHED THEN UPDATE SET ... WHEN NOT MATCHED THEN INSERT ...` |
+
+> 注意：`insertOrUpdate` **依赖数据库连接初始化**后才能生成（XML 加载期 gDbConn 未就绪，upsert SQL 在 `InitializeFromSettings` 设置数据库连接后延迟注入）。不支持的方言（如 ClickHouse）不会生成此方法。主键列不进入 `DO UPDATE SET` / `UPDATE SET` 子句（避免覆盖主键）。
 
 ## 4. 生成的 Go Mapper（真实 codegen 产物）
 
