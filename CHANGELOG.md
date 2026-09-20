@@ -1,12 +1,18 @@
 # 更新日志
 
-- **v0.3.11（P3-4 SQL 格式化输出，2026-09-20）**：
-  - **`orm/pretty_sql.go`**：`FormatSQLWithArgs(sql, args, style)` 替换占位符为格式化参数值（字符串引号、nil→NULL、时间→`'2006-01-02 15:04:05'`、`[]byte`→`x'hex'`、`sql.Null*` 尊重 Valid）；支持 4 种占位符风格——`?`（MySQL/SQLite）、`$n`（PostgreSQL/KingbaseES）、`:n`（Oracle/DB2）、`@pN`（SQL Server）
-  - **`PrettySQL(sql)`**：关键字换行缩进格式化器（SELECT/FROM/WHERE/AND/OR/JOIN/ON/SET/VALUES/ORDER BY/GROUP BY/HAVING/LIMIT/INSERT INTO/UPDATE/DELETE FROM）；AND/OR 缩进于 WHERE 之下；子查询自动加缩进
-  - **配置**：`mybatis.configuration.pretty-sql=true`（默认 false）+ 运行时 `orm.SetPrettySQL(on)` / `orm.PrettySQLEnabled()`
-  - **集成**：`executeMethod`/`executeStream`/`executePage`/`executeWithResult`/`queryRows`/`QueryStream`/`QueryToContext` 日志点均调用 `formatSQLForLog`——关闭时原样输出 SQL，开启时参数绑定 + 格式化；仅影响日志，不影响执行
-  - **单元测试**：`orm/pretty_sql_test.go` 17 用例（formatArg 16 类型、4 种占位符替换、nil 参数、PrettySQL 6 种语句、空输入、配置开关、formatSQLForLog 开/关）；端到端 `Test_SqlitePrettySQL`（Mapper 全流程 + SetPrettySQL）
-  - **文档**：docs/features.md 新增「SQL 格式化输出」专题 + docs/configuration.md 配置项补齐 + checklist 23.3 ✅
+- **v0.3.11（P3-4 SQL 格式化输出 + P3-5 执行计划自动分析，2026-09-20）**：
+  - **P3-4 SQL 格式化输出**：
+    - **`orm/pretty_sql.go`**：`FormatSQLWithArgs(sql, args, style)` 替换占位符为格式化参数值（字符串引号、nil→NULL、时间→`'2006-01-02 15:04:05'`、`[]byte`→`x'hex'`、`sql.Null*` 尊重 Valid）；支持 4 种占位符风格——`?`（MySQL/SQLite）、`$n`（PostgreSQL/KingbaseES）、`:n`（Oracle/DB2）、`@pN`（SQL Server）
+    - **`PrettySQL(sql)`**：关键字换行缩进格式化器（SELECT/FROM/WHERE/AND/OR/JOIN/ON/SET/VALUES/ORDER BY/GROUP BY/HAVING/LIMIT/INSERT INTO/UPDATE/DELETE FROM）；AND/OR 缩进于 WHERE 之下；子查询自动加缩进
+    - **配置**：`mybatis.configuration.pretty-sql=true`（默认 false）+ 运行时 `orm.SetPrettySQL(on)` / `orm.PrettySQLEnabled()`
+    - **集成**：`executeMethod`/`executeStream`/`executePage`/`executeWithResult`/`queryRows`/`QueryStream`/`QueryToContext` 日志点均调用 `formatSQLForLog`——关闭时原样输出 SQL，开启时参数绑定 + 格式化；仅影响日志，不影响执行
+    - **单元测试**：`orm/pretty_sql_test.go` 17 用例（formatArg 16 类型、4 种占位符替换、nil 参数、PrettySQL 6 种语句、空输入、配置开关、formatSQLForLog 开/关）；端到端 `Test_SqlitePrettySQL`
+  - **P3-5 执行计划自动分析**：
+    - **`orm/explain_slow.go`**：SELECT 超过阈值自动执行 `EXPLAIN` 并输出执行计划到 WARN 日志；7 种数据库 EXPLAIN 语法（MySQL/SQLite `EXPLAIN`、PostgreSQL `EXPLAIN ANALYZE`、Oracle `EXPLAIN PLAN FOR`、MSSQL `SET SHOWPLAN_TEXT ON`、DB2 `EXPLAIN ALL FOR`、Informix `SET EXPLAIN ON`）
+    - **配置**：`mybatis.configuration.explain-slow-sql=true`（默认 false）+ `mybatis.configuration.slow-sql-threshold=3000`（毫秒，默认 3000）+ 运行时 `orm.SetExplainSlowSQL(on)` / `orm.SetSlowSQLThreshold(d)` / `orm.SlowSQLThreshold()`
+    - **集成**：内置 After 钩子（`registerExplainSlowHook`），在 `InitializeFromSettings` 中按配置自动注册；仅对 SELECT 触发
+    - **单元测试**：`orm/explain_slow_test.go` 6 用例（EXPLAIN 前缀 7 种方言、配置开关、阈值设置、非 SELECT 跳过、低于阈值跳过、无连接回退）；端到端 `Test_SqliteExplainSlowSQL`
+  - **文档**：docs/features.md 新增「SQL 格式化输出」+「执行计划自动分析」专题 + docs/configuration.md 配置项补齐 + checklist 23.3/23.4/P3-4/P3-5 ✅
 
 - **v0.3.10（xml2go 配置文件直入，2026-09-18）**：`cmd/xml2go -c` 直接给 MyBatis / MyBatis-Plus 配置文件生成 Go 代码 —
   - **`types.LoadMappersFromMyBatisConfig`（`types/mybatis_config.go`）**：从配置文件解析 Mapper XML 位置并加载，返回解析明细（`MyBatisConfigInfo{ConfigFile, BaseDir, Locations, XmlFiles}`）；支持三种配置形态——① Spring Boot `.properties`：`mybatis[-plus].mapper-locations`（兼容驼峰 `mapperLocations`）；② `.yml`/`.yaml`：`mybatis`/`mybatis-plus` 节点下 `mapper-locations`（标量/行内列表/块列表）；③ `.xml`：mybatis-config.xml（`<mappers><mapper resource|url/>`）与 Spring/MP Spring XML（`<property name="mapperLocations" value|<list><value>`）；仅 `config-location` 时链式解析（最深 3 层，resource 仍按最外层配置的 classpath 根）

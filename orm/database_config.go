@@ -45,6 +45,8 @@ type MyBatisSetting struct {
 	LocalCacheSize     int
 	LocalCacheTTL      time.Duration
 	PrettySQL          bool
+	ExplainSlowSQL     bool
+	SlowSQLThreshold   time.Duration
 }
 
 type Config struct {
@@ -178,6 +180,8 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			LocalCacheSize:    parseInt(m, "mybatis.configuration.local-cache-size", 1024),
 			LocalCacheTTL:     parseDuration(m, "mybatis.configuration.local-cache-ttl", 3600),
 			PrettySQL:         parseBool(m, "mybatis.configuration.pretty-sql", false),
+			ExplainSlowSQL:    parseBool(m, "mybatis.configuration.explain-slow-sql", false),
+			SlowSQLThreshold:  parseDuration(m, "mybatis.configuration.slow-sql-threshold", 3000),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,

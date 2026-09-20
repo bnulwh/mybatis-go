@@ -36,6 +36,12 @@ func InitializeFromSettings(cm map[string]string) error {
 		SetPrettySQL(cfg.Setting.PrettySQL)
 	}
 	initSecondCache(cfg.Setting.CacheEnabled, cfg.Setting.LocalCacheSize, cfg.Setting.LocalCacheTTL)
+	SetPrettySQL(cfg.Setting.PrettySQL)
+	if cfg.Setting.ExplainSlowSQL {
+		SetExplainSlowSQL(true)
+		SetSlowSQLThreshold(cfg.Setting.SlowSQLThreshold)
+		registerExplainSlowHook()
+	}
 	return combineErrors(err1, err2)
 }
 

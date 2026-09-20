@@ -323,3 +323,53 @@ func Test_SqlitePrettySQL(t *testing.T) {
 		t.Error("pretty SQL should be enabled")
 	}
 }
+
+func Test_SqliteExplainSlowSQL(t *testing.T) {
+	dir := initSqliteTest(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+
+	if _, err := Execute(`CREATE TABLE t_sqlite (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name VARCHAR(64),
+		create_time TIMESTAMP
+	)`); err != nil {
+		t.Errorf("create table failed: %v", err)
+		return
+	}
+
+	SetExplainSlowSQL(true)
+	SetSlowSQLThreshold(0)
+	registerExplainSlowHook()
+	defer func() {
+		SetExplainSlowSQL(false)
+		SetSlowSQLThreshold(3000 * time.Millisecond)
+		ClearHooks()
+	}()
+
+	RegisterModel(new(SqliteTestModel))
+	if err := RegisterMapper(new(SqliteTestMapper)); err != nil {
+		t.Errorf("register mapper failed: %v", err)
+		return
+	}
+	mp := NewMapper("SqliteTestMapper").(SqliteTestMapper)
+
+	_, err := mp.Insert(SqliteTestModel{Name: "explain_test"})
+	if err != nil {
+		t.Errorf("insert failed: %v", err)
+	}
+
+	rows, err := mp.SelectAll()
+	if err != nil {
+		t.Errorf("selectAll failed: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Errorf("selectAll count = %d, want 1", len(rows))
+	}
+
+	if !ExplainSlowSQLEnabled() {
+		t.Error("explain slow SQL should be enabled")
+	}
+}

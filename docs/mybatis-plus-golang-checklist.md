@@ -300,7 +300,7 @@
 | 23.1 | SQL 执行耗时统计 | PerformanceInterceptor | ✅ 完全可行 | ✅ 已实现 | 语句统计 total/failed/avg/min/max |
 | 23.2 | 慢 SQL 告警 | 超时打印 | ✅ 完全可行 | ✅ 已实现 | Warnf 输出 |
 | 23.3 | SQL 格式化输出 | Pretty SQL | ✅ 完全可行 | ✅ 已实现 | `mybatis.configuration.pretty-sql` + `orm.SetPrettySQL` |
-| 23.4 | 执行计划分析 | EXPLAIN 自动分析 | 🔶 可实现 | — | 慢查询自动 EXPLAIN |
+| 23.4 | 执行计划分析 | EXPLAIN 自动分析 | ✅ 完全可行 | ✅ 已实现 | `explain-slow-sql` + `slow-sql-threshold`，7 种数据库方言 |
 
 ### 24. 代码生成器
 
@@ -381,8 +381,8 @@
 | P3-1 | **ActiveRecord 模式** | 中 | 个人偏好 |
 | P3-2 | **读写分离路由** | 中 | 高可用场景 |
 | P3-3 | **连接池监控** | 小 | 运维可观测 |
-| P3-4 | **SQL 格式化输出** | 小 | 调试体验 |
-| P3-5 | **执行计划自动分析** | 小 | 性能调优 |
+| P3-4 | **SQL 格式化输出** | 小 | ✅ 已实现 | pretty-sql |
+| P3-5 | **执行计划自动分析** | 小 | ✅ 已实现 | explain-slow-sql + slow-sql-threshold |
 | P3-6 | **自定义模板代码生成** | 中 | 灵活定制 |
 
 ---

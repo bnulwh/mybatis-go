@@ -168,3 +168,43 @@ ORDER BY id
 - 支持 4 种占位符：`?`（MySQL/SQLite）、`$n`（PostgreSQL/KingbaseES）、`:n`（Oracle/DB2）、`@pN`（SQL Server）
 - 关键字换行：SELECT / FROM / WHERE / AND / OR / JOIN / ON / SET / VALUES / ORDER BY / GROUP BY / HAVING / LIMIT / INSERT INTO / UPDATE / DELETE FROM
 - 子查询自动缩进
+
+## 执行计划自动分析（Slow SQL EXPLAIN）
+
+SELECT 执行耗时超过阈值时，自动执行 `EXPLAIN` 并输出执行计划到日志，辅助性能调优。
+
+### 配置
+
+```properties
+mybatis.configuration.explain-slow-sql=true
+mybatis.configuration.slow-sql-threshold=3000
+```
+
+或运行时开关：
+
+```go
+orm.SetExplainSlowSQL(true)                    // 开启
+orm.SetSlowSQLThreshold(5 * time.Second)       // 设置阈值 5s
+orm.SlowSQLThreshold()                         // 查询当前阈值
+```
+
+### 各数据库 EXPLAIN 语法
+
+| 数据库 | EXPLAIN 语法 |
+|--------|-------------|
+| MySQL / SQLite / TiDB / OceanBase | `EXPLAIN SELECT ...` |
+| PostgreSQL / KingbaseES / OpenGauss | `EXPLAIN ANALYZE SELECT ...` |
+| Oracle / 达梦 | `EXPLAIN PLAN FOR SELECT ...` |
+| SQL Server | `SET SHOWPLAN_TEXT ON; SELECT ...` |
+| DB2 | `EXPLAIN ALL FOR SELECT ...` |
+| GBase 8s (Informix) | `SET EXPLAIN ON; SELECT ...` |
+
+### 效果示例
+
+```log
+[WARN] Slow SQL EXPLAIN (cost=3.2s, namespace=UserMapper.selectAll):
+  2 | 0 | 0 | SCAN TABLE t_user
+```
+
+- 仅对 `SELECT` 语句触发，INSERT/UPDATE/DELETE 不触发
+- 基于内置 After 钩子实现，不影响正常执行流程
