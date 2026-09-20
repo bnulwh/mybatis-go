@@ -54,7 +54,7 @@ type RowStream struct {
 // QueryStream 执行查询并以流式方式逐行返回结果（P4-2）。
 // 调用方必须负责在遍历结束后调用 Close() 释放连接（defer 即可）。
 func QueryStream(ctx context.Context, sqlStr string, args ...interface{}) (*RowStream, error) {
-	log.Debugf("sql: %v", sqlStr)
+	log.Debugf("sql: %v", formatSQLForLog(sqlStr, args))
 	ctx, cancel := withExecTimeout(ctx)
 	rows, err := gDbConn.QueryContext(ctx, sqlStr, args...)
 	if err != nil {

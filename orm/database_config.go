@@ -44,6 +44,7 @@ type MyBatisSetting struct {
 	CacheEnabled       bool
 	LocalCacheSize     int
 	LocalCacheTTL      time.Duration
+	PrettySQL          bool
 }
 
 type Config struct {
@@ -176,6 +177,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			CacheEnabled:      parseBool(m, "mybatis.configuration.cache-enabled", false),
 			LocalCacheSize:    parseInt(m, "mybatis.configuration.local-cache-size", 1024),
 			LocalCacheTTL:     parseDuration(m, "mybatis.configuration.local-cache-ttl", 3600),
+			PrettySQL:         parseBool(m, "mybatis.configuration.pretty-sql", false),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,

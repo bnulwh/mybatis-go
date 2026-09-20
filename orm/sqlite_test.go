@@ -276,3 +276,50 @@ func Test_SqliteTableStructure(t *testing.T) {
 		t.Errorf("column count failed, got %d", len(pts.Columns))
 	}
 }
+
+func Test_SqlitePrettySQL(t *testing.T) {
+	dir := initSqliteTest(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+
+	if _, err := Execute(`CREATE TABLE t_sqlite (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name VARCHAR(64),
+		create_time TIMESTAMP
+	)`); err != nil {
+		t.Errorf("create table failed: %v", err)
+		return
+	}
+
+	SetPrettySQL(true)
+	defer SetPrettySQL(false)
+
+	RegisterModel(new(SqliteTestModel))
+	if err := RegisterMapper(new(SqliteTestMapper)); err != nil {
+		t.Errorf("register mapper failed: %v", err)
+		return
+	}
+	mp := NewMapper("SqliteTestMapper").(SqliteTestMapper)
+
+	m1, err := mp.Insert(SqliteTestModel{Name: "alice"})
+	if err != nil {
+		t.Errorf("insert failed: %v", err)
+	}
+	if m1 != 1 {
+		t.Errorf("insert rows = %d, want 1", m1)
+	}
+
+	rows, err := mp.SelectAll()
+	if err != nil {
+		t.Errorf("selectAll failed: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Name != "alice" {
+		t.Errorf("selectAll result = %v, want 1 row with name=alice", rows)
+	}
+
+	if !PrettySQLEnabled() {
+		t.Error("pretty SQL should be enabled")
+	}
+}

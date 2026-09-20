@@ -46,7 +46,7 @@ func QueryToContext(ctx context.Context, dst interface{}, sqlStr string, args ..
 // QueryToContext 实例级扫描直通道（G1）：作用于指定 DB 实例（多数据源 / gormish 场景），
 // 自动应用表名前缀改写与占位符格式化，ctx 携带 WithTx 事务时自动在事务内执行。
 func (db *DB) QueryToContext(ctx context.Context, dst interface{}, sqlStr string, args ...interface{}) error {
-	log.Debugf("sql: %v", sqlStr)
+	log.Debugf("sql: %v", formatSQLForLog(sqlStr, args))
 	ctx, cancel := withExecTimeout(ctx)
 	defer cancel()
 	rows, err := db.QueryContext(ctx, sqlStr, args...)

@@ -33,6 +33,7 @@ func InitializeFromSettings(cm map[string]string) error {
 		gDataSources.closeAll()
 		gDataSources.reset()
 		gDataSources.add(defaultDataSourceName, db)
+		SetPrettySQL(cfg.Setting.PrettySQL)
 	}
 	initSecondCache(cfg.Setting.CacheEnabled, cfg.Setting.LocalCacheSize, cfg.Setting.LocalCacheTTL)
 	return combineErrors(err1, err2)
@@ -84,6 +85,7 @@ func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string)
 	gDataSources.closeAll()
 	gDataSources.reset()
 	gDataSources.add(defaultDataSourceName, db)
+	SetPrettySQL(false)
 	return nil
 }
 func LoadSettings(filename string) map[string]string {

@@ -56,7 +56,7 @@ func (in *BaseMapper) executeStream(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	if arg.Wrapper != nil && !wrapperExplicit {
 		sqlStr = applyQueryWrapper(sqlStr, arg.Wrapper)
 	}
-	log.Debugf("sql: %v", sqlStr)
+	log.Debugf("sql: %v", formatSQLForLog(sqlStr, sqlargs))
 	// P0-5：Before 钩子（可改写 SQL），After 钩子与 UpdateUsage defer 并列
 	// G0：ctx 来自 Mapper 方法的 context.Context 参数（无则 Background，可携带 WithTx 事务）
 	sqlStr = runBeforeHooks(arg.Ctx, in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs)
@@ -262,7 +262,7 @@ func (in *BaseMapper) executePage(sqlFunc *types.SqlFunction, arg ProxyArg) (val
 		runAfterHooks(arg.Ctx, in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs, err, time.Since(start))
 	}()
 	countSQL := normalizeSQL(buildCountSQL(sqlStr))
-	log.Debugf("page count sql: %v", countSQL)
+	log.Debugf("page count sql: %v", formatSQLForLog(countSQL, sqlargs))
 	var total int64
 	crows, cerr := queryRows(arg.Ctx, countSQL, sqlargs...)
 	if cerr != nil {
@@ -276,7 +276,7 @@ func (in *BaseMapper) executePage(sqlFunc *types.SqlFunction, arg ProxyArg) (val
 		}
 	}
 	pageSQL := applyPagination(sqlStr, pp.Limit(), pp.Offset())
-	log.Debugf("page sql: %v", pageSQL)
+	log.Debugf("page sql: %v", formatSQLForLog(pageSQL, sqlargs))
 	rows, err := queryRows(arg.Ctx, pageSQL, sqlargs...)
 	if err != nil {
 		return reflect.Value{}, err
@@ -321,7 +321,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		}
 		sqlStr = applyQueryWrapper(sqlStr, arg.Wrapper)
 	}
-	log.Debugf("sql: %v", sqlStr)
+	log.Debugf("sql: %v", formatSQLForLog(sqlStr, sqlargs))
 	// P0-5：Before 钩子（可改写 SQL），After 钩子与 UpdateUsage defer 并列（覆盖全部执行路径）
 	sqlStr = runBeforeHooks(arg.Ctx, in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs)
 	defer func() {

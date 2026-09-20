@@ -107,7 +107,7 @@ func execute(sqlStr string, args ...interface{}) (int64, error) {
 // executeWithResult 返回原始 sql.Result，供 useGeneratedKeys 回填自增主键使用（S-11）。
 // ctx 无 deadline 时叠加全局默认超时（P4-1）。
 func executeWithResult(ctx context.Context, sqlStr string, args ...interface{}) (sql.Result, error) {
-	log.Debugf("sql: %v", sqlStr)
+	log.Debugf("sql: %v", formatSQLForLog(sqlStr, args))
 	ctx, cancel := withExecTimeout(ctx)
 	defer cancel()
 	result, err := gDbConn.ExecContext(ctx, sqlStr, args...)
@@ -123,7 +123,7 @@ func executeWithResult(ctx context.Context, sqlStr string, args ...interface{}) 
 func queryRows(ctx context.Context, sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
 	ctx, cancel := withExecTimeout(ctx)
 	defer cancel()
-	log.Debugf("sql: %v", sqlStr)
+	log.Debugf("sql: %v", formatSQLForLog(sqlStr, args))
 	rows, err := gDbConn.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
 		log.Errorf("query sql %v failed: %v", sqlStr, err)

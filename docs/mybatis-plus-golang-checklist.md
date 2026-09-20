@@ -299,7 +299,7 @@
 |---|------|-----------|-----------|------|------|
 | 23.1 | SQL 执行耗时统计 | PerformanceInterceptor | ✅ 完全可行 | ✅ 已实现 | 语句统计 total/failed/avg/min/max |
 | 23.2 | 慢 SQL 告警 | 超时打印 | ✅ 完全可行 | ✅ 已实现 | Warnf 输出 |
-| 23.3 | SQL 格式化输出 | Pretty SQL | 🔶 可实现 | — | |
+| 23.3 | SQL 格式化输出 | Pretty SQL | ✅ 完全可行 | ✅ 已实现 | `mybatis.configuration.pretty-sql` + `orm.SetPrettySQL` |
 | 23.4 | 执行计划分析 | EXPLAIN 自动分析 | 🔶 可实现 | — | 慢查询自动 EXPLAIN |
 
 ### 24. 代码生成器

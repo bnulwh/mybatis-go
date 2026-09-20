@@ -128,3 +128,43 @@ err := orm.RegisterMapperSources(
 - **反射预编译**：列值转换函数表（`convertFn`）与 resultMap 的 property→字段索引映射在查询开始时预编译一次，行循环内直接调用，避免每行每列 `ScanType` switch 分派与 `FieldByName` O(N) 名称匹配
 - **无参 SQL 生成缓存**：无参 SQL 的拼接结果静态不变，首次生成后缓存复用
 - **大结果集流式读取**：`QueryStream` / Mapper 流式 select 逐行消费（内存 O(1)），配合全局行数上限（P4-3，默认 10000 行）兜底截断，避免大结果集 OOM / 拖垮连接
+
+## SQL 格式化输出（Pretty SQL）
+
+开启后日志中的 SQL 将自动格式化：参数值替换占位符 + 关键字换行缩进，便于开发调试。**仅用于日志展示，不影响实际执行。**
+
+### 配置
+
+```properties
+mybatis.configuration.pretty-sql=true
+```
+
+或运行时开关：
+
+```go
+orm.SetPrettySQL(true)   // 开启
+orm.SetPrettySQL(false)  // 关闭
+```
+
+### 效果示例
+
+原始日志（默认）：
+
+```
+sql: SELECT id, name FROM user WHERE id = ? AND name = ? ORDER BY id
+```
+
+开启 `pretty-sql` 后：
+
+```
+sql: SELECT id, name 
+FROM user 
+WHERE id = 1 
+  AND name = 'alice' 
+ORDER BY id
+```
+
+- 参数值直接替换：字符串加引号、nil→NULL、时间→`'2006-01-02 15:04:05'`、`[]byte`→`x'hex'`
+- 支持 4 种占位符：`?`（MySQL/SQLite）、`$n`（PostgreSQL/KingbaseES）、`:n`（Oracle/DB2）、`@pN`（SQL Server）
+- 关键字换行：SELECT / FROM / WHERE / AND / OR / JOIN / ON / SET / VALUES / ORDER BY / GROUP BY / HAVING / LIMIT / INSERT INTO / UPDATE / DELETE FROM
+- 子查询自动缩进

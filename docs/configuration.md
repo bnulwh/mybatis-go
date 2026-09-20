@@ -299,6 +299,13 @@ mybatis.mapper-locations= resources/mapper
 | `spring.datasource.prepared-stmt` | 是否启用预编译语句缓存（`false` 关闭，适合 PgBouncer 等不支持服务端预编译的代理场景） | true |
 | `mybatis.mapper-locations` | XML Mapper 文件目录（也支持 `go:embed` 内嵌，见下文） | - |
 | `mybatis.table-prefix` | 数据表名前缀（如 `test_`），SQL 执行时自动拼接到表名前，XML Mapper 语句无需改动 | - |
+| `mybatis.configuration.safe-update` | UPDATE/DELETE 无 WHERE 子句时阻止执行 | false |
+| `mybatis.configuration.pretty-sql` | 日志中 SQL 格式化输出（参数绑定替换 + 关键字换行缩进，仅用于调试） | false |
+| `mybatis.configuration.cache-enabled` | 启用二级缓存（namespace 级 LRU+TTL） | false |
+| `mybatis.configuration.local-cache-size` | 二级缓存每 namespace 最大条目数 | 1024 |
+| `mybatis.configuration.local-cache-ttl` | 二级缓存 TTL（秒） | 3600 |
+| `mybatis.configuration.id-type` | 主键生成策略：`snowflake` / `uuid` / `assign_id` | - |
+| `mybatis.configuration.snowflake-worker-id` | Snowflake 工作节点 ID | 1 |
 
 > **MySQL DATETIME 列**：框架自动在 MySQL DSN 追加 `?parseTime=true&loc=Local`（与 SQLite 的 `_loc=auto` 同理），DATETIME/TIMESTAMP 列直接扫描为 `time.Time`；否则 go-sql-driver 返回原始 `[]byte`，时间字段无法赋值。
 
