@@ -304,6 +304,8 @@ mybatis.mapper-locations= resources/mapper
 | `mybatis.configuration.explain-slow-sql` | 慢 SELECT 自动执行 EXPLAIN 并输出执行计划 | false |
 | `mybatis.configuration.slow-sql-threshold` | 慢 SQL 阈值（毫秒），超过此值触发 EXPLAIN 分析 | 3000 |
 | `mybatis.configuration.pool-stats-interval` | 连接池状态定期日志输出间隔（秒，0=关闭） | 0 |
+| `mybatis.configuration.read-write-splitting` | 启用读写分离（SELECT 路由到副本，事务内强制主库） | false |
+| `mybatis.replicas` | 副本数据源名称列表（逗号分隔，需先在 `mybatis.datasources` 中配置） | - |
 | `mybatis.configuration.cache-enabled` | 启用二级缓存（namespace 级 LRU+TTL） | false |
 | `mybatis.configuration.local-cache-size` | 二级缓存每 namespace 最大条目数 | 1024 |
 | `mybatis.configuration.local-cache-ttl` | 二级缓存 TTL（秒） | 3600 |

@@ -56,7 +56,7 @@ type RowStream struct {
 func QueryStream(ctx context.Context, sqlStr string, args ...interface{}) (*RowStream, error) {
 	log.Debugf("sql: %v", formatSQLForLog(sqlStr, args))
 	ctx, cancel := withExecTimeout(ctx)
-	rows, err := gDbConn.QueryContext(ctx, sqlStr, args...)
+	rows, err := routedDB(ctx).QueryContext(ctx, sqlStr, args...)
 	if err != nil {
 		cancel()
 		log.Errorf("query sql %v failed: %v", sqlStr, err)

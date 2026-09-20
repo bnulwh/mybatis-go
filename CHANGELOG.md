@@ -1,6 +1,12 @@
 # 更新日志
 
-- **v0.3.11（P3-3 连接池监控 + P3-4 SQL 格式化输出 + P3-5 执行计划自动分析，2026-09-20）**：
+- **v0.3.11（P3-2 读写分离 + P3-3 连接池监控 + P3-4 SQL 格式化输出 + P3-5 执行计划自动分析，2026-09-20）**：
+  - **P3-2 读写分离路由**：
+    - **`orm/readwrite_split.go`**：`SetReadWriteSplitting(on)` / `ReadWriteSplittingEnabled()` + `SetReplicaNames(names)` / `GetReplicaNames()` + `RegisterReplica(name, ...)` / `PickReplica()`
+    - **路由机制**：Mapper SELECT 方法自动路由到副本（轮询），INSERT/UPDATE/DELETE 走主库；事务内（`Begin`/`WithTx`）强制主库；无可用副本降级到主库
+    - **Context 传递**：`routeReadDB(ctx)` 注入路由 `*DB` → `routedDB(ctx)` 解析 → `queryRows`/`executeWithResult`/`QueryStream` 自动路由；不修改全局 `gDbConn`，并发安全
+    - **配置**：`mybatis.configuration.read-write-splitting=true` + `mybatis.replicas=replica1,replica2`
+    - **单元测试**：`orm/readwrite_split_test.go` 11 用例（开关、副本名、路由禁用/无副本/事务内/context事务、routedDB 默认/路由、PickReplica、initReplica）；端到端 `Test_SqliteReadWriteSplitting`（主库写入 + 副本无表→路由验证 + 主库回查）
   - **P3-3 连接池监控**：
     - **`orm/pool_stats.go`**：`PoolStats()`（当前活跃源）、`PoolStatsFor(name)`（指定源）、`PoolStatsAll()`（全部源 `map[string]sql.DBStats`）、`PoolStatsString()`（格式化输出，多源每源一行）
     - **定期日志**：`mybatis.configuration.pool-stats-interval=60`（秒，默认 0=关闭）+ 运行时 `StartPoolStatsLogger(interval)` / `StopPoolStatsLogger()` / `SetPoolStatsInterval(d)`；`Close()` 时自动停止

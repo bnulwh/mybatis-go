@@ -255,3 +255,51 @@ orm.SetPoolStatsInterval(60 * time.Second) // 动态调整间隔
 
 - 多数据源时每个源一行
 - `Close()` 时自动停止定期输出
+
+## 读写分离路由
+
+SELECT 自动路由到副本数据源，INSERT/UPDATE/DELETE 走主库；事务内所有操作强制走主库。
+
+### 配置
+
+```properties
+# 1. 配置多数据源（主库 + 副本）
+mybatis.datasources= replica
+spring.datasource.replica.url= jdbc:mysql://replica-host:3306/db
+spring.datasource.replica.username= reader
+spring.datasource.replica.password= reader_pwd
+
+# 2. 启用读写分离
+mybatis.configuration.read-write-splitting=true
+
+# 3. 指定副本数据源名称
+mybatis.replicas= replica
+```
+
+多副本时逗号分隔（`replica1,replica2`），框架轮询选择。
+
+### 编程方式
+
+```go
+orm.SetReadWriteSplitting(true)
+orm.SetReplicaNames([]string{"replica1", "replica2"})
+
+// 或注册新副本
+orm.RegisterReplica("replica2", "mysql", "replica2-host", 3306, "reader", "pwd", "db")
+
+// 选取副本（调试用）
+db, err := orm.PickReplica()
+```
+
+### 路由规则
+
+| 场景 | 路由目标 |
+|------|---------|
+| SELECT（无事务） | 副本（轮询） |
+| INSERT / UPDATE / DELETE | 主库 |
+| 事务内（Begin / WithTx） | 主库 |
+| 读写分离关闭 | 主库 |
+| 无可用副本 | 降级到主库 |
+
+- 基于 context 传递路由 DB，不修改全局 `gDbConn`，并发安全
+- `orm.Execute` / `orm.Query` 等顶层 API 不走读写分离（无 SQL 类型信息）；Mapper 方法自动路由

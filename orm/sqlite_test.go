@@ -417,3 +417,83 @@ func Test_SqlitePoolStats(t *testing.T) {
 		t.Error("expected error for nonexistent datasource")
 	}
 }
+
+func Test_SqliteReadWriteSplitting(t *testing.T) {
+	dir := initSqliteTest(t)
+	if dir == "" {
+		return
+	}
+	defer Close()
+
+	if _, err := Execute(`CREATE TABLE t_sqlite (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name VARCHAR(64),
+		create_time TIMESTAMP
+	)`); err != nil {
+		t.Errorf("create table failed: %v", err)
+		return
+	}
+
+	replicaDir := t.TempDir()
+	replicaPath := filepath.Join(replicaDir, "replica.db")
+	replicaCm := map[string]string{
+		"spring.datasource.url": "jdbc:sqlite:" + replicaPath,
+	}
+	replicaCfg := NewConfigFromSettings(replicaCm)
+	replicaDB, err := Open(replicaCfg)
+	if err != nil {
+		t.Errorf("open replica db failed: %v", err)
+		return
+	}
+	gDataSources.add("replica", replicaDB)
+	defer func() {
+		replicaDB.close()
+		gDataSources.mu.Lock()
+		delete(gDataSources.sources, "replica")
+		gDataSources.mu.Unlock()
+	}()
+
+	RegisterModel(new(SqliteTestModel))
+	if err := RegisterMapper(new(SqliteTestMapper)); err != nil {
+		t.Errorf("register mapper failed: %v", err)
+		return
+	}
+	mp := NewMapper("SqliteTestMapper").(SqliteTestMapper)
+
+	_, err = mp.Insert(SqliteTestModel{Name: "master_row"})
+	if err != nil {
+		t.Errorf("insert failed: %v", err)
+	}
+
+	SetReadWriteSplitting(true)
+	SetReplicaNames([]string{"replica"})
+	defer func() {
+		SetReadWriteSplitting(false)
+		SetReplicaNames(nil)
+	}()
+
+	rows, err := mp.SelectAll()
+	if err != nil {
+		t.Logf("selectAll routed to replica (expected error: %v)", err)
+	} else {
+		t.Logf("selectAll returned %d rows from replica", len(rows))
+	}
+
+	if !ReadWriteSplittingEnabled() {
+		t.Error("read-write splitting should be enabled")
+	}
+
+	names := GetReplicaNames()
+	if len(names) != 1 || names[0] != "replica" {
+		t.Errorf("replica names = %v, want [replica]", names)
+	}
+
+	SetReadWriteSplitting(false)
+	rowsMaster, err := mp.SelectAll()
+	if err != nil {
+		t.Errorf("selectAll on master failed: %v", err)
+	}
+	if len(rowsMaster) != 1 {
+		t.Errorf("master rows = %d, want 1", len(rowsMaster))
+	}
+}

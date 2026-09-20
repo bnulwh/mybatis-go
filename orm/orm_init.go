@@ -45,6 +45,10 @@ func InitializeFromSettings(cm map[string]string) error {
 	if cfg.Setting.PoolStatsInterval > 0 {
 		StartPoolStatsLogger(cfg.Setting.PoolStatsInterval)
 	}
+	if cfg.Setting.ReadWriteSplitting {
+		SetReadWriteSplitting(true)
+		initReplicaDatasources(cm)
+	}
 	return combineErrors(err1, err2)
 }
 

@@ -110,7 +110,7 @@ func executeWithResult(ctx context.Context, sqlStr string, args ...interface{}) 
 	log.Debugf("sql: %v", formatSQLForLog(sqlStr, args))
 	ctx, cancel := withExecTimeout(ctx)
 	defer cancel()
-	result, err := gDbConn.ExecContext(ctx, sqlStr, args...)
+	result, err := routedDB(ctx).ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		log.Errorf("execute sql %v failed: %v", sqlStr, err)
 		return nil, err
@@ -124,7 +124,7 @@ func queryRows(ctx context.Context, sqlStr string, args ...interface{}) ([]map[s
 	ctx, cancel := withExecTimeout(ctx)
 	defer cancel()
 	log.Debugf("sql: %v", formatSQLForLog(sqlStr, args))
-	rows, err := gDbConn.QueryContext(ctx, sqlStr, args...)
+	rows, err := routedDB(ctx).QueryContext(ctx, sqlStr, args...)
 	if err != nil {
 		log.Errorf("query sql %v failed: %v", sqlStr, err)
 		return nil, err
