@@ -185,3 +185,80 @@ func Test_IfCondition_CheckCompare(t *testing.T) {
 		t.Error("missing collection should fail")
 	}
 }
+
+func Test_parseIfConditionsFromText_StringCompare(t *testing.T) {
+	cases := []struct {
+		test    string
+		name    string
+		op      string
+		literal string
+	}{
+		{"sourceStatus == 'assigned'", "sourceStatus", "==", "assigned"},
+		{"status != 'draft'", "status", "!=", "draft"},
+		{`type == "admin"`, "type", "==", "admin"},
+		{`role != "guest"`, "role", "!=", "guest"},
+		{"sourceStatus == 'assigned'", "sourceStatus", "==", "assigned"},
+		{"params.status == 'active'", "params.status", "==", "active"},
+	}
+	for _, c := range cases {
+		r := parseIfConditionsFromText(c.test)
+		if len(r) != 1 {
+			t.Errorf("parseIfConditionsFromText(%q) conditions = %d, want 1", c.test, len(r))
+			continue
+		}
+		if r[0].CheckType != stringCompareCheckCond {
+			t.Errorf("parseIfConditionsFromText(%q) type = %v, want stringCompare", c.test, r[0].CheckType)
+			continue
+		}
+		if r[0].CheckName != c.name || r[0].Operator != c.op || r[0].Literal != c.literal {
+			t.Errorf("parseIfConditionsFromText(%q) = %+v, want name=%q op=%q literal=%q",
+				c.test, r[0], c.name, c.op, c.literal)
+		}
+	}
+	// mixed: name != null and status == 'active'
+	r := parseIfConditionsFromText("name != null and status == 'active'")
+	if len(r) != 2 {
+		t.Error("parseIfConditionsFromText(name != null and status == 'active') conditions =", len(r), "want 2")
+		return
+	}
+	if r[0].CheckType != nullCheckCond || r[1].CheckType != stringCompareCheckCond {
+		t.Error("mixed conditions parsed wrong:", r)
+	}
+	if r[1].CheckName != "status" || r[1].Operator != "==" || r[1].Literal != "active" {
+		t.Error("string compare condition parsed wrong:", r[1])
+	}
+}
+
+func Test_IfCondition_CheckStringCompare(t *testing.T) {
+	eqAssigned := ifCondition{CheckName: "sourceStatus", CheckType: stringCompareCheckCond, Operator: "==", Literal: "assigned"}
+	neqDraft := ifCondition{CheckName: "status", CheckType: stringCompareCheckCond, Operator: "!=", Literal: "draft"}
+	if !eqAssigned.checkValue(map[string]interface{}{"sourcestatus": "assigned"}) {
+		t.Error("sourceStatus == 'assigned' with 'assigned' should pass")
+	}
+	if eqAssigned.checkValue(map[string]interface{}{"sourcestatus": "pending"}) {
+		t.Error("sourceStatus == 'assigned' with 'pending' should fail")
+	}
+	if !neqDraft.checkValue(map[string]interface{}{"status": "active"}) {
+		t.Error("status != 'draft' with 'active' should pass")
+	}
+	if neqDraft.checkValue(map[string]interface{}{"status": "draft"}) {
+		t.Error("status != 'draft' with 'draft' should fail")
+	}
+	if eqAssigned.checkValue(map[string]interface{}{}) {
+		t.Error("missing param should fail")
+	}
+	if eqAssigned.checkValue(map[string]interface{}{"sourcestatus": nil}) {
+		t.Error("nil param should fail")
+	}
+	if eqAssigned.checkValue(map[string]interface{}{"sourcestatus": 123}) {
+		t.Error("non-string param should fail")
+	}
+	// dot notation: params.status == 'active'
+	dot := ifCondition{CheckName: "params.status", CheckType: stringCompareCheckCond, Operator: "==", Literal: "active"}
+	if !dot.checkValue(map[string]interface{}{"params": map[string]interface{}{"status": "active"}}) {
+		t.Error("params.status == 'active' with 'active' should pass")
+	}
+	if dot.checkValue(map[string]interface{}{"params": map[string]interface{}{"status": "inactive"}}) {
+		t.Error("params.status == 'active' with 'inactive' should fail")
+	}
+}

@@ -14,17 +14,18 @@ import (
 type checkConditionType string
 
 const (
-	nullCheckCond    checkConditionType = "null"
-	emptyCheckCond   checkConditionType = "empty"
-	boolCheckCond    checkConditionType = "bool"
-	compareCheckCond checkConditionType = "compare"
+	nullCheckCond         checkConditionType = "null"
+	emptyCheckCond        checkConditionType = "empty"
+	boolCheckCond         checkConditionType = "bool"
+	compareCheckCond      checkConditionType = "compare"
+	stringCompareCheckCond checkConditionType = "stringCompare"
 )
 
 type ifCondition struct {
 	CheckName string
 	CheckType checkConditionType
-	Operator  string // compareCheckCond：== / != / > / >= / < / <=
-	Literal   string // compareCheckCond：数值字面量（如 0、18、-1）
+	Operator  string // compareCheckCond / stringCompareCheckCond：== / != / > / >= / < / <=
+	Literal   string // compareCheckCond：数值字面量（如 0、18、-1）；stringCompareCheckCond：字符串字面量（如 assigned）
 }
 
 // sqlIfTest 对应 MyBatis <if test="...">：条件全部满足时渲染子片段。
@@ -223,13 +224,20 @@ func (in *ifCondition) checkValue(m map[string]interface{}) bool {
 		return b
 	}
 	if in.CheckType == compareCheckCond {
-		// 数值比较（M-02）：!= 0 / > 0 / == 0 等，缺失/nil 一律不满足
 		n, ok := numericValue(val)
 		if !ok {
 			log.Warnf("compare condition %v got non-numeric value %v (%T)", in.CheckName, val, val)
 			return false
 		}
 		return compareNumeric(n, in.Operator, in.Literal)
+	}
+	if in.CheckType == stringCompareCheckCond {
+		s, ok := val.(string)
+		if !ok {
+			log.Warnf("string compare condition %v got non-string value %v (%T)", in.CheckName, val, val)
+			return false
+		}
+		return compareString(s, in.Operator, in.Literal)
 	}
 	return validValue(val)
 }
@@ -256,6 +264,17 @@ func compareNumeric(f float64, op, literal string) bool {
 		return f <= lit
 	}
 	log.Warnf("unsupported compare operator %q", op)
+	return false
+}
+
+func compareString(s, op, literal string) bool {
+	switch op {
+	case "==":
+		return s == literal
+	case "!=":
+		return s != literal
+	}
+	log.Warnf("unsupported string compare operator %q", op)
 	return false
 }
 
@@ -339,6 +358,8 @@ func parseIfConditionsFromText(text string) []ifCondition {
 	// M-02：数值比较（userId != 0 / age > 18 / count >= 1 / x == 0 / y <= -1），
 	// 也覆盖 OGNL 集合长度（businessTypes.length > 0，字面量为数值即可）
 	reCmp := regexp.MustCompile(`([\w.]+)[\s]*(==|!=|>=|<=|>|<)[\s]*([-+]?\d+(?:\.\d+)?)`)
+	// 字符串比较（OGNL 兼容）：sourceStatus == 'assigned' / status != "draft"
+	reStrCmp := regexp.MustCompile(`([\w.]+)[\s]*(==|!=)[\s]*['"]([^'"]*)['"]`)
 	var cs []ifCondition
 	for _, item := range reSplit.Split(text, -1) {
 		item = strings.TrimSpace(item)
@@ -358,6 +379,13 @@ func parseIfConditionsFromText(text string) []ifCondition {
 			cs = append(cs, ifCondition{
 				CheckName: matches[0],
 				CheckType: emptyCheckCond,
+			})
+		} else if sc := reStrCmp.FindStringSubmatch(item); sc != nil {
+			cs = append(cs, ifCondition{
+				CheckName: sc[1],
+				CheckType: stringCompareCheckCond,
+				Operator:  sc[2],
+				Literal:   sc[3],
 			})
 		} else if cm := reCmp.FindStringSubmatch(item); cm != nil {
 			// 数值比较（M-02）：不再静默丢弃，userId != 0 按真实数值求值
