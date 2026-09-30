@@ -1,5 +1,12 @@
 # 更新日志
 
+- **v0.3.12（`<if test>` 字符串等值比较，2026-09-30）**：补齐 MyBatis/OGNL 兼容性 — `<if test="sourceStatus == 'assigned'">` 此前被静默丢弃、条件恒不渲染，现已支持 —
+  - **新增 `stringCompareCheckCond` 条件类型**（`types/sqlfragment/if.go`）：与数值比较（`compareCheckCond`）并列，`ifCondition.Literal` 兼存字符串字面量
+  - **解析**：新增正则 `reStrCmp` 匹配 `field == 'value'` / `field != "value"`（单/双引号均可），在 `parseIfConditionsFromText` 中优先于数值比较 `reCmp` 命中；支持点号参数（`params.status == 'active'`）
+  - **求值**：`compareString` 支持 `==` / `!=` 字符串等值比较；非字符串值（含数值类型）WARN 日志并返回 false，缺失/nil 一律不满足
+  - **单元测试**：`types/sqlfragment/if_test.go` 新增 `Test_parseIfConditionsFromText_StringCompare`（6 种解析形态 + 混合条件 `name != null and status == 'active'`）+ `Test_IfCondition_CheckStringCompare`（等值/不等/缺失/nil/非字符串/点号参数 12 断言）
+  - **行为兼容**：既有 `name != null` / `name != ''` / 裸布尔 / 数值比较（`userId != 0`）解析路径零改动；全量 `go vet` / `go test ./...` 通过
+
 - **v0.3.11（P3-2 读写分离 + P3-3 连接池监控 + P3-4 SQL 格式化输出 + P3-5 执行计划自动分析 + P2-8 insertOrUpdate，2026-09-20）**：
   - **P3-2 读写分离路由**：
     - **`orm/readwrite_split.go`**：`SetReadWriteSplitting(on)` / `ReadWriteSplittingEnabled()` + `SetReplicaNames(names)` / `GetReplicaNames()` + `RegisterReplica(name, ...)` / `PickReplica()`
