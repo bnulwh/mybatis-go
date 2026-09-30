@@ -90,6 +90,11 @@ func (d *BaseDialector) SystemTablePrefixes() []string {
 	return nil
 }
 
+// ReservedTableNames 默认无保留名；具体方言按需覆盖。
+func (d *BaseDialector) ReservedTableNames() *ReservedNames {
+	return nil
+}
+
 func (d *BaseDialector) TableStructureSQL(table string) string {
 	return ""
 }

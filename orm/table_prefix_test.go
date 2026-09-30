@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bnulwh/mybatis-go/orm/dialector"
+
 	_ "modernc.org/sqlite" // SQLite 驱动（与 sqlite_test.go 相同的驱动注册）
 )
 
@@ -638,7 +640,7 @@ func Test_rewriteSQLTablesWithMap(t *testing.T) {
 		{"case-insensitive-match", "select * from THREEDB_sys_user", "", "select * from sys_user", map[string]string{"threedb_": ""}},
 	}
 	for _, c := range cases {
-		got := rewriteSQLTablesWithMap(c.in, c.prefix, c.pMap, nil)
+		got := rewriteSQLTablesWithMap(c.in, c.prefix, c.pMap, nil, nil)
 		if got != c.want {
 			t.Errorf("%s: rewriteSQLTablesWithMap(%q) = %q, want %q", c.name, c.in, got, c.want)
 		}
@@ -647,12 +649,12 @@ func Test_rewriteSQLTablesWithMap(t *testing.T) {
 
 func Test_rewriteSQLTablesWithMap_tableSet(t *testing.T) {
 	// 库中有无前缀表 sys_user：剥前缀后能命中 → 剥
-	got := rewriteSQLTablesWithMap("select * from threedb_sys_user", "", map[string]string{"threedb_": ""}, tableSetOf("sys_user"))
+	got := rewriteSQLTablesWithMap("select * from threedb_sys_user", "", map[string]string{"threedb_": ""}, tableSetOf("sys_user"), nil)
 	if got != "select * from sys_user" {
 		t.Errorf("remove when unprefixed exists: got %q", got)
 	}
 	// 库中只有带前缀表 threedb_sys_user：剥了反而错 → 保留原样
-	got2 := rewriteSQLTablesWithMap("select * from threedb_sys_user", "", map[string]string{"threedb_": ""}, tableSetOf("threedb_sys_user"))
+	got2 := rewriteSQLTablesWithMap("select * from threedb_sys_user", "", map[string]string{"threedb_": ""}, tableSetOf("threedb_sys_user"), nil)
 	if got2 != "select * from threedb_sys_user" {
 		t.Errorf("keep when prefixed table exists: got %q", got2)
 	}
@@ -809,5 +811,110 @@ func Test_parseTablePrefixSetTTL(t *testing.T) {
 	}
 	if d := parseTablePrefixSetTTL(map[string]string{"mybatis.table-prefix-set-ttl": "bad"}); d != 0 {
 		t.Errorf("bad duration should be 0, got %v", d)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 表函数 / 保留名跳过测试：表位置标识符后跟 '(' 是函数调用，不改写；
+// 命中方言保留名（dual 等无括号内置对象）也不改写。
+
+// 函数调用判定（无需方言保留名，纯 rewriteSQLTables 即生效）
+func Test_rewriteSQLTables_tableFunctions(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"pg-json-populate-recordset",
+			"SELECT * FROM json_populate_recordset(null::jsonb, $1) AS t",
+			"SELECT * FROM json_populate_recordset(null::jsonb, $1) AS t"},
+		{"pg-generate-series",
+			"select * from generate_series(1, 10) g",
+			"select * from generate_series(1, 10) g"},
+		{"pg-unnest",
+			"select * from unnest(array[1,2,3])",
+			"select * from unnest(array[1,2,3])"},
+		{"func-join-table",
+			"select * from json_populate_recordset(null, $1) x join sys_user u on u.id = x.id",
+			"select * from json_populate_recordset(null, $1) x join test_sys_user u on u.id = x.id"},
+		{"schema-qualified-func",
+			"select * from pg_catalog.pg_table_is_visible('sys_user'::regclass)",
+			"select * from pg_catalog.pg_table_is_visible('sys_user'::regclass)"},
+		{"pg-only",
+			"select * from only sys_user",
+			"select * from only test_sys_user"},
+		{"lateral-keep-table-position",
+			"select * from lateral (select 1) x join sys_user u on 1=1",
+			"select * from lateral (select 1) x join test_sys_user u on 1=1"},
+		{"comment-between-func-and-paren",
+			"select * from generate_series /*c*/ (1, 10)",
+			"select * from generate_series /*c*/ (1, 10)"},
+		{"quoted-func",
+			`select * from "json_populate_recordset"(null, $1)`,
+			`select * from "json_populate_recordset"(null, $1)`},
+		// INTO/TABLE/ON 上下文表名后的括号是列定义/索引列，不是函数调用，必须照常改写
+		{"insert-into-column-list", "INSERT INTO sys_user (name) VALUES (?)",
+			"INSERT INTO test_sys_user (name) VALUES (?)"},
+		{"create-table-columns", "CREATE TABLE IF NOT EXISTS t_sqlite (id int)",
+			"CREATE TABLE IF NOT EXISTS test_t_sqlite (id int)"},
+		{"index-on-columns", "create index idx_x on sys_user(id)",
+			"create index idx_x on test_sys_user(id)"},
+	}
+	for _, c := range cases {
+		got := rewriteSQLTables(c.in, "test_")
+		if got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// 保留名（无括号内置对象，如 dual）由方言清单命中后跳过
+func Test_rewriteSQLTablesWithMap_reservedNames(t *testing.T) {
+	// 模拟 MySQL/Oracle 方言保留名
+	dual := dialector.NewReservedNames("dual", "json_table")
+	cases := []struct {
+		name     string
+		in       string
+		reserved *dialector.ReservedNames
+		want     string
+	}{
+		{"dual-skip", "select 1 from dual", dual, "select 1 from dual"},
+		{"dual-quoted-skip", `select sysdate from "dual"`, dual, `select sysdate from "dual"`},
+		{"dual-join-table", "select u.id from dual d join sys_user u on 1=1", dual,
+			"select u.id from dual d join test_sys_user u on 1=1"},
+		{"no-reserved-still-rewrites", "select 1 from dual", nil, "select 1 from test_dual"},
+		{"mssql-pseudo-table", "select * from deleted d join sys_user u on d.id = u.id",
+			dialector.NewReservedNames("inserted", "deleted"),
+			"select * from deleted d join test_sys_user u on d.id = u.id"},
+		{"oracle-table-fn", "select * from table(dbms_xplan.display_cursor())",
+			dialector.NewReservedNames("table"),
+			"select * from table(dbms_xplan.display_cursor())"},
+	}
+	for _, c := range cases {
+		got := rewriteSQLTablesWithMap(c.in, "test_", nil, nil, c.reserved)
+		if got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// extractTableNamesFromSQL 同步跳过函数调用与保留名
+func Test_extractTableNamesFromSQL_skipFunctions(t *testing.T) {
+	// 函数调用不进表名列表（reserved 为 nil 也生效）
+	got := extractTableNamesFromSQL(
+		"select * from json_populate_recordset(null, $1) j join sys_user u on 1=1", nil)
+	if len(got) != 1 || got[0] != "sys_user" {
+		t.Errorf("function call should be skipped, got %v", got)
+	}
+	// 保留名（dual）不进表名列表
+	got2 := extractTableNamesFromSQL("select 1 from dual", dialector.NewReservedNames("dual"))
+	if len(got2) != 0 {
+		t.Errorf("reserved name should be skipped, got %v", got2)
+	}
+	// ONLY 引导词跳过，真实表名正常提取
+	got3 := extractTableNamesFromSQL("select * from only sys_user", nil)
+	if len(got3) != 1 || got3[0] != "sys_user" {
+		t.Errorf("ONLY should be skipped, got %v", got3)
+	}
+	// schema 限定的函数调用不进表名列表
+	got4 := extractTableNamesFromSQL("select * from public.generate_series(1, 10)", nil)
+	if len(got4) != 0 {
+		t.Errorf("schema-qualified function should be skipped, got %v", got4)
 	}
 }

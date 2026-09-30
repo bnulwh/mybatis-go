@@ -28,6 +28,15 @@ type KingbaseDialector struct {
 	PostgresDialector
 }
 
+// kingbaseReservedTableNames KingbaseES Oracle 兼容模式下的哑表 dual；
+// 官方驱动注册名列表见 init。
+var kingbaseReservedTableNames = NewReservedNames("dual")
+
+// ReservedTableNames Kingbase 兼容 PG 内置函数，同时包含 Oracle 兼容模式的 dual。
+func (d *KingbaseDialector) ReservedTableNames() *ReservedNames {
+	return postgresReservedTableNames.Merge(kingbaseReservedTableNames)
+}
+
 func NewKingbaseDialector(cfg ConfigProvider) *KingbaseDialector {
 	params := cfg.GetConnectParams()
 	dsn := cfg.GetDSN()

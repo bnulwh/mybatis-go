@@ -49,9 +49,16 @@
 两个核心状态：
 
 - `expectTable`：刚遇到表关键字，下一个标识符处于「表位置」。
-  - 表关键字集合：`FROM / JOIN / INTO / UPDATE / TABLE`（大小写不敏感，整词匹配）。
-  - 表位置的处理：
-    - `CREATE/DROP/ALTER TABLE IF NOT EXISTS` 的 `IF/NOT/EXISTS` 是 DDL 修饰词，跳过不当作表名；
+  - 表关键字集合：`FROM / JOIN / INTO / UPDATE / TABLE`（大小写不敏感，整词匹配），
+    另有 `CREATE INDEX ... ON`、`RENAME ... TO` 扩展上下文。
+  - 表位置的处理（按序判定）：
+    - `IF/NOT/EXISTS`（DDL 修饰词）与 `ONLY`（PG）/ `LATERAL` 是引导词，跳过后继续期待表名；
+    - 命中**当前方言保留名**（`Dialector.ReservedTableNames()`，如 Oracle/MySQL 的 `dual`、
+      PG 的 `generate_series`）→ 内置对象，不改写；
+    - **FROM/JOIN/USING 上下文**中标识符后紧跟 `(` → 表函数调用
+      （`json_populate_recordset(...)`、`unnest(...)` 等），不改写——该规则与方言无关，
+      覆盖所有带括号表函数；INTO/UPDATE/TABLE/ON 上下文中表名后的 `(` 是列定义/索引列
+      （`INSERT INTO t (a,b)`、`CREATE TABLE t (id int)`），不适用此规则；
     - schema 限定名 `schema.table`：仅 `public` / `main`（SQLite 默认模式）给表名部分加前缀，
       其余 schema（`app`、`information_schema`、`pg_catalog` 等）整体跳过，避免跨库/跨 schema 误改；
     - 否则对该标识符判定 `prefixRequired` 后插入前缀。
@@ -88,6 +95,16 @@
 - **系统表/目录永不参与**（`isSystemTable`）：`information_schema`、`pg_catalog`、
   `pg_%`、`sqlite_%`、`pragma_%` —— 框架内置的表结构探查（`info_schema` 三兄弟、
   `sqlite_master`、`pragma_table_info`）因此不受前缀影响；
+- **表函数/内置对象不改写**（双保险）：
+  - 通用规则：FROM/JOIN/USING 上下文中表位置标识符后跟 `(` 即函数调用，跳过
+    （`pg_catalog.pg_table_is_visible(...)` 等 schema 限定形式同样跳过）；
+  - 方言保留名：`Dialector.ReservedTableNames()` 返回各数据库在表位置的内置函数/哑表
+    清单（PG 系 `generate_series`/`unnest`/`json_populate_recordset` 系列、Oracle/MySQL `dual`、
+    SQLite `json_each`/`json_tree`、SQL Server `openjson`/`inserted`/`deleted`、
+    ClickHouse `numbers`/`file` 等），命中即跳过；`BaseDialector` 默认 nil，
+    家族派生（TiDB/TDSQL/PolarDB/OceanBase、openGauss/GaussDB/Highgo/Vastbase）经嵌入自动继承，
+    Kingbase 在 PG 清单基础上并入 `dual`；
+  - `extractTableNamesFromSQL`（表结构缓存的表名提取，schema_cache.go）应用同一套跳过规则；
 - **已带前缀不叠加**：`test_sys_user` 不会再变 `test_test_sys_user`（大小写不敏感判断）；
 - **CTE 名跳过**（`cteModeCollect`）：`WITH cte AS (SELECT ...) SELECT * FROM cte`
   收集顶层 CTE 名（支持 `RECURSIVE`、`NOT MATERIALIZED` 修饰与多 CTE 逗号分隔），
@@ -110,7 +127,7 @@
 - 配置键：`mybatis.table-prefix-map`（主键），逐源覆盖 `spring.datasource.<name>.table-prefix-map`；
   未配置的附加源继承默认源的映射；编程方式 `orm.SetTablePrefixMap(map[string]string{...})`。
 
-实现：`rewriteSQLTablesWithMap(query, prefix, prefixMap, tableSet)`，与 `rewriteSQLTablesWithSet`
+实现：`rewriteSQLTablesWithMap(query, prefix, prefixMap, tableSet, reserved)`，与 `rewriteSQLTablesWithSet`
 共用同一 tokenizeSQL 状态机（`applyToken` 闭包先走映射通道、未命中再走原 `prefixRequired` 路径）；
 `prefixMap` 为 nil/空时输出与旧版完全一致（既有 20+24+8 组单测零回归）。
 
@@ -130,7 +147,16 @@
   - `Test_rewriteSQLTables_tableSet` —— 真实表集合匹配：带前缀表存在→改写；无前缀表存在→保持原样
     （修复核心场景）；两者并存→带前缀者优先；未知表→前缀兜底；已带前缀/大小写不敏感/schema 限定名/
     nil 与空集合退化，共 8 组断言；
-  - `Test_parseTablePrefix` / `Test_parseDatabaseConfig_tablePrefix` / `Test_parseMultiDatabaseConfig_tablePrefixInherit` —— 配置解析与多源继承。
+  - `Test_rewriteSQLTables_tableFunctions` —— 表函数/引导词：`json_populate_recordset`/`generate_series`/
+    `unnest`/schema 限定函数/引号函数跳过，`ONLY`/`LATERAL` 引导后真实表照常改写，
+    INTO/TABLE/ON 上下文列括号不误判（回归保护）；
+  - `Test_rewriteSQLTablesWithMap_reservedNames` —— 方言保留名：`dual`（含引号形式）跳过、
+    无保留名时旧行为不变、MSSQL 伪表 `deleted`、Oracle `TABLE()` 函数；
+  - `Test_extractTableNamesFromSQL_skipFunctions` —— 表名提取（表结构缓存）同步跳过
+    函数调用/保留名/`ONLY`/schema 限定函数；
+  - `Test_parseTablePrefix` / `Test_parseDatabaseConfig_tablePrefix` / `Test_parseMultiDatabaseConfig_tablePrefixInherit` —— 配置解析与多源继承；
+  - dialector 侧（`orm/dialector/reserved_test.go`）：`ReservedNames` 类型行为（大小写不敏感/nil 安全/
+    Merge）、各方言清单命中与不误命中、家族嵌入继承（openGauss 系/TDSQL 系）、Base 默认 nil。
 - 端到端（SQLite 真实执行，物理表带 `test_` 前缀，SQL 保持不带前缀）：
   - `Test_TablePrefix_SqliteQuery` —— `Execute/Query` 直调路径改写生效；
   - `Test_TablePrefix_SqliteMapper` —— Mapper 代理 Insert/Select/Count + `useGeneratedKeys` 回填；
@@ -148,6 +174,8 @@
 - 表关键字仅识别 `FROM/JOIN/INTO/UPDATE/TABLE`；`MERGE INTO`、`CREATE INDEX ... ON`（ON 是
   JOIN 条件关键字，不能当表关键字）、MySQL `RENAME TABLE a TO b` 的目标名等罕见写法不加前缀；
 - 非 `public`/`main` schema 的限定名整段跳过（跨库引用由各自环境自行管理）；
+- `FROM fn(...) AS t, tbl2` 中函数调用**参数括号会复位逗号列表状态**，其后的 `tbl2` 不改写
+  （与子查询 `FROM (SELECT ...) x, tbl2` 的既有行为一致）；函数参数内部的子查询表名仍正常改写；
 - 嵌套 CTE（子查询内部再 `WITH`）名称：主循环逐 token 扫描会访问括号内 `with` 关键词，
   顶层与嵌套 CTE 名均会被收集（见 `Test_rewriteSQLTables_nestedCTE`），无需人工规避。
 - 命名约定（3.2）：**SQL 一律写无 schema 名 + `search_path` 路由**；`schema.table` 限定名仅

@@ -41,6 +41,17 @@ func (d *MssqlDialector) SystemTablePrefixes() []string {
 	return []string{"sys", "INFORMATION_SCHEMA"}
 }
 
+// mssqlReservedTableNames SQL Server 表位置的内置行集函数/表值函数/触发器伪表。
+var mssqlReservedTableNames = NewReservedNames(
+	"openrowset", "openquery", "opendatasource", "openjson",
+	"containstable", "freetexttable", "changetable", "string_split", "generate_series",
+	"inserted", "deleted",
+)
+
+func (d *MssqlDialector) ReservedTableNames() *ReservedNames {
+	return mssqlReservedTableNames
+}
+
 func (d *MssqlDialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	return fmt.Sprintf(`SELECT C.COLUMN_NAME, C.DATA_TYPE AS COLUMN_TYPE,

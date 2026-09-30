@@ -32,6 +32,17 @@ func (d *MySqlDialector) SystemTablePrefixes() []string {
 	return []string{"information_schema", "mysql", "performance_schema", "sys"}
 }
 
+// mysqlReservedTableNames MySQL 系表位置的内置函数/哑表；
+// TiDB/TDSQL/PolarDB/OceanBase(MySQL 模式) 嵌入 MySqlDialector 自动继承。
+var mysqlReservedTableNames = NewReservedNames(
+	"json_table",
+	"dual",
+)
+
+func (d *MySqlDialector) ReservedTableNames() *ReservedNames {
+	return mysqlReservedTableNames
+}
+
 func (d *MySqlDialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	return fmt.Sprintf(`select TABLE_NAME as table_name,COLUMN_NAME as column_name,

@@ -36,6 +36,15 @@ func (d *GBase8sDialector) SystemTablePrefixes() []string {
 	return []string{"SYS", "INFORMIX", "GBASE"}
 }
 
+// gbase8sReservedTableNames GBase 8s（Informix 兼容）表位置的内置表函数。
+var gbase8sReservedTableNames = NewReservedNames(
+	"table",
+)
+
+func (d *GBase8sDialector) ReservedTableNames() *ReservedNames {
+	return gbase8sReservedTableNames
+}
+
 func (d *GBase8sDialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	return fmt.Sprintf(`SELECT C.COLNAME AS COLUMN_NAME, C.COLTYPE AS COLUMN_TYPE,

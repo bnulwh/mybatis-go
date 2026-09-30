@@ -41,6 +41,16 @@ func (d *OracleDialector) SystemTablePrefixes() []string {
 	return []string{"SYS", "SYSTEM", "CTXSYS", "MDSYS", "OLAPSYS", "ORDSYS", "OUTLN", "WMSYS", "XDB", "APEX"}
 }
 
+// oracleReservedTableNames Oracle 表位置的内置函数/哑表。
+var oracleReservedTableNames = NewReservedNames(
+	"dual",
+	"table", "xmltable", "json_table", "json_dataguide",
+)
+
+func (d *OracleDialector) ReservedTableNames() *ReservedNames {
+	return oracleReservedTableNames
+}
+
 func (d *OracleDialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	return fmt.Sprintf(`SELECT C.COLUMN_NAME, C.DATA_TYPE AS COLUMN_TYPE,

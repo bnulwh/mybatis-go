@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bnulwh/mybatis-go/log"
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 )
 
 // 数据表名前缀支持。
@@ -72,6 +73,15 @@ func (db *DB) tablePrefixMap() map[string]string {
 	return defaultTablePrefixMap
 }
 
+// reservedTableNames 返回当前数据源方言在表位置需跳过改写的保留名
+// （内置集合返回函数/哑表等，如 PG 的 generate_series、Oracle 的 dual）；nil 安全。
+func (db *DB) reservedTableNames() *dialector.ReservedNames {
+	if db == nil || db.Dialector == nil {
+		return nil
+	}
+	return db.Dialector.ReservedTableNames()
+}
+
 // applyTablePrefix 对 SQL 执行前的最终语句做表名前缀改写；未配置前缀与映射时原样返回。
 // 改写前先取当前数据源指定 schema 的真实表名集合：若 SQL 引用的表名（无前缀）在库中
 // 真实存在，则保持原样不改写，避免「改了前缀但物理表未改名」导致 SQL 指向不存在的表。
@@ -81,7 +91,7 @@ func (db *DB) applyTablePrefix(query string) string {
 	if prefix == "" && len(pMap) == 0 {
 		return query
 	}
-	out := rewriteSQLTablesWithMap(query, prefix, pMap, db.tableNameSet())
+	out := rewriteSQLTablesWithMap(query, prefix, pMap, db.tableNameSet(), db.reservedTableNames())
 	// 2.5：改写动作可观测（debug 级），附带数据源名，便于多环境排查「为何没改写/改写成什么」
 	if log.IsDebugEnabled() && out != query {
 		name := ""
@@ -417,6 +427,13 @@ func nextSig(tokens []sqlToken, i int) int {
 	return -1
 }
 
+// nextIsLParen 判断 token i 之后第一个有效 token 是否为 '('：
+// 表位置标识符后紧跟括号即函数调用（表函数，如 json_populate_recordset(...)），不是数据表。
+func nextIsLParen(tokens []sqlToken, i int) bool {
+	j := nextSig(tokens, i)
+	return j >= 0 && tokens[j].typ == tkPunct && tokens[j].text == "("
+}
+
 // isSystemTable 判断是否为系统目录/系统表（不参与前缀改写）。
 func isSystemTable(name string) bool {
 	n := strings.ToLower(name)
@@ -513,13 +530,13 @@ var clauseBreakWords = map[string]bool{
 // rewriteSQLTables 为查询中的表名插入前缀；输入输出 SQL 除表名前缀外完全一致。
 // 纯前缀匹配（不携带真实表名集合），保持纯函数语义供单元测试使用。
 func rewriteSQLTables(query, prefix string) string {
-	return rewriteSQLTablesWithMap(query, prefix, nil, nil)
+	return rewriteSQLTablesWithMap(query, prefix, nil, nil, nil)
 }
 
 // rewriteSQLTablesWithSet 同 rewriteSQLTables，但携带数据源指定 schema 的真实表名集合：
 // 无前缀表名在库中真实存在时不改写（修复改了前缀但物理表未改名导致访问错误表的问题）。
 func rewriteSQLTablesWithSet(query, prefix string, tableSet map[string]struct{}) string {
-	return rewriteSQLTablesWithMap(query, prefix, nil, tableSet)
+	return rewriteSQLTablesWithMap(query, prefix, nil, tableSet, nil)
 }
 
 // mappedPrefix 返回标识符命中的前缀映射（新前缀, 命中的旧前缀, 是否命中）。
@@ -563,7 +580,11 @@ func stripPrefix(tok *sqlToken, oldp string) {
 // 新前缀为空（移除）→ 表集合判定：库中无前缀表存在则保持、带前缀表存在则保留原样、
 // 其余（含集合缺失）按配置剥离。未命中映射时保持原有的 prefixRequired + applyPrefix 逻辑，
 // 因此 nil/空映射时输出与 rewriteSQLTablesWithSet 完全一致（零回归）。
-func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, tableSet map[string]struct{}) string {
+//
+// reserved 为当前数据库方言在表位置的保留名（内置函数/哑表，如 dual）：
+// 表位置命中保留名、或标识符后紧跟 '('（函数调用，如 generate_series(...)）时跳过不改写；
+// nil 时仅依赖函数调用判定（无保留名行为）。
+func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, tableSet map[string]struct{}, reserved *dialector.ReservedNames) string {
 	if query == "" {
 		return query
 	}
@@ -573,6 +594,8 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 	tokens := tokenizeSQL(query)
 	expectTable := false // 下一个标识符处于表位置（FROM/JOIN/INTO/UPDATE/TABLE 之后）
 	commaList := false   // 处于 FROM/JOIN/UPDATE 逗号分隔的多表列表中
+	fromCtx := false     // 表位置由 FROM/JOIN/USING 触发（仅这些位置表名后跟 '(' 是函数调用；
+	                     // INTO/UPDATE/TABLE/ON 后跟 '(' 是列定义/索引列，不能当函数跳过）
 	cteNames := map[string]bool{}
 	// 2.2 扩展表位置关键字上下文
 	pendingIndex  := false // CREATE INDEX ... ON 的 index→on 上下文
@@ -618,8 +641,24 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 		case tkWord:
 			lower := strings.ToLower(t.text)
 			if expectTable {
-				// CREATE/DROP/ALTER TABLE IF NOT EXISTS 等修饰词属于 DDL 语法，跳过
-				if lower == "if" || lower == "not" || lower == "exists" {
+				// CREATE/DROP/ALTER TABLE IF NOT EXISTS 等修饰词属于 DDL 语法，跳过；
+				// ONLY（PG SELECT ... FROM ONLY t）/ LATERAL（LATERAL join/表函数）是表位置引导词，跳过
+				if lower == "if" || lower == "not" || lower == "exists" || lower == "only" || lower == "lateral" {
+					continue
+				}
+				// 当前数据库的内置对象（保留名，如 Oracle/MySQL 的 dual）不改写
+				if reserved.Has(lower) {
+					expectTable = false
+					commaList = true
+					continue
+				}
+				// FROM/JOIN/USING 上下文中标识符后紧跟 '(' → 函数调用（表函数，如
+				// json_populate_recordset(...)），不是数据表。INTO/UPDATE/TABLE/ON 上下文
+				// 表名后跟 '(' 是列定义/索引列（INSERT INTO t (a,b) / CREATE TABLE t (id int)），
+				// 不能按函数跳过。
+				if fromCtx && nextIsLParen(tokens, i) {
+					expectTable = false
+					commaList = true
 					continue
 				}
 				// schema 限定名 schema.table：public/main 走原逻辑；非 public/main 仅映射生效
@@ -628,10 +667,13 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 					k := nextSig(tokens, j)
 					if k >= 0 && (tokens[k].typ == tkWord || tokens[k].typ == tkQuoted) {
 						tblName := identContent(tokens[k])
-						if isPrefixableSchema(identContent(*t)) {
-							applyToken(&tokens[k], true)
-						} else if mappedHit(tblName, prefixMap) {
-							applyToken(&tokens[k], false)
+						// schema 限定的函数调用/保留名（如 pg_catalog.pg_table_is_visible(...)）不改写
+						if !reserved.Has(tblName) && !(fromCtx && nextIsLParen(tokens, k)) {
+							if isPrefixableSchema(identContent(*t)) {
+								applyToken(&tokens[k], true)
+							} else if mappedHit(tblName, prefixMap) {
+								applyToken(&tokens[k], false)
+							}
 						}
 						i = k
 					}
@@ -651,9 +693,16 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 				continue
 			}
 			switch lower {
-			case "from", "join", "into", "update", "table", "using":
+			case "from", "join", "using":
+				// FROM/JOIN/USING 列表：表名后跟 '(' 只能是表函数调用
 				expectTable = true
 				commaList = false
+				fromCtx = true
+			case "into", "update", "table":
+				// INTO/UPDATE/TABLE：表名后跟 '(' 是列定义（INSERT INTO t (a,b) / CREATE TABLE t (id)）
+				expectTable = true
+				commaList = false
+				fromCtx = false
 			case "index":
 				// CREATE INDEX ... ON t：index 后期待 on 触发表位置
 				pendingIndex = true
@@ -661,6 +710,7 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 			case "on":
 				if pendingIndex {
 					expectTable = true
+					fromCtx = false // ON t(id)：索引列括号不是函数调用
 					pendingIndex = false
 				} else {
 					commaList = false
@@ -671,6 +721,7 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 			case "to":
 				if expectToTable {
 					expectTable = true
+					fromCtx = false
 					expectToTable = false
 					consumedTo = true
 				} else {
@@ -687,16 +738,25 @@ func rewriteSQLTablesWithMap(query, prefix string, prefixMap map[string]string, 
 			}
 		case tkQuoted:
 			if expectTable {
+				// 引号形式的保留名（如 "dual"）/ FROM 上下文函数调用（如 "generate_series"(...)）不改写
+				if reserved.Has(identContent(*t)) || (fromCtx && nextIsLParen(tokens, i)) {
+					expectTable = false
+					commaList = true
+					continue
+				}
 				// 引号标识符同样支持 schema.table 限定名（如 `db`.`tbl` / "public"."tbl"）
 				j := nextSig(tokens, i)
 				if j >= 0 && tokens[j].typ == tkPunct && tokens[j].text == "." {
 					k := nextSig(tokens, j)
 					if k >= 0 && (tokens[k].typ == tkWord || tokens[k].typ == tkQuoted) {
 						tblName := identContent(tokens[k])
-						if isPrefixableSchema(identContent(*t)) {
-							applyToken(&tokens[k], true)
-						} else if mappedHit(tblName, prefixMap) {
-							applyToken(&tokens[k], false)
+						// schema 限定的函数调用/保留名不改写
+						if !reserved.Has(tblName) && !(fromCtx && nextIsLParen(tokens, k)) {
+							if isPrefixableSchema(identContent(*t)) {
+								applyToken(&tokens[k], true)
+							} else if mappedHit(tblName, prefixMap) {
+								applyToken(&tokens[k], false)
+							}
 						}
 						i = k
 					}

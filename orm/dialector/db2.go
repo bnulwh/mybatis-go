@@ -39,6 +39,15 @@ func (d *Db2Dialector) SystemTablePrefixes() []string {
 	return []string{"SYSIBM", "SYSCAT", "SYSSTAT", "SYSTOOLS", "SYSFUN", "SYSPROC", "SYSIBMADM"}
 }
 
+// db2ReservedTableNames DB2 表位置的内置集合返回函数/XML 表函数。
+var db2ReservedTableNames = NewReservedNames(
+	"unnest", "xmltable", "json_table", "table",
+)
+
+func (d *Db2Dialector) ReservedTableNames() *ReservedNames {
+	return db2ReservedTableNames
+}
+
 func (d *Db2Dialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	return fmt.Sprintf(`SELECT C.COLNAME AS COLUMN_NAME, C.TYPENAME AS COLUMN_TYPE,

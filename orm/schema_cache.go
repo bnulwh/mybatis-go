@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
@@ -196,25 +197,36 @@ func (db *DB) lookupColumnSchema(tableName, colName string) *columnSchemaHint {
 	return nil
 }
 
-func extractTableNamesFromSQL(query string) []string {
+// extractTableNamesFromSQL 从 SQL 提取表名（供表结构缓存构造列类型提示）：
+// 跳过系统表、子查询括号、函数调用（表位置标识符后跟 '('，如 generate_series(...)）
+// 与当前数据库的保留名（内置函数/哑表，如 dual），与表名前缀改写规则保持一致。
+func extractTableNamesFromSQL(query string, reserved *dialector.ReservedNames) []string {
 	tokens := tokenizeSQL(query)
 	var names []string
 	expectTable := false
 	commaList := false
+	fromCtx := false // 表位置由 FROM/JOIN/USING 触发（仅这些位置表名后跟 '(' 是函数调用）
 	for i := 0; i < len(tokens); i++ {
 		t := tokens[i]
 		switch t.typ {
 		case tkWord:
 			lower := strings.ToLower(t.text)
 			if expectTable {
-				if lower == "if" || lower == "not" || lower == "exists" {
+				if lower == "if" || lower == "not" || lower == "exists" || lower == "only" || lower == "lateral" {
+					continue
+				}
+				// 保留名（如 dual）/ FROM 上下文函数调用（如 json_populate_recordset(...)）不是数据表
+				if reserved.Has(lower) || (fromCtx && nextIsLParen(tokens, i)) {
+					expectTable = false
+					commaList = true
 					continue
 				}
 				j := nextSig(tokens, i)
 				if j >= 0 && tokens[j].typ == tkPunct && tokens[j].text == "." {
 					k := nextSig(tokens, j)
 					if k >= 0 && (tokens[k].typ == tkWord || tokens[k].typ == tkQuoted) {
-						if isPrefixableSchema(identContent(t)) {
+						if isPrefixableSchema(identContent(t)) &&
+							!reserved.Has(identContent(tokens[k])) && !(fromCtx && nextIsLParen(tokens, k)) {
 							names = append(names, identContent(tokens[k]))
 						}
 						i = k
@@ -229,9 +241,14 @@ func extractTableNamesFromSQL(query string) []string {
 				continue
 			}
 			switch lower {
-			case "from", "join", "into", "update", "table", "using":
+			case "from", "join", "using":
 				expectTable = true
 				commaList = false
+				fromCtx = true
+			case "into", "update", "table":
+				expectTable = true
+				commaList = false
+				fromCtx = false
 			default:
 				if clauseBreakWords[lower] {
 					commaList = false
@@ -239,11 +256,18 @@ func extractTableNamesFromSQL(query string) []string {
 			}
 		case tkQuoted:
 			if expectTable {
+				// 引号形式的保留名/函数调用同样跳过
+				if reserved.Has(identContent(t)) || (fromCtx && nextIsLParen(tokens, i)) {
+					expectTable = false
+					commaList = true
+					continue
+				}
 				j := nextSig(tokens, i)
 				if j >= 0 && tokens[j].typ == tkPunct && tokens[j].text == "." {
 					k := nextSig(tokens, j)
 					if k >= 0 && (tokens[k].typ == tkWord || tokens[k].typ == tkQuoted) {
-						if isPrefixableSchema(identContent(t)) {
+						if isPrefixableSchema(identContent(t)) &&
+							!reserved.Has(identContent(tokens[k])) && !(fromCtx && nextIsLParen(tokens, k)) {
 							names = append(names, identContent(tokens[k]))
 						}
 						i = k

@@ -248,6 +248,16 @@ func (d *DamengDialector) SystemTablePrefixes() []string {
     return []string{"SYS", "SYSTEM"}   // ← 系统表前缀
 }
 
+// ReservedTableNames 可选覆写：表位置（FROM/JOIN 等）需跳过前缀改写的内置函数/
+// 哑表清单（包级预构建，避免每次分配）；不覆写时 BaseDialector 默认返回 nil。
+// 注意：FROM/JOIN/USING 上下文中「标识符后跟 '('」已按函数调用通用跳过（无需配置），
+// 此清单只需补充**无括号**的内置对象（如 dual）或特殊函数名。
+var damengReservedTableNames = NewReservedNames("dual", "table", "xmltable")
+
+func (d *DamengDialector) ReservedTableNames() *ReservedNames {
+    return damengReservedTableNames
+}
+
 func (d *DamengDialector) TableStructureSQL(table string) string {
     schema := d.effectiveSchema()
     return fmt.Sprintf(`SELECT ... FROM ... WHERE OWNER='%s' AND TABLE_NAME='%s'`, schema, table)

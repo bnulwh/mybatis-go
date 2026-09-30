@@ -36,6 +36,16 @@ func (d *DamengDialector) SystemTablePrefixes() []string {
 	return []string{"SYS", "SYSDBA", "CTISYS", "DM"}
 }
 
+// damengReservedTableNames 达梦表位置的内置函数/哑表（Oracle 兼容语法）。
+var damengReservedTableNames = NewReservedNames(
+	"dual",
+	"table", "xmltable",
+)
+
+func (d *DamengDialector) ReservedTableNames() *ReservedNames {
+	return damengReservedTableNames
+}
+
 func (d *DamengDialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	return fmt.Sprintf(`SELECT C.COLUMN_NAME, C.DATA_TYPE AS COLUMN_TYPE,

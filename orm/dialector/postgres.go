@@ -36,6 +36,22 @@ func (d *PostgresDialector) SystemTablePrefixes() []string {
 	return []string{"pg_", "pg_catalog"}
 }
 
+// postgresReservedTableNames PG 系在表位置（FROM/JOIN 等）出现的内置集合返回函数，
+// 加表名前缀时必须跳过。openGauss/GaussDB/Highgo/Vastbase 嵌入 PostgresDialector 自动继承。
+var postgresReservedTableNames = NewReservedNames(
+	"generate_series", "unnest",
+	"json_populate_record", "json_populate_recordset",
+	"jsonb_populate_record", "jsonb_populate_recordset",
+	"json_to_record", "json_to_recordset",
+	"jsonb_to_record", "jsonb_to_recordset",
+	"regexp_matches", "regexp_split_to_table", "string_to_table",
+	"xmltable", "rows_from",
+)
+
+func (d *PostgresDialector) ReservedTableNames() *ReservedNames {
+	return postgresReservedTableNames
+}
+
 func (d *PostgresDialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	attrelid := table

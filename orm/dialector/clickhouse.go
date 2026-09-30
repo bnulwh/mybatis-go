@@ -42,6 +42,19 @@ func (d *ClickHouseDialector) SystemTablePrefixes() []string {
 	return []string{"system", "INFORMATION_SCHEMA"}
 }
 
+// clickhouseReservedTableNames ClickHouse 表位置的内置表函数（数字序列/文件/远程/输入等）。
+var clickhouseReservedTableNames = NewReservedNames(
+	"numbers", "numbers_mt", "generateRandom", "format", "file", "url",
+	"remote", "remotesecure", "cluster", "clusterallreplicas",
+	"values", "input", "merge", "null",
+	"odbc", "jdbc", "mysql", "postgresql", "sqlite", "mongodb", "redis",
+	"s3", "hdfs",
+)
+
+func (d *ClickHouseDialector) ReservedTableNames() *ReservedNames {
+	return clickhouseReservedTableNames
+}
+
 func (d *ClickHouseDialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	return fmt.Sprintf(`SELECT C.name AS COLUMN_NAME, C.type AS COLUMN_TYPE,

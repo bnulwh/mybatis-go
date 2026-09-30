@@ -36,6 +36,11 @@ func (d *OceanBaseOracleDialector) SystemTablePrefixes() []string {
 	return []string{"SYS", "SYSTEM", "LBACSYS", "ORACLE"}
 }
 
+// ReservedTableNames 复用 Oracle 内置函数/哑表清单。
+func (d *OceanBaseOracleDialector) ReservedTableNames() *ReservedNames {
+	return oracleReservedTableNames
+}
+
 func (d *OceanBaseOracleDialector) TableStructureSQL(table string) string {
 	schema := d.effectiveSchema()
 	return fmt.Sprintf(`SELECT C.COLUMN_NAME, C.DATA_TYPE AS COLUMN_TYPE,

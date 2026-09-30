@@ -1,5 +1,14 @@
 # 更新日志
 
+- **v0.3.13（表前缀改写跳过表函数/保留名，2026-09-30）**：修复启用 `mybatis.table-prefix` 后 SQL 中表位置的内置函数被误当数据表加前缀导致查询报错的问题（如 `FROM json_populate_recordset(...)` 被改写成 `test_json_populate_recordset`）—
+  - **通用函数调用判定**（`orm/table_prefix.go`）：FROM/JOIN/USING 上下文中表位置标识符后紧跟 `(` 即表函数调用，跳过不改写（`generate_series`/`unnest`/`json_populate_recordset`/`xmltable` 等，方言无关）；schema 限定形式（`pg_catalog.pg_table_is_visible(...)`）与引号形式（`"generate_series"(...)`）同样跳过；INTO/UPDATE/TABLE/ON 上下文表名后的 `(` 是列定义/索引列（`INSERT INTO t (a,b)`、`CREATE TABLE t (id int)`、`ON t(id)`），不适用此规则
+  - **新增 `Dialector.ReservedTableNames()` 接口方法**（`orm/dialector/reserved.go`）：返回各数据库表位置的内置函数/哑表保留名集合（`ReservedNames` 类型：小写键、`Has` 大小写不敏感且 nil 安全、`Merge` 并集）；`BaseDialector` 默认返回 nil，家族派生（TiDB/TDSQL/PolarDB/OceanBase、openGauss/GaussDB/Highgo/Vastbase）经嵌入自动继承
+  - **各方言保留名清单**：PG 系（`generate_series`/`unnest`/`json[_b]_populate_record[set]`/`json[_b]_to_record[set]`/`regexp_matches`/`string_to_table`/`xmltable`/`rows_from`）、Kingbase 额外并入 `dual`（Oracle 兼容模式哑表）、MySQL 系（`dual`/`json_table`）、SQLite（`json_each`/`json_tree`）、Oracle/OceanBase-Oracle（`dual`/`table`/`xmltable`/`json_table`/`json_dataguide`）、达梦（`dual`/`table`/`xmltable`）、SQL Server（`openrowset`/`openquery`/`opendatasource`/`openjson`/`containstable`/`freetexttable`/`changetable`/`string_split`/`generate_series`/触发器伪表 `inserted`/`deleted`）、DB2（`unnest`/`xmltable`/`json_table`/`table`）、GBase 8s（`table`）、ClickHouse（`numbers`/`file`/`url`/`cluster`/`input` 等表函数）
+  - **引导词跳过**：`ONLY`（PG `FROM ONLY t`）与 `LATERAL` 跳过后继续期待表名，真实表照常改写
+  - **表名提取同步修复**（`orm/schema_cache.go` `extractTableNamesFromSQL`）：表结构缓存的表名提取应用同一套函数调用/保留名/引导词跳过规则，避免内置函数名进缓存查询
+  - **单元测试**：`orm/table_prefix_test.go` 新增 `Test_rewriteSQLTables_tableFunctions`（9 组：表函数跳过 + INTO/TABLE/ON 列括号回归保护）、`Test_rewriteSQLTablesWithMap_reservedNames`（6 组：`dual` 含引号、MSSQL 伪表、Oracle `TABLE()`、无保留名时旧行为不变）、`Test_extractTableNamesFromSQL_skipFunctions`（4 组）；`orm/dialector/reserved_test.go` 4 用例（类型行为、12 方言清单命中与不误命中、家族嵌入继承、Base 默认 nil）
+  - **文档**：docs/agents/table-prefix.md 改写算法/保护规则/测试覆盖/已知边界同步；docs/agents/add-dialector.md 新方言模板补充 `ReservedTableNames()` 可选覆写说明；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.12（`<if test>` 字符串等值比较，2026-09-30）**：补齐 MyBatis/OGNL 兼容性 — `<if test="sourceStatus == 'assigned'">` 此前被静默丢弃、条件恒不渲染，现已支持 —
   - **新增 `stringCompareCheckCond` 条件类型**（`types/sqlfragment/if.go`）：与数值比较（`compareCheckCond`）并列，`ifCondition.Literal` 兼存字符串字面量
   - **解析**：新增正则 `reStrCmp` 匹配 `field == 'value'` / `field != "value"`（单/双引号均可），在 `parseIfConditionsFromText` 中优先于数值比较 `reCmp` 命中；支持点号参数（`params.status == 'active'`）

@@ -145,7 +145,7 @@ func buildSchemaHints(sqlStr string, colTypes []*sql.ColumnType) map[string]*col
 	if gDbConn == nil {
 		return nil
 	}
-	tableNames := extractTableNamesFromSQL(sqlStr)
+	tableNames := extractTableNamesFromSQL(sqlStr, gDbConn.reservedTableNames())
 	if len(tableNames) == 0 {
 		return nil
 	}

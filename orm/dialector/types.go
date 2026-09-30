@@ -291,6 +291,10 @@ type Dialector interface {
 	Family() DatabaseFamily
 	ApplyPagination(sql string, limit, offset int) string
 	SystemTablePrefixes() []string
+	// ReservedTableNames 返回该数据库在表位置（FROM/JOIN 等之后）需要跳过
+	// 前缀改写的内置函数/内置对象名集合（如 PG 的 generate_series、Oracle 的 dual）；
+	// 默认 nil 表示无保留名。实现方可返回包级预构建集合，避免每次分配。
+	ReservedTableNames() *ReservedNames
 	TableStructureSQL(table string) string
 	TableListSQL() string
 	DefaultMaxIdle() int
