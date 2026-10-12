@@ -108,6 +108,10 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r24 != GoldenDBDb || err != nil {
 		t.Error("test parseDatabaseType goldendb failed.")
 	}
+	r25, err := dialector.ParseDatabaseType("greatdb")
+	if r25 != GreatDBDb || err != nil {
+		t.Error("test parseDatabaseType greatdb failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -215,6 +219,11 @@ func Test_parseAddr(t *testing.T) {
 	tp20, host20, port20, db20, err := parseAddr(mp)
 	if tp20 != "goldendb" || host20 != "10.1.2.3" || port20 != 3306 || db20 != "testdb" || err != nil {
 		t.Error("test parseAddr goldendb failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:greatdb://10.1.2.3:3306/testdb"
+	tp21, host21, port21, db21, err := parseAddr(mp)
+	if tp21 != "greatdb" || host21 != "10.1.2.3" || port21 != 3306 || db21 != "testdb" || err != nil {
+		t.Error("test parseAddr greatdb failed.")
 	}
 }
 

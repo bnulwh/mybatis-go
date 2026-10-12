@@ -262,6 +262,18 @@ mybatis.mapper-locations= resources/mapper
 
 GoldenDB（中兴）为 MySQL 兼容族：占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false（自增主键回填走 `LastInsertId()`）；`EffectiveSchema` 返回数据库名。框架自动以 `goldendb` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
 
+### GreatDB（万里安全数据库）
+
+```properties
+# GreatDB 万里安全数据库（MySQL 兼容，默认端口 3306）
+spring.datasource.url= jdbc:greatdb://localhost:3306/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+GreatDB（万里安全数据库）为 MySQL 兼容族：占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false；`EffectiveSchema` 返回数据库名。框架自动以 `greatdb` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
+
 ### TiDB（PingCAP）
 
 ```properties
@@ -353,6 +365,7 @@ err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "
 // 或 orm.InitializeDatabase("db2", "localhost", 50000, "db2inst1", "123456", "testdb")
 // 或 orm.InitializeDatabase("clickhouse", "localhost", 9000, "default", "", "testdb")
 // 或 orm.InitializeDatabase("goldendb", "localhost", 3306, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("greatdb", "localhost", 3306, "root", "123456", "testdb")
 ```
 
 ### 数据表名前缀

@@ -145,6 +145,8 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"click-house", ClickHouseDb},
 		{"goldendb", GoldenDBDb},
 		{"golden-db", GoldenDBDb},
+		{"greatdb", GreatDBDb},
+		{"great-db", GreatDBDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -218,6 +220,9 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if GoldenDBDb.Family() != FamilyMySQL {
 		t.Errorf("GoldenDBDb.Family() = %q, want %q", GoldenDBDb.Family(), FamilyMySQL)
 	}
+	if GreatDBDb.Family() != FamilyMySQL {
+		t.Errorf("GreatDBDb.Family() = %q, want %q", GreatDBDb.Family(), FamilyMySQL)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -245,6 +250,7 @@ func Test_GetDriverName(t *testing.T) {
 		{Db2Db, "go_ibm_db"},
 		{ClickHouseDb, "clickhouse"},
 		{GoldenDBDb, "goldendb"},
+		{GreatDBDb, "greatdb"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -465,6 +471,7 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Username: "db2inst1", Type: Db2Db}, "DB2INST1"},
 		{ConnectParams{DBName: "mydb", Type: ClickHouseDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: GoldenDBDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: GreatDBDb}, "mydb"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -550,6 +557,10 @@ func Test_GenerateDSN(t *testing.T) {
 	if got := GenerateDSN(goldendbParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
 		t.Errorf("GenerateDSN goldendb = %q", got)
 	}
+	greatdbParams := ConnectParams{Host: "10.0.0.1", Port: 3306, Username: "root", Password: "123456", DBName: "testdb", Type: GreatDBDb}
+	if got := GenerateDSN(greatdbParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN greatdb = %q", got)
+	}
 }
 
 func Test_NewForType(t *testing.T) {
@@ -628,6 +639,10 @@ func Test_NewForType(t *testing.T) {
 	d19, err := NewForType(GoldenDBDb, &testConfig{dbType: GoldenDBDb})
 	if err != nil || d19.Name() != "goldendb" {
 		t.Errorf("NewForType goldendb failed: %v, name=%q", err, d19.Name())
+	}
+	d20, err := NewForType(GreatDBDb, &testConfig{dbType: GreatDBDb})
+	if err != nil || d20.Name() != "greatdb" {
+		t.Errorf("NewForType greatdb failed: %v, name=%q", err, d20.Name())
 	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")
@@ -1047,5 +1062,34 @@ func Test_GoldenDBDialectorName(t *testing.T) {
 	d := NewGoldenDBDialector(&testConfig{dbType: GoldenDBDb})
 	if d.Name() != "goldendb" {
 		t.Errorf("goldendb dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_GreatDBDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("greatdb") {
+		t.Error("greatdb driver should be registered by init")
+	}
+}
+
+func Test_GreatDBFormatPrepareSQL(t *testing.T) {
+	d := NewGreatDBDialector(&testConfig{dbType: GreatDBDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	if got != src {
+		t.Errorf("greatdb format prepare sql should keep ?, got: %q", got)
+	}
+}
+
+func Test_GreatDBNeedsReturning(t *testing.T) {
+	d := NewGreatDBDialector(&testConfig{dbType: GreatDBDb})
+	if d.NeedsReturning() {
+		t.Error("greatdb should not need RETURNING")
+	}
+}
+
+func Test_GreatDBDialectorName(t *testing.T) {
+	d := NewGreatDBDialector(&testConfig{dbType: GreatDBDb})
+	if d.Name() != "greatdb" {
+		t.Errorf("greatdb dialector name failed, got: %q", d.Name())
 	}
 }

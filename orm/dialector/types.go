@@ -54,13 +54,14 @@ const (
 	Db2Db           DatabaseType = "db2"
 	ClickHouseDb    DatabaseType = "clickhouse"
 	GoldenDBDb       DatabaseType = "goldendb"
+	GreatDBDb        DatabaseType = "greatdb"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
 	switch dt {
 	case PostgresDb, KingbaseDb, OpenGaussDb, GaussDBDb, HighGoDb, VastbaseDb:
 		return FamilyPostgres
-	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb, OceanBaseDb, GoldenDBDb:
+	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb, OceanBaseDb, GoldenDBDb, GreatDBDb:
 		return FamilyMySQL
 	case SqliteDb:
 		return FamilySQLite
@@ -121,6 +122,8 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return ClickHouseDb, nil
 	case "goldendb", "golden-db":
 		return GoldenDBDb, nil
+	case "greatdb", "great-db":
+		return GreatDBDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -168,6 +171,8 @@ func GetDriverName(dbType DatabaseType) string {
 		return "clickhouse"
 	case GoldenDBDb:
 		return "goldendb"
+	case GreatDBDb:
+		return "greatdb"
 	default:
 		return string(dbType)
 	}
@@ -355,6 +360,8 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewClickHouseDialector(cfg), nil
 	case GoldenDBDb:
 		return NewGoldenDBDialector(cfg), nil
+	case GreatDBDb:
+		return NewGreatDBDialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

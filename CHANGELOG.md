@@ -1,5 +1,7 @@
 # 更新日志
 
+- **v0.3.15（信创数据库 GreatDB 适配，2026-10-12）**：万里安全数据库 GreatDB — MySQL 协议兼容，内嵌 `MySqlDialector`（MySQL 兼容族），零成本适配 — 新增 `DatabaseType` 常量 `GreatDBDb`（`Family()` 映射 `FamilyMySQL`）；`ParseDatabaseType` 支持 `greatdb`/`great-db` 别名；`GetDriverName` 返回 `greatdb`，框架 init 自动以 `greatdb` 名称注册 `go-sql-driver/mysql` 驱动别名（无需新增依赖）；`NewForType` 支持 `GreatDBDb`；JDBC URL 支持 `jdbc:greatdb://` 格式；新增 `cmd/greatdbdemo` 示例 + `application-greatdb.properties` 配置模板；schema2code `-type greatdb`；dialector + orm 单测覆盖
+
 - **v0.3.14（信创数据库 GoldenDB 适配，2026-10-12）**：中兴 GoldenDB — MySQL 协议兼容，内嵌 `MySqlDialector`（MySQL 兼容族），零成本适配 — 新增 `DatabaseType` 常量 `GoldenDBDb`（`Family()` 映射 `FamilyMySQL`）；`ParseDatabaseType` 支持 `goldendb`/`golden-db` 别名；`GetDriverName` 返回 `goldendb`，框架 init 自动以 `goldendb` 名称注册 `go-sql-driver/mysql` 驱动别名（无需新增依赖）；`NewForType` 支持 `GoldenDBDb`；JDBC URL 支持 `jdbc:goldendb://` 格式；新增 `cmd/goldendbdemo` 示例 + `application-goldendb.properties` 配置模板；schema2code `-type goldendb`；dialector + orm 单测覆盖（驱动注册、占位符、NeedsReturning、DSN 生成、ParseDatabaseType 别名、Family 映射、GetDriverName、EffectiveSchema、NewForType、parseAddr）
 
 - **v0.3.13（表前缀改写跳过表函数/保留名，2026-09-30）**：修复启用 `mybatis.table-prefix` 后 SQL 中表位置的内置函数被误当数据表加前缀导致查询报错的问题（如 `FROM json_populate_recordset(...)` 被改写成 `test_json_populate_recordset`）—
