@@ -50,6 +50,7 @@ const (
 	OracleDb         = dialector.OracleDb
 	Db2Db            = dialector.Db2Db
 	ClickHouseDb     = dialector.ClickHouseDb
+	GoldenDBDb       = dialector.GoldenDBDb
 )
 
 type Dialector = dialector.Dialector

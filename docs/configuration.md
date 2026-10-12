@@ -250,6 +250,18 @@ mybatis.mapper-locations= resources/mapper
 
 ClickHouse 方言族占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false（ClickHouse 无 RETURNING 支持）；分页使用 `LIMIT n OFFSET m`；`EffectiveSchema` 返回数据库名；DSN 格式 `clickhouse://user:password@host:port/dbname`（clickhouse-go/v2 URL 格式）。框架自动以 `clickhouse` 名称注册 clickhouse-go/v2 驱动，无需额外引入。注意：ClickHouse 是列式 OLAP 引擎，不支持事务，UPDATE/DELETE 为异步 mutation，ORM 适用于批量插入 + 查询分析场景。
 
+### GoldenDB（中兴）
+
+```properties
+# GoldenDB（中兴，MySQL 兼容，默认端口 3306）
+spring.datasource.url= jdbc:goldendb://localhost:3306/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+GoldenDB（中兴）为 MySQL 兼容族：占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false（自增主键回填走 `LastInsertId()`）；`EffectiveSchema` 返回数据库名。框架自动以 `goldendb` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
+
 ### TiDB（PingCAP）
 
 ```properties
@@ -340,6 +352,7 @@ err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "
 // 或 orm.InitializeDatabase("oracle", "localhost", 1521, "system", "123456", "testdb")
 // 或 orm.InitializeDatabase("db2", "localhost", 50000, "db2inst1", "123456", "testdb")
 // 或 orm.InitializeDatabase("clickhouse", "localhost", 9000, "default", "", "testdb")
+// 或 orm.InitializeDatabase("goldendb", "localhost", 3306, "root", "123456", "testdb")
 ```
 
 ### 数据表名前缀

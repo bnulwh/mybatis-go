@@ -53,13 +53,14 @@ const (
 	OracleDb         DatabaseType = "oracle"
 	Db2Db           DatabaseType = "db2"
 	ClickHouseDb    DatabaseType = "clickhouse"
+	GoldenDBDb       DatabaseType = "goldendb"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
 	switch dt {
 	case PostgresDb, KingbaseDb, OpenGaussDb, GaussDBDb, HighGoDb, VastbaseDb:
 		return FamilyPostgres
-	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb, OceanBaseDb:
+	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb, OceanBaseDb, GoldenDBDb:
 		return FamilyMySQL
 	case SqliteDb:
 		return FamilySQLite
@@ -118,6 +119,8 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return Db2Db, nil
 	case "clickhouse", "click-house":
 		return ClickHouseDb, nil
+	case "goldendb", "golden-db":
+		return GoldenDBDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -163,6 +166,8 @@ func GetDriverName(dbType DatabaseType) string {
 		return "go_ibm_db"
 	case ClickHouseDb:
 		return "clickhouse"
+	case GoldenDBDb:
+		return "goldendb"
 	default:
 		return string(dbType)
 	}
@@ -348,6 +353,8 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewDb2Dialector(cfg), nil
 	case ClickHouseDb:
 		return NewClickHouseDialector(cfg), nil
+	case GoldenDBDb:
+		return NewGoldenDBDialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

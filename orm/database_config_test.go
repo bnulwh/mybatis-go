@@ -104,6 +104,10 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r23 != ClickHouseDb || err != nil {
 		t.Error("test parseDatabaseType clickhouse failed.")
 	}
+	r24, err := dialector.ParseDatabaseType("goldendb")
+	if r24 != GoldenDBDb || err != nil {
+		t.Error("test parseDatabaseType goldendb failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -206,6 +210,11 @@ func Test_parseAddr(t *testing.T) {
 	tp19, host19, port19, db19, err := parseAddr(mp)
 	if tp19 != "clickhouse" || host19 != "10.1.2.3" || port19 != 9000 || db19 != "ch_test" || err != nil {
 		t.Error("test parseAddr clickhouse failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:goldendb://10.1.2.3:3306/testdb"
+	tp20, host20, port20, db20, err := parseAddr(mp)
+	if tp20 != "goldendb" || host20 != "10.1.2.3" || port20 != 3306 || db20 != "testdb" || err != nil {
+		t.Error("test parseAddr goldendb failed.")
 	}
 }
 

@@ -143,6 +143,8 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"db2-luw", Db2Db},
 		{"clickhouse", ClickHouseDb},
 		{"click-house", ClickHouseDb},
+		{"goldendb", GoldenDBDb},
+		{"golden-db", GoldenDBDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -213,6 +215,9 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if ClickHouseDb.Family() != FamilyClickHouse {
 		t.Errorf("ClickHouseDb.Family() = %q, want %q", ClickHouseDb.Family(), FamilyClickHouse)
 	}
+	if GoldenDBDb.Family() != FamilyMySQL {
+		t.Errorf("GoldenDBDb.Family() = %q, want %q", GoldenDBDb.Family(), FamilyMySQL)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -239,6 +244,7 @@ func Test_GetDriverName(t *testing.T) {
 		{OracleDb, "oracle"},
 		{Db2Db, "go_ibm_db"},
 		{ClickHouseDb, "clickhouse"},
+		{GoldenDBDb, "goldendb"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -458,6 +464,7 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Username: "SYSTEM", Type: OracleDb}, "SYSTEM"},
 		{ConnectParams{DBName: "mydb", Username: "db2inst1", Type: Db2Db}, "DB2INST1"},
 		{ConnectParams{DBName: "mydb", Type: ClickHouseDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: GoldenDBDb}, "mydb"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -538,7 +545,12 @@ func Test_GenerateDSN(t *testing.T) {
 	chParams := ConnectParams{Host: "10.0.0.1", Port: 9000, Username: "default", Password: "123456", DBName: "testdb", Type: ClickHouseDb}
 	if got := GenerateDSN(chParams); got != "clickhouse://default:123456@10.0.0.1:9000/testdb" {
 		t.Errorf("GenerateDSN clickhouse = %q", got)
-	}}
+	}
+	goldendbParams := ConnectParams{Host: "10.0.0.1", Port: 3306, Username: "root", Password: "123456", DBName: "testdb", Type: GoldenDBDb}
+	if got := GenerateDSN(goldendbParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN goldendb = %q", got)
+	}
+}
 
 func Test_NewForType(t *testing.T) {
 	d, err := NewForType(PostgresDb, &testConfig{dbType: PostgresDb})
@@ -612,6 +624,10 @@ func Test_NewForType(t *testing.T) {
 	d18, err := NewForType(ClickHouseDb, &testConfig{dbType: ClickHouseDb})
 	if err != nil || d18.Name() != "clickhouse" {
 		t.Errorf("NewForType clickhouse failed: %v, name=%q", err, d18.Name())
+	}
+	d19, err := NewForType(GoldenDBDb, &testConfig{dbType: GoldenDBDb})
+	if err != nil || d19.Name() != "goldendb" {
+		t.Errorf("NewForType goldendb failed: %v, name=%q", err, d19.Name())
 	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")
@@ -1002,5 +1018,34 @@ func Test_ClickHouseApplyPagination(t *testing.T) {
 	got3 := d.ApplyPagination("SELECT * FROM t", 0, 5)
 	if got3 != "SELECT * FROM t" {
 		t.Errorf("clickhouse pagination limit=0 failed, got: %q", got3)
+	}
+}
+
+func Test_GoldenDBDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("goldendb") {
+		t.Error("goldendb driver should be registered by init")
+	}
+}
+
+func Test_GoldenDBFormatPrepareSQL(t *testing.T) {
+	d := NewGoldenDBDialector(&testConfig{dbType: GoldenDBDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	if got != src {
+		t.Errorf("goldendb format prepare sql should keep ?, got: %q", got)
+	}
+}
+
+func Test_GoldenDBNeedsReturning(t *testing.T) {
+	d := NewGoldenDBDialector(&testConfig{dbType: GoldenDBDb})
+	if d.NeedsReturning() {
+		t.Error("goldendb should not need RETURNING")
+	}
+}
+
+func Test_GoldenDBDialectorName(t *testing.T) {
+	d := NewGoldenDBDialector(&testConfig{dbType: GoldenDBDb})
+	if d.Name() != "goldendb" {
+		t.Errorf("goldendb dialector name failed, got: %q", d.Name())
 	}
 }
