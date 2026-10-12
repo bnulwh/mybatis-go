@@ -43,6 +43,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - [x] TiDB（PingCAP）— MySQL 协议高度兼容，复用 `go-sql-driver/mysql`，默认端口 4000，`cmd/tidbdemo` 示例
 - [x] TDSQL（腾讯云）— MySQL 兼容，复用 `go-sql-driver/mysql`，`cmd/tdsqldemo` 示例
 - [x] PolarDB-MySQL（阿里云）— MySQL 兼容，复用 `go-sql-driver/mysql`，`cmd/polardbdemo` 示例
+- [x] GoldenDB（中兴）— MySQL 兼容，内嵌 `MySqlDialector`（MySQL 兼容族），`cmd/goldendbdemo` 示例
 
 **P1 — PostgreSQL 兼容族**（低难度，复用 KingbaseES 模式）：
 
@@ -60,7 +61,6 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 **P3 — Informix 方言族**：
 
 - [x] GBase 8s（南大通用）— Informix 兼容，独立 `GBase8sDialector`（Informix 方言族），占位符 `?`，`cmd/gbase8sdemo` 示例
-- [x] GoldenDB（中兴）— MySQL 兼容，内嵌 `MySqlDialector`（MySQL 兼容族），`cmd/goldendbdemo` 示例
 
 **P4 — 国际主流数据库**：
 
@@ -201,7 +201,7 @@ func main() {
 }
 ```
 
-完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go`、`cmd/kingbasedemo/main.go`、`cmd/tidbdemo/main.go`、`cmd/tdsqldemo/main.go`、`cmd/polardbdemo/main.go`、`cmd/opengaussdemo/main.go`、`cmd/gaussdbdemo/main.go`、`cmd/highgodemo/main.go`、`cmd/vastbasedemo/main.go`、`cmd/oceanbasedemo/main.go`、`cmd/oboracledemo/main.go`、`cmd/damengdemo/main.go`、`cmd/gbase8sdemo/main.go`、`cmd/mssqldemo/main.go`、`cmd/oracledemo/main.go` 和 `cmd/db2demo/main.go`、`cmd/goldendbdemo/main.go`。
+完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go`、`cmd/kingbasedemo/main.go`、`cmd/tidbdemo/main.go`、`cmd/tdsqldemo/main.go`、`cmd/polardbdemo/main.go`、`cmd/opengaussdemo/main.go`、`cmd/gaussdbdemo/main.go`、`cmd/highgodemo/main.go`、`cmd/vastbasedemo/main.go`、`cmd/oceanbasedemo/main.go`、`cmd/oboracledemo/main.go`、`cmd/damengdemo/main.go`、`cmd/gbase8sdemo/main.go`、`cmd/mssqldemo/main.go`、`cmd/oracledemo/main.go`、`cmd/db2demo/main.go` 和 `cmd/goldendbdemo/main.go`。
 
 ## 从 Java MyBatis / MyBatis-Plus 迁移
 
@@ -343,7 +343,7 @@ go run ./cmd/goldendbdemo   # GoldenDB（中兴，MySQL 兼容族）
 │   ├── oracledemo/      # Oracle 使用示例
 │   ├── db2demo/         # IBM DB2 使用示例
 │   ├── clickhousedemo/  # ClickHouse 使用示例
-│   ├── goldendbdemo/   # GoldenDB（中兴）使用示例
+│   ├── goldendbdemo/    # GoldenDB（中兴）使用示例
 │   └── demo/            # 通用使用示例
 ├── orm/                 # 核心 ORM 框架
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
@@ -360,7 +360,7 @@ go run ./cmd/goldendbdemo   # GoldenDB（中兴，MySQL 兼容族）
 │   │   ├── oracle.go                                           # P4 国际主流数据库（Oracle 方言族）
 │   │   ├── db2.go                                              # P4 国际主流数据库（DB2 方言族）
 │   │   ├── clickhouse.go                                       # P4 国际主流数据库（ClickHouse 方言族）
-│   │   ├── goldendb.go   # GoldenDB（MySQL 兼容族）
+│   │   ├── goldendb.go                                           # P0 国产数据库（MySQL 兼容族）
 │   │   └── types.go / base.go                 # 类型定义 + 公共基类
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
 ├── types/               # XML 解析引擎和数据类型
