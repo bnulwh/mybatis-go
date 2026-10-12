@@ -1,5 +1,7 @@
 # 更新日志
 
+- **v0.3.16（信创数据库 AntDB 适配，2026-10-12）**：亚信 AntDB — PostgreSQL 协议兼容，内嵌 `PostgresDialector`（PG 兼容族） — 新增 `DatabaseType` 常量 `AntDBDb`（`Family()` 映射 `FamilyPostgres`）；`ParseDatabaseType` 支持 `antdb`/`ant-db` 别名；`GetDriverName` 返回 `antdb`，框架 init 自动以 `antdb` 名称注册 `lib/pq` 驱动别名（无需新增依赖）；`NewForType` 支持 `AntDBDb`；JDBC URL 支持 `jdbc:antdb://` 格式；新增 `cmd/antdbdemo` 示例 + `application-antdb.properties` 配置模板；schema2code `-type antdb`；dialector + orm 单测覆盖
+
 - **v0.3.15（信创数据库 GreatDB 适配，2026-10-12）**：万里安全数据库 GreatDB — MySQL 协议兼容，内嵌 `MySqlDialector`（MySQL 兼容族），零成本适配 — 新增 `DatabaseType` 常量 `GreatDBDb`（`Family()` 映射 `FamilyMySQL`）；`ParseDatabaseType` 支持 `greatdb`/`great-db` 别名；`GetDriverName` 返回 `greatdb`，框架 init 自动以 `greatdb` 名称注册 `go-sql-driver/mysql` 驱动别名（无需新增依赖）；`NewForType` 支持 `GreatDBDb`；JDBC URL 支持 `jdbc:greatdb://` 格式；新增 `cmd/greatdbdemo` 示例 + `application-greatdb.properties` 配置模板；schema2code `-type greatdb`；dialector + orm 单测覆盖
 
 - **v0.3.14（信创数据库 GoldenDB 适配，2026-10-12）**：中兴 GoldenDB — MySQL 协议兼容，内嵌 `MySqlDialector`（MySQL 兼容族），零成本适配 — 新增 `DatabaseType` 常量 `GoldenDBDb`（`Family()` 映射 `FamilyMySQL`）；`ParseDatabaseType` 支持 `goldendb`/`golden-db` 别名；`GetDriverName` 返回 `goldendb`，框架 init 自动以 `goldendb` 名称注册 `go-sql-driver/mysql` 驱动别名（无需新增依赖）；`NewForType` 支持 `GoldenDBDb`；JDBC URL 支持 `jdbc:goldendb://` 格式；新增 `cmd/goldendbdemo` 示例 + `application-goldendb.properties` 配置模板；schema2code `-type goldendb`；dialector + orm 单测覆盖（驱动注册、占位符、NeedsReturning、DSN 生成、ParseDatabaseType 别名、Family 映射、GetDriverName、EffectiveSchema、NewForType、parseAddr）

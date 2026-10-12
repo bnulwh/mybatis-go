@@ -147,6 +147,8 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"golden-db", GoldenDBDb},
 		{"greatdb", GreatDBDb},
 		{"great-db", GreatDBDb},
+		{"antdb", AntDBDb},
+		{"ant-db", AntDBDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -223,6 +225,9 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if GreatDBDb.Family() != FamilyMySQL {
 		t.Errorf("GreatDBDb.Family() = %q, want %q", GreatDBDb.Family(), FamilyMySQL)
 	}
+	if AntDBDb.Family() != FamilyPostgres {
+		t.Errorf("AntDBDb.Family() = %q, want %q", AntDBDb.Family(), FamilyPostgres)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -251,6 +256,7 @@ func Test_GetDriverName(t *testing.T) {
 		{ClickHouseDb, "clickhouse"},
 		{GoldenDBDb, "goldendb"},
 		{GreatDBDb, "greatdb"},
+		{AntDBDb, "antdb"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -472,6 +478,7 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Type: ClickHouseDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: GoldenDBDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: GreatDBDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: AntDBDb}, "public"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -561,6 +568,10 @@ func Test_GenerateDSN(t *testing.T) {
 	if got := GenerateDSN(greatdbParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
 		t.Errorf("GenerateDSN greatdb = %q", got)
 	}
+	antdbParams := ConnectParams{Host: "10.0.0.1", Port: 6600, Username: "root", Password: "123456", DBName: "testdb", Type: AntDBDb}
+	if got := GenerateDSN(antdbParams); got != "host=10.0.0.1 port=6600 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN antdb = %q", got)
+	}
 }
 
 func Test_NewForType(t *testing.T) {
@@ -643,6 +654,10 @@ func Test_NewForType(t *testing.T) {
 	d20, err := NewForType(GreatDBDb, &testConfig{dbType: GreatDBDb})
 	if err != nil || d20.Name() != "greatdb" {
 		t.Errorf("NewForType greatdb failed: %v, name=%q", err, d20.Name())
+	}
+	d21, err := NewForType(AntDBDb, &testConfig{dbType: AntDBDb})
+	if err != nil || d21.Name() != "antdb" {
+		t.Errorf("NewForType antdb failed: %v, name=%q", err, d21.Name())
 	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")
@@ -1091,5 +1106,35 @@ func Test_GreatDBDialectorName(t *testing.T) {
 	d := NewGreatDBDialector(&testConfig{dbType: GreatDBDb})
 	if d.Name() != "greatdb" {
 		t.Errorf("greatdb dialector name failed, got: %q", d.Name())
+	}
+}
+
+func Test_AntDBDriverRegistered(t *testing.T) {
+	if !isDriverRegistered("antdb") {
+		t.Error("antdb driver should be registered by init")
+	}
+}
+
+func Test_AntDBFormatPrepareSQL(t *testing.T) {
+	d := NewAntDBDialector(&testConfig{dbType: AntDBDb})
+	src := "select * from t where a = ? and b = ?"
+	got := d.FormatPrepareSQL(src)
+	want := "select * from t where a = $1 and b = $2"
+	if got != want {
+		t.Errorf("antdb format prepare sql failed, got: %q want: %q", got, want)
+	}
+}
+
+func Test_AntDBNeedsReturning(t *testing.T) {
+	d := NewAntDBDialector(&testConfig{dbType: AntDBDb})
+	if !d.NeedsReturning() {
+		t.Error("antdb should need RETURNING")
+	}
+}
+
+func Test_AntDBDialectorName(t *testing.T) {
+	d := NewAntDBDialector(&testConfig{dbType: AntDBDb})
+	if d.Name() != "antdb" {
+		t.Errorf("antdb dialector name failed, got: %q", d.Name())
 	}
 }

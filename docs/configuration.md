@@ -274,6 +274,18 @@ mybatis.mapper-locations= resources/mapper
 
 GreatDB（万里安全数据库）为 MySQL 兼容族：占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false；`EffectiveSchema` 返回数据库名。框架自动以 `greatdb` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
 
+### AntDB（亚信）
+
+```properties
+# AntDB（亚信，PostgreSQL 兼容，默认端口 6600）
+spring.datasource.url= jdbc:antdb://localhost:6600/testdb
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+AntDB（亚信）为 PostgreSQL 兼容族：占位符 `?` → `$n`（`PlaceholderDollar`）；`NeedsReturning` 返回 true（自增主键回填走 `RETURNING`）；`EffectiveSchema` 默认 `public`。框架自动以 `antdb` 名称注册 `lib/pq` 驱动，无需额外引入。
+
 ### TiDB（PingCAP）
 
 ```properties
@@ -366,6 +378,7 @@ err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "
 // 或 orm.InitializeDatabase("clickhouse", "localhost", 9000, "default", "", "testdb")
 // 或 orm.InitializeDatabase("goldendb", "localhost", 3306, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("greatdb", "localhost", 3306, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("antdb", "localhost", 6600, "root", "123456", "testdb")
 ```
 
 ### 数据表名前缀

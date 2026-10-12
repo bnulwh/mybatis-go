@@ -52,6 +52,7 @@ const (
 	ClickHouseDb     = dialector.ClickHouseDb
 	GoldenDBDb       = dialector.GoldenDBDb
 	GreatDBDb        = dialector.GreatDBDb
+	AntDBDb          = dialector.AntDBDb
 )
 
 type Dialector = dialector.Dialector

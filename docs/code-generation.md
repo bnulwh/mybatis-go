@@ -51,7 +51,7 @@ schema2code -type postgres -host localhost -port 5432 -username root -password 1
 ```
 
 参数说明：
-- `-type` 数据库类型：`mysql` / `postgres` / `kingbase` / `sqlite` / `tidb` / `tdsql` / `polardb` / `opengauss` / `gaussdb` / `highgo` / `vastbase` / `oceanbase` / `oceanbase-oracle` / `dameng` / `gbase8s` / `mssql` / `oracle` / `db2` / `goldendb` / `greatdb`
+- `-type` 数据库类型：`mysql` / `postgres` / `kingbase` / `sqlite` / `tidb` / `tdsql` / `polardb` / `opengauss` / `gaussdb` / `highgo` / `vastbase` / `oceanbase` / `oceanbase-oracle` / `dameng` / `gbase8s` / `mssql` / `oracle` / `db2` / `goldendb` / `greatdb` / `antdb`
 - `-host` 数据库地址
 - `-port` 端口
 - `-username` / `-password` 认证信息（SQLite 无需填写）
