@@ -1,5 +1,7 @@
 # 安可测评数据库零成本别名适配实施方案（7 款）
 
+> **状态：已全部完成（2026-10-13）** — Task 1 `7b1c632`+`7d9cf0b`（v0.3.17）、Task 2 `1675f11`（v0.3.18），均通过规格审查 + 质量审查；Task 3 回归全绿 + 矩阵更新 `e8dc5d7`。
+>
 > 计划日期：2026-10-12
 > 依据：`docs/agents/anke-database-matrix.md`（commit `3e58d79`）——安可测评 19 款在册产品中 7 款可零成本别名适配
 > 模式：与 `docs/agents/plans/2026-10-12-xinchuang-databases.md`（GoldenDB/GreatDB/AntDB）完全相同的零成本别名适配——新 DatabaseType 常量 + 内嵌既有 Dialector + `lib/pq` / `go-sql-driver/mysql` 驱动别名注册，**go.mod 零改动、零新增依赖**
