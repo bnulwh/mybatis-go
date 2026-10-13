@@ -496,6 +496,9 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Type: GoldenDBDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: GreatDBDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: AntDBDb}, "public"},
+		{ConnectParams{DBName: "mydb", Type: TaurusDBDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: UPDRDBDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: KingwowDb}, "mydb"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {

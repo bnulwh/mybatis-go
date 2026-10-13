@@ -301,7 +301,7 @@ go run ./cmd/greatdbdemo    # GreatDB（万里安全数据库，MySQL 兼容族�
 go run ./cmd/antdbdemo      # AntDB（亚信，PG 兼容族）
 go run ./cmd/taurusdbdemo   # TaurusDB（华为云，MySQL 兼容族）
 go run ./cmd/updrdbdemo     # UPDRDB（中国银联，MySQL 兼容族）
-go run ./cmd/kingwowdemo    # Kingwow 金乌（自然原数，MySQL 兼容族）
+go run ./cmd/kingwowdemo    # Kingwow 金乌（自然原数，MySQL 兼容族，低置信度待真机验证）
 ```
 
 ## 重要说明

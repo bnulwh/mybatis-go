@@ -415,6 +415,9 @@ err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "
 // 或 orm.InitializeDatabase("goldendb", "localhost", 3306, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("greatdb", "localhost", 3306, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("antdb", "localhost", 6600, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("taurusdb", "localhost", 3306, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("updrdb", "localhost", 3306, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("kingwow", "localhost", 3306, "root", "123456", "testdb")
 ```
 
 ### 数据表名前缀
