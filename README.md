@@ -14,7 +14,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **QueryWrapper 条件构造器**：`orm.NewQueryWrapper().Eq("col", v).LikeRight("name", "ad").Between("age", 18, 30).OrderByDesc("id")` 链式构造动态条件；mapper 方法声明 `*orm.QueryWrapper` 参数即可自动注入 SQL（原 SQL 有 WHERE 追加 `AND`、无 WHERE 补 `WHERE`，尾部 `ORDER BY`/`LIMIT` 之前插入；与 `*orm.PageParam` 组合时分页 COUNT 先派生，Total 与 Records 天然一致），XML 亦支持 `${ew}` 显式占位
 - **Hook 拦截链**：`orm.RegisterHook(HookBeforeExecute|HookAfterExecute, hook)` 在 SQL 生成后/执行前后双挂载点拦截全部 Mapper 执行路径（普通方法/流式查询/分页）；Before 可改写 SQL，After 可见 Error 与 Duration，适配 SQL 审计/多租户/乐观锁等横切场景；Hook panic 自动 recover 不中断执行链
 - **自定义 TypeHandler**：`orm.RegisterTypeHandlerFor[T](fn)` 为任意 Go 类型注册参数写入/结果扫描转换器（自定义时间、枚举、JSON 字段等），经 `convertFieldValue` 统一入口覆盖参数绑定、resultMap、无 resultMap 与流式查询全路径
-- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES、TiDB、TDSQL、PolarDB-MySQL、openGauss、GaussDB、HighGo DB、Vastbase、OceanBase（MySQL/Oracle 模式）、达梦 DM8、GBase 8s（南大通用）、GoldenDB（中兴）、GreatDB（万里）、AntDB（亚信）、TaurusDB（华为云）、UPDRDB（中国银联）、Kingwow 金乌（自然原数）、MS SQL Server、Oracle、IBM DB2、ClickHouse，国产数据库适配已完成
+- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES、TiDB、TDSQL、PolarDB-MySQL、openGauss、GaussDB、HighGo DB、Vastbase、OceanBase（MySQL/Oracle 模式）、达梦 DM8、GBase 8s（南大通用）、GoldenDB（中兴）、GreatDB（万里）、AntDB（亚信）、TaurusDB（华为云）、UPDRDB（中国银联）、Kingwow 金乌（自然原数）、TeleDB（天翼云）、DWS（华为云）、ADB-PG（阿里云）、SeaboxSQL（东方金信）、MS SQL Server、Oracle、IBM DB2、ClickHouse，国产数据库适配已完成
 - **Schema 缓存列类型推断**：查询结果列类型自动从 `information_schema` 推断（无需手写 resultMap 即可正确映射 time/bool/数字类型），可配置 TTL，DDL 后自动失效
 - **代码生成**：xml2go（XML Mapper 逆向 → Go 模型 + Mapper 代理）、schema2code（数据库表 → Go）、sqlc（静态 select → 类型安全 Querier）三款工具，均支持 `go install` 一键安装（generator 已弃用，由 xml2go 取代）
 - **预编译缓存**：Prepared Statement 自动缓存和复用
@@ -125,6 +125,10 @@ go get github.com/bnulwh/mybatis-go
 | TaurusDB（华为云） | 无需引入（框架自动以 taurusdb 名称注册 go-sql-driver/mysql 驱动） |
 | UPDRDB（中国银联） | 无需引入（框架自动以 updrdb 名称注册 go-sql-driver/mysql 驱动） |
 | Kingwow 金乌（自然原数） | 无需引入（框架自动以 kingwow 名称注册 go-sql-driver/mysql 驱动） |
+| TeleDB（天翼云） | 无需引入（框架自动以 teledb 名称注册 lib/pq 驱动） |
+| DWS（华为云） | 无需引入（框架自动以 dws 名称注册 lib/pq 驱动） |
+| ADB-PG（阿里云） | 无需引入（框架自动以 adbpg 名称注册 lib/pq 驱动） |
+| SeaboxSQL（东方金信） | 无需引入（框架自动以 seaboxsql 名称注册 lib/pq 驱动） |
 
 ## 快速开始
 
@@ -302,6 +306,10 @@ go run ./cmd/antdbdemo      # AntDB（亚信，PG 兼容族）
 go run ./cmd/taurusdbdemo   # TaurusDB（华为云，MySQL 兼容族）
 go run ./cmd/updrdbdemo     # UPDRDB（中国银联，MySQL 兼容族）
 go run ./cmd/kingwowdemo    # Kingwow 金乌（自然原数，MySQL 兼容族，低置信度待真机验证）
+go run ./cmd/teledbdemo     # TeleDB（天翼云，PG 兼容族）
+go run ./cmd/dwsdemo        # DWS（华为云，PG 兼容族，须 MD5 认证）
+go run ./cmd/adbpgdemo      # ADB-PG（阿里云，PG 兼容族，OLAP）
+go run ./cmd/seaboxsqldemo  # SeaboxSQL（东方金信，PG 兼容族，待真机验证）
 ```
 
 ## 重要说明
@@ -361,6 +369,10 @@ go run ./cmd/kingwowdemo    # Kingwow 金乌（自然原数，MySQL 兼容族，
 │   ├── taurusdbdemo/    # TaurusDB（华为云）使用示例
 │   ├── updrdbdemo/      # UPDRDB（中国银联）使用示例
 │   ├── kingwowdemo/     # Kingwow 金乌（自然原数）使用示例
+│   ├── teledbdemo/      # TeleDB（天翼云）使用示例
+│   ├── dwsdemo/         # DWS（华为云）使用示例
+│   ├── adbpgdemo/       # ADB-PG（阿里云）使用示例
+│   ├── seaboxsqldemo/   # SeaboxSQL（东方金信）使用示例
 │   └── demo/            # 通用使用示例
 ├── orm/                 # 核心 ORM 框架
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
@@ -383,6 +395,10 @@ go run ./cmd/kingwowdemo    # Kingwow 金乌（自然原数，MySQL 兼容族，
 │   │   ├── taurusdb.go                                         # 安可测评数据库（MySQL 兼容族）
 │   │   ├── updrdb.go                                           # 安可测评数据库（MySQL 兼容族）
 │   │   ├── kingwow.go                                          # 安可测评数据库（MySQL 兼容族）
+│   │   ├── teledb.go                                           # 安可测评数据库（PostgreSQL 兼容族）
+│   │   ├── dws.go                                              # 安可测评数据库（PostgreSQL 兼容族）
+│   │   ├── adbpg.go                                            # 安可测评数据库（PostgreSQL 兼容族）
+│   │   ├── seaboxsql.go                                        # 安可测评数据库（PostgreSQL 兼容族）
 │   │   └── types.go / base.go                 # 类型定义 + 公共基类
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
 ├── types/               # XML 解析引擎和数据类型

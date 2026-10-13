@@ -128,6 +128,22 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r29 != KingwowDb || err != nil {
 		t.Error("test parseDatabaseType kingwow failed.")
 	}
+	r30, err := dialector.ParseDatabaseType("teledb")
+	if r30 != TeleDBDb || err != nil {
+		t.Error("test parseDatabaseType teledb failed.")
+	}
+	r31, err := dialector.ParseDatabaseType("dws")
+	if r31 != DWSDb || err != nil {
+		t.Error("test parseDatabaseType dws failed.")
+	}
+	r32, err := dialector.ParseDatabaseType("adbpg")
+	if r32 != ADBPGDb || err != nil {
+		t.Error("test parseDatabaseType adbpg failed.")
+	}
+	r33, err := dialector.ParseDatabaseType("seaboxsql")
+	if r33 != SeaboxSQLDb || err != nil {
+		t.Error("test parseDatabaseType seaboxsql failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -260,6 +276,26 @@ func Test_parseAddr(t *testing.T) {
 	tp25, host25, port25, db25, err := parseAddr(mp)
 	if tp25 != "kingwow" || host25 != "10.1.2.3" || port25 != 3306 || db25 != "testdb" || err != nil {
 		t.Error("test parseAddr kingwow failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:teledb://10.1.2.3:15432/testdb"
+	tp26, host26, port26, db26, err := parseAddr(mp)
+	if tp26 != "teledb" || host26 != "10.1.2.3" || port26 != 15432 || db26 != "testdb" || err != nil {
+		t.Error("test parseAddr teledb failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:dws://10.1.2.3:8000/testdb"
+	tp27, host27, port27, db27, err := parseAddr(mp)
+	if tp27 != "dws" || host27 != "10.1.2.3" || port27 != 8000 || db27 != "testdb" || err != nil {
+		t.Error("test parseAddr dws failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:adbpg://10.1.2.3:5432/testdb"
+	tp28, host28, port28, db28, err := parseAddr(mp)
+	if tp28 != "adbpg" || host28 != "10.1.2.3" || port28 != 5432 || db28 != "testdb" || err != nil {
+		t.Error("test parseAddr adbpg failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:seaboxsql://10.1.2.3:5432/testdb"
+	tp29, host29, port29, db29, err := parseAddr(mp)
+	if tp29 != "seaboxsql" || host29 != "10.1.2.3" || port29 != 5432 || db29 != "testdb" || err != nil {
+		t.Error("test parseAddr seaboxsql failed.")
 	}
 }
 

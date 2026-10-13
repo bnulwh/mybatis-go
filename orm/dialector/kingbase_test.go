@@ -154,6 +154,14 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"updrdb", UPDRDBDb},
 		{"updr-db", UPDRDBDb},
 		{"kingwow", KingwowDb},
+		{"teledb", TeleDBDb},
+		{"tele-db", TeleDBDb},
+		{"dws", DWSDb},
+		{"gaussdb-dws", DWSDb},
+		{"adbpg", ADBPGDb},
+		{"adb-pg", ADBPGDb},
+		{"seaboxsql", SeaboxSQLDb},
+		{"seabox", SeaboxSQLDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -242,6 +250,18 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if KingwowDb.Family() != FamilyMySQL {
 		t.Errorf("KingwowDb.Family() = %q, want %q", KingwowDb.Family(), FamilyMySQL)
 	}
+	if TeleDBDb.Family() != FamilyPostgres {
+		t.Errorf("TeleDBDb.Family() = %q, want %q", TeleDBDb.Family(), FamilyPostgres)
+	}
+	if DWSDb.Family() != FamilyPostgres {
+		t.Errorf("DWSDb.Family() = %q, want %q", DWSDb.Family(), FamilyPostgres)
+	}
+	if ADBPGDb.Family() != FamilyPostgres {
+		t.Errorf("ADBPGDb.Family() = %q, want %q", ADBPGDb.Family(), FamilyPostgres)
+	}
+	if SeaboxSQLDb.Family() != FamilyPostgres {
+		t.Errorf("SeaboxSQLDb.Family() = %q, want %q", SeaboxSQLDb.Family(), FamilyPostgres)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -274,6 +294,10 @@ func Test_GetDriverName(t *testing.T) {
 		{TaurusDBDb, "taurusdb"},
 		{UPDRDBDb, "updrdb"},
 		{KingwowDb, "kingwow"},
+		{TeleDBDb, "teledb"},
+		{DWSDb, "dws"},
+		{ADBPGDb, "adbpg"},
+		{SeaboxSQLDb, "seaboxsql"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -499,6 +523,10 @@ func Test_EffectiveSchema(t *testing.T) {
 		{ConnectParams{DBName: "mydb", Type: TaurusDBDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: UPDRDBDb}, "mydb"},
 		{ConnectParams{DBName: "mydb", Type: KingwowDb}, "mydb"},
+		{ConnectParams{DBName: "mydb", Type: TeleDBDb}, "public"},
+		{ConnectParams{DBName: "mydb", Type: DWSDb}, "public"},
+		{ConnectParams{DBName: "mydb", Type: ADBPGDb}, "public"},
+		{ConnectParams{DBName: "mydb", Type: SeaboxSQLDb}, "public"},
 	}
 	for _, tt := range tests {
 		if got := EffectiveSchema(tt.params); got != tt.want {
@@ -604,6 +632,22 @@ func Test_GenerateDSN(t *testing.T) {
 	if got := GenerateDSN(kingwowParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
 		t.Errorf("GenerateDSN kingwow = %q", got)
 	}
+	teledbParams := ConnectParams{Host: "10.0.0.1", Port: 15432, Username: "root", Password: "123456", DBName: "testdb", Type: TeleDBDb}
+	if got := GenerateDSN(teledbParams); got != "host=10.0.0.1 port=15432 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN teledb = %q", got)
+	}
+	dwsParams := ConnectParams{Host: "10.0.0.1", Port: 8000, Username: "root", Password: "123456", DBName: "testdb", Type: DWSDb}
+	if got := GenerateDSN(dwsParams); got != "host=10.0.0.1 port=8000 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN dws = %q", got)
+	}
+	adbpgParams := ConnectParams{Host: "10.0.0.1", Port: 5432, Username: "root", Password: "123456", DBName: "testdb", Type: ADBPGDb}
+	if got := GenerateDSN(adbpgParams); got != "host=10.0.0.1 port=5432 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN adbpg = %q", got)
+	}
+	seaboxsqlParams := ConnectParams{Host: "10.0.0.1", Port: 5432, Username: "root", Password: "123456", DBName: "testdb", Type: SeaboxSQLDb}
+	if got := GenerateDSN(seaboxsqlParams); got != "host=10.0.0.1 port=5432 user=root password=123456 dbname=testdb sslmode=disable" {
+		t.Errorf("GenerateDSN seaboxsql = %q", got)
+	}
 }
 
 func Test_NewForType(t *testing.T) {
@@ -702,6 +746,22 @@ func Test_NewForType(t *testing.T) {
 	d24, err := NewForType(KingwowDb, &testConfig{dbType: KingwowDb})
 	if err != nil || d24.Name() != "kingwow" {
 		t.Errorf("NewForType kingwow failed: %v, name=%q", err, d24.Name())
+	}
+	d25, err := NewForType(TeleDBDb, &testConfig{dbType: TeleDBDb})
+	if err != nil || d25.Name() != "teledb" {
+		t.Errorf("NewForType teledb failed: %v, name=%q", err, d25.Name())
+	}
+	d26, err := NewForType(DWSDb, &testConfig{dbType: DWSDb})
+	if err != nil || d26.Name() != "dws" {
+		t.Errorf("NewForType dws failed: %v, name=%q", err, d26.Name())
+	}
+	d27, err := NewForType(ADBPGDb, &testConfig{dbType: ADBPGDb})
+	if err != nil || d27.Name() != "adbpg" {
+		t.Errorf("NewForType adbpg failed: %v, name=%q", err, d27.Name())
+	}
+	d28, err := NewForType(SeaboxSQLDb, &testConfig{dbType: SeaboxSQLDb})
+	if err != nil || d28.Name() != "seaboxsql" {
+		t.Errorf("NewForType seaboxsql failed: %v, name=%q", err, d28.Name())
 	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")

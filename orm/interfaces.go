@@ -56,6 +56,10 @@ const (
 	TaurusDBDb        = dialector.TaurusDBDb
 	UPDRDBDb          = dialector.UPDRDBDb
 	KingwowDb         = dialector.KingwowDb
+	TeleDBDb          = dialector.TeleDBDb
+	DWSDb             = dialector.DWSDb
+	ADBPGDb           = dialector.ADBPGDb
+	SeaboxSQLDb       = dialector.SeaboxSQLDb
 )
 
 type Dialector = dialector.Dialector

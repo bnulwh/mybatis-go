@@ -59,11 +59,15 @@ const (
 	TaurusDBDb        DatabaseType = "taurusdb"
 	UPDRDBDb          DatabaseType = "updrdb"
 	KingwowDb         DatabaseType = "kingwow"
+	TeleDBDb          DatabaseType = "teledb"
+	DWSDb             DatabaseType = "dws"
+	ADBPGDb           DatabaseType = "adbpg"
+	SeaboxSQLDb       DatabaseType = "seaboxsql"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
 	switch dt {
-	case PostgresDb, KingbaseDb, OpenGaussDb, GaussDBDb, HighGoDb, VastbaseDb, AntDBDb:
+	case PostgresDb, KingbaseDb, OpenGaussDb, GaussDBDb, HighGoDb, VastbaseDb, AntDBDb, TeleDBDb, DWSDb, ADBPGDb, SeaboxSQLDb:
 		return FamilyPostgres
 	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb, OceanBaseDb, GoldenDBDb, GreatDBDb, TaurusDBDb, UPDRDBDb, KingwowDb:
 		return FamilyMySQL
@@ -136,6 +140,14 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return UPDRDBDb, nil
 	case "kingwow":
 		return KingwowDb, nil
+	case "teledb", "tele-db":
+		return TeleDBDb, nil
+	case "dws", "gaussdb-dws":
+		return DWSDb, nil
+	case "adbpg", "adb-pg":
+		return ADBPGDb, nil
+	case "seaboxsql", "seabox":
+		return SeaboxSQLDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -193,6 +205,14 @@ func GetDriverName(dbType DatabaseType) string {
 		return "updrdb"
 	case KingwowDb:
 		return "kingwow"
+	case TeleDBDb:
+		return "teledb"
+	case DWSDb:
+		return "dws"
+	case ADBPGDb:
+		return "adbpg"
+	case SeaboxSQLDb:
+		return "seaboxsql"
 	default:
 		return string(dbType)
 	}
@@ -390,6 +410,14 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewUPDRDBDialector(cfg), nil
 	case KingwowDb:
 		return NewKingwowDialector(cfg), nil
+	case TeleDBDb:
+		return NewTeleDBDialector(cfg), nil
+	case DWSDb:
+		return NewDWSDialector(cfg), nil
+	case ADBPGDb:
+		return NewADBPGDialector(cfg), nil
+	case SeaboxSQLDb:
+		return NewSeaboxSQLDialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

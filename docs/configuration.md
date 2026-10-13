@@ -322,6 +322,54 @@ mybatis.mapper-locations= resources/mapper
 
 Kingwow 金乌（北京自然原数）为 MySQL 兼容族，MySQL 线协议兼容（**低置信度，待真机验证**）：占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false；`EffectiveSchema` 返回数据库名。框架自动以 `kingwow` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
 
+### TeleDB（天翼云）
+
+```properties
+# TeleDB（天翼云，PostgreSQL 协议兼容，端口为示例值，官方未公布默认端口）
+spring.datasource.url= jdbc:teledb://localhost:15432/testdb
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+TeleDB（天翼云）为 PG 兼容族，PostgreSQL 协议兼容（端口为示例值，官方未公布默认端口）：占位符 `?` → `$n`（`PlaceholderDollar`）；`NeedsReturning` 返回 true（自增主键回填走 `RETURNING`）；`EffectiveSchema` 默认 `public`。框架自动以 `teledb` 名称注册 `lib/pq` 驱动，无需额外引入。
+
+### DWS（华为云）
+
+```properties
+# DWS（华为云，PostgreSQL libpq 协议，默认端口 8000；须使用 MD5 认证账户）
+spring.datasource.url= jdbc:dws://localhost:8000/testdb
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+DWS（华为云）为 PG 兼容族，PostgreSQL libpq 协议：占位符 `?` → `$n`（`PlaceholderDollar`）；`NeedsReturning` 返回 true；`EffectiveSchema` 默认 `public`。**须使用 MD5 认证账户**（lib/pq 不支持 DWS SHA256 认证）。框架自动以 `dws` 名称注册 `lib/pq` 驱动，无需额外引入。
+
+### ADB-PG（阿里云）
+
+```properties
+# ADB-PG（阿里云，PostgreSQL 协议，OLAP 场景，默认端口 5432）
+spring.datasource.url= jdbc:adbpg://localhost:5432/testdb
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+ADB-PG（阿里云）为 PG 兼容族，PostgreSQL 协议，OLAP 场景：占位符 `?` → `$n`（`PlaceholderDollar`）；`NeedsReturning` 返回 true；`EffectiveSchema` 默认 `public`。框架自动以 `adbpg` 名称注册 `lib/pq` 驱动，无需额外引入。
+
+### SeaboxSQL（东方金信）
+
+```properties
+# SeaboxSQL（东方金信，PostgreSQL 血统，默认端口 5432；待真机验证）
+spring.datasource.url= jdbc:seaboxsql://localhost:5432/testdb
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+SeaboxSQL（东方金信）为 PG 兼容族，PostgreSQL 血统（**待真机验证**）：占位符 `?` → `$n`（`PlaceholderDollar`）；`NeedsReturning` 返回 true；`EffectiveSchema` 默认 `public`。框架自动以 `seaboxsql` 名称注册 `lib/pq` 驱动，无需额外引入。
+
 ### TiDB（PingCAP）
 
 ```properties
@@ -418,6 +466,10 @@ err := orm.InitializeDatabase("postgres", "localhost", 5432, "root", "123456", "
 // 或 orm.InitializeDatabase("taurusdb", "localhost", 3306, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("updrdb", "localhost", 3306, "root", "123456", "testdb")
 // 或 orm.InitializeDatabase("kingwow", "localhost", 3306, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("teledb", "localhost", 15432, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("dws", "localhost", 8000, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("adbpg", "localhost", 5432, "root", "123456", "testdb")
+// 或 orm.InitializeDatabase("seaboxsql", "localhost", 5432, "root", "123456", "testdb")
 ```
 
 ### 数据表名前缀
