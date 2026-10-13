@@ -45,6 +45,9 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - [x] PolarDB-MySQL（阿里云）— MySQL 兼容，复用 `go-sql-driver/mysql`，`cmd/polardbdemo` 示例
 - [x] GoldenDB（中兴）— MySQL 兼容，内嵌 `MySqlDialector`（MySQL 兼容族），`cmd/goldendbdemo` 示例
 - [x] GreatDB（万里安全数据库）— MySQL 兼容，内嵌 `MySqlDialector`（MySQL 兼容族），`cmd/greatdbdemo` 示例
+- [x] TaurusDB（华为云）— MySQL 100% 兼容，内嵌 `MySqlDialector`（MySQL 兼容族），`cmd/taurusdbdemo` 示例
+- [x] UPDRDB（中国银联）— MySQL 协议兼容，内嵌 `MySqlDialector`（MySQL 兼容族），`cmd/updrdbdemo` 示例
+- [x] Kingwow 金乌（自然原数）— MySQL 线协议兼容，内嵌 `MySqlDialector`（MySQL 兼容族，低置信度待真机验证），`cmd/kingwowdemo` 示例
 
 **P1 — PostgreSQL 兼容族**（低难度，复用 KingbaseES 模式）：
 
@@ -53,6 +56,10 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - [x] HighGo DB（瀚高）— PG 兼容，`highgo-lib` 驱动（lib/pq fork），框架自动以 `highgo` 名称注册 `lib/pq`，`cmd/highgodemo` 示例
 - [x] Vastbase（海量数据）— PG 兼容，直接使用 `lib/pq`，框架自动以 `vastbase` 名称注册 `lib/pq`，`cmd/vastbasedemo` 示例
 - [x] AntDB（亚信）— PostgreSQL 兼容，内嵌 PostgresDialector（PG 兼容族），cmd/antdbdemo 示例
+- [x] TeleDB（天翼云）— PG 协议兼容，内嵌 `PostgresDialector`（PG 兼容族），端口 15432 为示例值（官方未公布默认端口），`cmd/teledbdemo` 示例
+- [x] DWS（华为云）— PG libpq 协议，内嵌 `PostgresDialector`（PG 兼容族），须 MD5 认证账户（lib/pq 不支持 DWS SHA256），`cmd/dwsdemo` 示例
+- [x] ADB-PG（阿里云）— PG 协议，内嵌 `PostgresDialector`（PG 兼容族），OLAP 场景，`cmd/adbpgdemo` 示例
+- [x] SeaboxSQL（东方金信）— PG 血统，内嵌 `PostgresDialector`（PG 兼容族，待真机验证），`cmd/seaboxsqldemo` 示例
 
 **P2 — Oracle 方言族**（中高难度，需独立 dialector）：
 
