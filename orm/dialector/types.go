@@ -21,12 +21,12 @@ const (
 type DatabaseFamily string
 
 const (
-	FamilyPostgres DatabaseFamily = "postgres"
-	FamilyMySQL    DatabaseFamily = "mysql"
-	FamilySQLite   DatabaseFamily = "sqlite"
-	FamilyOracle   DatabaseFamily = "oracle"
-	FamilyInformix DatabaseFamily = "informix"
-	FamilyMSSQL    DatabaseFamily = "mssql"
+	FamilyPostgres   DatabaseFamily = "postgres"
+	FamilyMySQL      DatabaseFamily = "mysql"
+	FamilySQLite     DatabaseFamily = "sqlite"
+	FamilyOracle     DatabaseFamily = "oracle"
+	FamilyInformix   DatabaseFamily = "informix"
+	FamilyMSSQL      DatabaseFamily = "mssql"
 	FamilyDB2        DatabaseFamily = "db2"
 	FamilyClickHouse DatabaseFamily = "clickhouse"
 )
@@ -34,35 +34,38 @@ const (
 type DatabaseType string
 
 const (
-	MySqlDb          DatabaseType = "mysql"
-	PostgresDb       DatabaseType = "postgres"
-	KingbaseDb       DatabaseType = "kingbase"
-	SqliteDb         DatabaseType = "sqlite"
-	TiDBDb           DatabaseType = "tidb"
-	TDSQLDb          DatabaseType = "tdsql"
-	PolarDBMyDb      DatabaseType = "polardb"
-	OpenGaussDb      DatabaseType = "opengauss"
-	GaussDBDb        DatabaseType = "gaussdb"
-	HighGoDb         DatabaseType = "highgo"
-	VastbaseDb       DatabaseType = "vastbase"
-	OceanBaseDb      DatabaseType = "oceanbase"
+	MySqlDb           DatabaseType = "mysql"
+	PostgresDb        DatabaseType = "postgres"
+	KingbaseDb        DatabaseType = "kingbase"
+	SqliteDb          DatabaseType = "sqlite"
+	TiDBDb            DatabaseType = "tidb"
+	TDSQLDb           DatabaseType = "tdsql"
+	PolarDBMyDb       DatabaseType = "polardb"
+	OpenGaussDb       DatabaseType = "opengauss"
+	GaussDBDb         DatabaseType = "gaussdb"
+	HighGoDb          DatabaseType = "highgo"
+	VastbaseDb        DatabaseType = "vastbase"
+	OceanBaseDb       DatabaseType = "oceanbase"
 	OceanBaseOracleDb DatabaseType = "oceanbase-oracle"
-	DamengDb         DatabaseType = "dameng"
-	GBase8sDb        DatabaseType = "gbase8s"
-	MssqlDb          DatabaseType = "mssql"
-	OracleDb         DatabaseType = "oracle"
-	Db2Db           DatabaseType = "db2"
-	ClickHouseDb    DatabaseType = "clickhouse"
-	GoldenDBDb       DatabaseType = "goldendb"
-	GreatDBDb        DatabaseType = "greatdb"
-	AntDBDb          DatabaseType = "antdb"
+	DamengDb          DatabaseType = "dameng"
+	GBase8sDb         DatabaseType = "gbase8s"
+	MssqlDb           DatabaseType = "mssql"
+	OracleDb          DatabaseType = "oracle"
+	Db2Db             DatabaseType = "db2"
+	ClickHouseDb      DatabaseType = "clickhouse"
+	GoldenDBDb        DatabaseType = "goldendb"
+	GreatDBDb         DatabaseType = "greatdb"
+	AntDBDb           DatabaseType = "antdb"
+	TaurusDBDb        DatabaseType = "taurusdb"
+	UPDRDBDb          DatabaseType = "updrdb"
+	KingwowDb         DatabaseType = "kingwow"
 )
 
 func (dt DatabaseType) Family() DatabaseFamily {
 	switch dt {
 	case PostgresDb, KingbaseDb, OpenGaussDb, GaussDBDb, HighGoDb, VastbaseDb, AntDBDb:
 		return FamilyPostgres
-	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb, OceanBaseDb, GoldenDBDb, GreatDBDb:
+	case MySqlDb, TiDBDb, TDSQLDb, PolarDBMyDb, OceanBaseDb, GoldenDBDb, GreatDBDb, TaurusDBDb, UPDRDBDb, KingwowDb:
 		return FamilyMySQL
 	case SqliteDb:
 		return FamilySQLite
@@ -127,6 +130,12 @@ func ParseDatabaseType(tps string) (DatabaseType, error) {
 		return GreatDBDb, nil
 	case "antdb", "ant-db":
 		return AntDBDb, nil
+	case "taurusdb", "taurus-db":
+		return TaurusDBDb, nil
+	case "updrdb", "updr-db":
+		return UPDRDBDb, nil
+	case "kingwow":
+		return KingwowDb, nil
 	default:
 		return "", fmt.Errorf("not support database type %v", tps)
 	}
@@ -178,6 +187,12 @@ func GetDriverName(dbType DatabaseType) string {
 		return "greatdb"
 	case AntDBDb:
 		return "antdb"
+	case TaurusDBDb:
+		return "taurusdb"
+	case UPDRDBDb:
+		return "updrdb"
+	case KingwowDb:
+		return "kingwow"
 	default:
 		return string(dbType)
 	}
@@ -369,6 +384,12 @@ func NewForType(dbType DatabaseType, cfg ConfigProvider) (Dialector, error) {
 		return NewGreatDBDialector(cfg), nil
 	case AntDBDb:
 		return NewAntDBDialector(cfg), nil
+	case TaurusDBDb:
+		return NewTaurusDBDialector(cfg), nil
+	case UPDRDBDb:
+		return NewUPDRDBDialector(cfg), nil
+	case KingwowDb:
+		return NewKingwowDialector(cfg), nil
 	default:
 		return nil, ErrUnsupportedDatabase
 	}

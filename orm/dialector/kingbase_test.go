@@ -149,6 +149,11 @@ func Test_ParseDatabaseType(t *testing.T) {
 		{"great-db", GreatDBDb},
 		{"antdb", AntDBDb},
 		{"ant-db", AntDBDb},
+		{"taurusdb", TaurusDBDb},
+		{"taurus-db", TaurusDBDb},
+		{"updrdb", UPDRDBDb},
+		{"updr-db", UPDRDBDb},
+		{"kingwow", KingwowDb},
 	}
 	for _, tt := range tests {
 		got, err := ParseDatabaseType(tt.input)
@@ -228,6 +233,15 @@ func Test_DatabaseTypeFamily(t *testing.T) {
 	if AntDBDb.Family() != FamilyPostgres {
 		t.Errorf("AntDBDb.Family() = %q, want %q", AntDBDb.Family(), FamilyPostgres)
 	}
+	if TaurusDBDb.Family() != FamilyMySQL {
+		t.Errorf("TaurusDBDb.Family() = %q, want %q", TaurusDBDb.Family(), FamilyMySQL)
+	}
+	if UPDRDBDb.Family() != FamilyMySQL {
+		t.Errorf("UPDRDBDb.Family() = %q, want %q", UPDRDBDb.Family(), FamilyMySQL)
+	}
+	if KingwowDb.Family() != FamilyMySQL {
+		t.Errorf("KingwowDb.Family() = %q, want %q", KingwowDb.Family(), FamilyMySQL)
+	}
 }
 
 func Test_GetDriverName(t *testing.T) {
@@ -257,6 +271,9 @@ func Test_GetDriverName(t *testing.T) {
 		{GoldenDBDb, "goldendb"},
 		{GreatDBDb, "greatdb"},
 		{AntDBDb, "antdb"},
+		{TaurusDBDb, "taurusdb"},
+		{UPDRDBDb, "updrdb"},
+		{KingwowDb, "kingwow"},
 	}
 	for _, tt := range tests {
 		if got := GetDriverName(tt.dbType); got != tt.want {
@@ -572,6 +589,18 @@ func Test_GenerateDSN(t *testing.T) {
 	if got := GenerateDSN(antdbParams); got != "host=10.0.0.1 port=6600 user=root password=123456 dbname=testdb sslmode=disable" {
 		t.Errorf("GenerateDSN antdb = %q", got)
 	}
+	taurusdbParams := ConnectParams{Host: "10.0.0.1", Port: 3306, Username: "root", Password: "123456", DBName: "testdb", Type: TaurusDBDb}
+	if got := GenerateDSN(taurusdbParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN taurusdb = %q", got)
+	}
+	updrdbParams := ConnectParams{Host: "10.0.0.1", Port: 3306, Username: "root", Password: "123456", DBName: "testdb", Type: UPDRDBDb}
+	if got := GenerateDSN(updrdbParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN updrdb = %q", got)
+	}
+	kingwowParams := ConnectParams{Host: "10.0.0.1", Port: 3306, Username: "root", Password: "123456", DBName: "testdb", Type: KingwowDb}
+	if got := GenerateDSN(kingwowParams); got != "root:123456@tcp(10.0.0.1:3306)/testdb?parseTime=true&loc=Local" {
+		t.Errorf("GenerateDSN kingwow = %q", got)
+	}
 }
 
 func Test_NewForType(t *testing.T) {
@@ -659,6 +688,18 @@ func Test_NewForType(t *testing.T) {
 	if err != nil || d21.Name() != "antdb" {
 		t.Errorf("NewForType antdb failed: %v, name=%q", err, d21.Name())
 	}
+	d22, err := NewForType(TaurusDBDb, &testConfig{dbType: TaurusDBDb})
+	if err != nil || d22.Name() != "taurusdb" {
+		t.Errorf("NewForType taurusdb failed: %v, name=%q", err, d22.Name())
+	}
+	d23, err := NewForType(UPDRDBDb, &testConfig{dbType: UPDRDBDb})
+	if err != nil || d23.Name() != "updrdb" {
+		t.Errorf("NewForType updrdb failed: %v, name=%q", err, d23.Name())
+	}
+	d24, err := NewForType(KingwowDb, &testConfig{dbType: KingwowDb})
+	if err != nil || d24.Name() != "kingwow" {
+		t.Errorf("NewForType kingwow failed: %v, name=%q", err, d24.Name())
+	}
 	if _, err := NewForType(DatabaseType("unknown"), &testConfig{}); err == nil {
 		t.Error("NewForType should fail for unknown type")
 	}
@@ -668,10 +709,10 @@ type testConfig struct {
 	dbType DatabaseType
 }
 
-func (c *testConfig) GetDSN() string            { return "" }
-func (c *testConfig) GetConnPool() ConnPool      { return nil }
-func (c *testConfig) GetMaxTimeout() int          { return 300 }
-func (c *testConfig) GetMaxOpen() int             { return 100 }
+func (c *testConfig) GetDSN() string        { return "" }
+func (c *testConfig) GetConnPool() ConnPool { return nil }
+func (c *testConfig) GetMaxTimeout() int    { return 300 }
+func (c *testConfig) GetMaxOpen() int       { return 100 }
 func (c *testConfig) GetConnectParams() ConnectParams {
 	return ConnectParams{Type: c.dbType}
 }

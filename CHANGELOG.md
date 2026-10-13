@@ -1,5 +1,7 @@
 # 更新日志
 
+- **v0.3.17（安可测评数据库适配 MySQL 兼容族 3 款，2026-10-12）**：TaurusDB（华为云，MySQL 100% 兼容）/ UPDRDB（中国银联，MySQL 协议兼容）/ Kingwow 金乌（北京自然原数，MySQL 线协议兼容，低置信度待真机验证）— 均内嵌 `MySqlDialector`（MySQL 兼容族），零成本适配，零新增依赖 — 各新增 `DatabaseType` 常量（`Family()` 映射 `FamilyMySQL`）；`ParseDatabaseType` 支持 `taurusdb`/`taurus-db`、`updrdb`/`updr-db`、`kingwow` 别名；`GetDriverName` + init 以各自名称注册 `go-sql-driver/mysql` 驱动别名；`NewForType` 支持；JDBC URL 支持 `jdbc:taurusdb://`、`jdbc:updrdb://`、`jdbc:kingwow://`；各新增 `cmd/<db>demo` 示例 + properties 配置模板；schema2code `-type` 扩充；dialector + orm 单测覆盖（新增 `orm/dialector/mysql_family_test.go`）；README 完整示例句改通用表述
+
 - **v0.3.16（信创数据库 AntDB 适配，2026-10-12）**：亚信 AntDB — PostgreSQL 协议兼容，内嵌 `PostgresDialector`（PG 兼容族） — 新增 `DatabaseType` 常量 `AntDBDb`（`Family()` 映射 `FamilyPostgres`）；`ParseDatabaseType` 支持 `antdb`/`ant-db` 别名；`GetDriverName` 返回 `antdb`，框架 init 自动以 `antdb` 名称注册 `lib/pq` 驱动别名（无需新增依赖）；`NewForType` 支持 `AntDBDb`；JDBC URL 支持 `jdbc:antdb://` 格式；新增 `cmd/antdbdemo` 示例 + `application-antdb.properties` 配置模板；schema2code `-type antdb`；dialector + orm 单测覆盖
 
 - **v0.3.15（信创数据库 GreatDB 适配，2026-10-12）**：万里安全数据库 GreatDB — MySQL 协议兼容，内嵌 `MySqlDialector`（MySQL 兼容族），零成本适配 — 新增 `DatabaseType` 常量 `GreatDBDb`（`Family()` 映射 `FamilyMySQL`）；`ParseDatabaseType` 支持 `greatdb`/`great-db` 别名；`GetDriverName` 返回 `greatdb`，框架 init 自动以 `greatdb` 名称注册 `go-sql-driver/mysql` 驱动别名（无需新增依赖）；`NewForType` 支持 `GreatDBDb`；JDBC URL 支持 `jdbc:greatdb://` 格式；新增 `cmd/greatdbdemo` 示例 + `application-greatdb.properties` 配置模板；schema2code `-type greatdb`；dialector + orm 单测覆盖

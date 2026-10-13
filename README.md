@@ -14,7 +14,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - **QueryWrapper 条件构造器**：`orm.NewQueryWrapper().Eq("col", v).LikeRight("name", "ad").Between("age", 18, 30).OrderByDesc("id")` 链式构造动态条件；mapper 方法声明 `*orm.QueryWrapper` 参数即可自动注入 SQL（原 SQL 有 WHERE 追加 `AND`、无 WHERE 补 `WHERE`，尾部 `ORDER BY`/`LIMIT` 之前插入；与 `*orm.PageParam` 组合时分页 COUNT 先派生，Total 与 Records 天然一致），XML 亦支持 `${ew}` 显式占位
 - **Hook 拦截链**：`orm.RegisterHook(HookBeforeExecute|HookAfterExecute, hook)` 在 SQL 生成后/执行前后双挂载点拦截全部 Mapper 执行路径（普通方法/流式查询/分页）；Before 可改写 SQL，After 可见 Error 与 Duration，适配 SQL 审计/多租户/乐观锁等横切场景；Hook panic 自动 recover 不中断执行链
 - **自定义 TypeHandler**：`orm.RegisterTypeHandlerFor[T](fn)` 为任意 Go 类型注册参数写入/结果扫描转换器（自定义时间、枚举、JSON 字段等），经 `convertFieldValue` 统一入口覆盖参数绑定、resultMap、无 resultMap 与流式查询全路径
-- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES、TiDB、TDSQL、PolarDB-MySQL、openGauss、GaussDB、HighGo DB、Vastbase、OceanBase（MySQL/Oracle 模式）、达梦 DM8、GBase 8s（南大通用）、GoldenDB（中兴）、GreatDB（万里）、AntDB（亚信）、MS SQL Server、Oracle、IBM DB2、ClickHouse，国产数据库适配已完成
+- **多数据库**：PostgreSQL、MySQL、SQLite、人大金仓 KingbaseES、TiDB、TDSQL、PolarDB-MySQL、openGauss、GaussDB、HighGo DB、Vastbase、OceanBase（MySQL/Oracle 模式）、达梦 DM8、GBase 8s（南大通用）、GoldenDB（中兴）、GreatDB（万里）、AntDB（亚信）、TaurusDB（华为云）、UPDRDB（中国银联）、Kingwow 金乌（自然原数）、MS SQL Server、Oracle、IBM DB2、ClickHouse，国产数据库适配已完成
 - **Schema 缓存列类型推断**：查询结果列类型自动从 `information_schema` 推断（无需手写 resultMap 即可正确映射 time/bool/数字类型），可配置 TTL，DDL 后自动失效
 - **代码生成**：xml2go（XML Mapper 逆向 → Go 模型 + Mapper 代理）、schema2code（数据库表 → Go）、sqlc（静态 select → 类型安全 Querier）三款工具，均支持 `go install` 一键安装（generator 已弃用，由 xml2go 取代）
 - **预编译缓存**：Prepared Statement 自动缓存和复用
@@ -122,6 +122,9 @@ go get github.com/bnulwh/mybatis-go
 | GoldenDB（中兴） | 无需引入（框架自动以 goldendb 名称注册 go-sql-driver/mysql 驱动） |
 | GreatDB（万里） | 无需引入（框架自动以 greatdb 名称注册 go-sql-driver/mysql 驱动） |
 | AntDB（亚信） | 无需引入（框架自动以 antdb 名称注册 lib/pq 驱动） |
+| TaurusDB（华为云） | 无需引入（框架自动以 taurusdb 名称注册 go-sql-driver/mysql 驱动） |
+| UPDRDB（中国银联） | 无需引入（框架自动以 updrdb 名称注册 go-sql-driver/mysql 驱动） |
+| Kingwow 金乌（自然原数） | 无需引入（框架自动以 kingwow 名称注册 go-sql-driver/mysql 驱动） |
 
 ## 快速开始
 
@@ -205,7 +208,7 @@ func main() {
 }
 ```
 
-完整示例见 `cmd/postgresdemo/main.go`、`cmd/mysqldemo/main.go`、`cmd/sqlitedemo/main.go`、`cmd/kingbasedemo/main.go`、`cmd/tidbdemo/main.go`、`cmd/tdsqldemo/main.go`、`cmd/polardbdemo/main.go`、`cmd/opengaussdemo/main.go`、`cmd/gaussdbdemo/main.go`、`cmd/highgodemo/main.go`、`cmd/vastbasedemo/main.go`、`cmd/oceanbasedemo/main.go`、`cmd/oboracledemo/main.go`、`cmd/damengdemo/main.go`、`cmd/gbase8sdemo/main.go`、`cmd/mssqldemo/main.go`、`cmd/oracledemo/main.go`、`cmd/db2demo/main.go`、`cmd/goldendbdemo/main.go`、`cmd/greatdbdemo/main.go` 和 `cmd/antdbdemo/main.go`。
+完整示例见各数据库对应的 `cmd/<数据库>demo/` 目录（完整清单见下方「项目结构」与「运行示例」）。
 
 ## 从 Java MyBatis / MyBatis-Plus 迁移
 
@@ -296,6 +299,9 @@ go run ./cmd/clickhousedemo # ClickHouse（OLAP 列式引擎，无事务）
 go run ./cmd/goldendbdemo   # GoldenDB（中兴，MySQL 兼容族）
 go run ./cmd/greatdbdemo    # GreatDB（万里安全数据库，MySQL 兼容族）
 go run ./cmd/antdbdemo      # AntDB（亚信，PG 兼容族）
+go run ./cmd/taurusdbdemo   # TaurusDB（华为云，MySQL 兼容族）
+go run ./cmd/updrdbdemo     # UPDRDB（中国银联，MySQL 兼容族）
+go run ./cmd/kingwowdemo    # Kingwow 金乌（自然原数，MySQL 兼容族）
 ```
 
 ## 重要说明
@@ -352,6 +358,9 @@ go run ./cmd/antdbdemo      # AntDB（亚信，PG 兼容族）
 │   ├── goldendbdemo/    # GoldenDB（中兴）使用示例
 │   ├── greatdbdemo/     # GreatDB（万里）使用示例
 │   ├── antdbdemo/       # AntDB（亚信）使用示例
+│   ├── taurusdbdemo/    # TaurusDB（华为云）使用示例
+│   ├── updrdbdemo/      # UPDRDB（中国银联）使用示例
+│   ├── kingwowdemo/     # Kingwow 金乌（自然原数）使用示例
 │   └── demo/            # 通用使用示例
 ├── orm/                 # 核心 ORM 框架
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
@@ -371,6 +380,9 @@ go run ./cmd/antdbdemo      # AntDB（亚信，PG 兼容族）
 │   │   ├── goldendb.go                                         # P0 国产数据库（MySQL 兼容族）
 │   │   ├── greatdb.go                                          # P0 国产数据库（MySQL 兼容族）
 │   │   ├── antdb.go                                            # P1 国产数据库（PostgreSQL 兼容族）
+│   │   ├── taurusdb.go                                         # 安可测评数据库（MySQL 兼容族）
+│   │   ├── updrdb.go                                           # 安可测评数据库（MySQL 兼容族）
+│   │   ├── kingwow.go                                          # 安可测评数据库（MySQL 兼容族）
 │   │   └── types.go / base.go                 # 类型定义 + 公共基类
 │   └── ...              # 初始化、代理、SQL 执行、结果转换、缓存等
 ├── types/               # XML 解析引擎和数据类型

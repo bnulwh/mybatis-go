@@ -286,6 +286,42 @@ mybatis.mapper-locations= resources/mapper
 
 AntDB（亚信）为 PostgreSQL 兼容族：占位符 `?` → `$n`（`PlaceholderDollar`）；`NeedsReturning` 返回 true（自增主键回填走 `RETURNING`）；`EffectiveSchema` 默认 `public`。框架自动以 `antdb` 名称注册 `lib/pq` 驱动，无需额外引入。
 
+### TaurusDB（华为云）
+
+```properties
+# TaurusDB（华为云，MySQL 100% 兼容，默认端口 3306）
+spring.datasource.url= jdbc:taurusdb://localhost:3306/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+TaurusDB（华为云）为 MySQL 兼容族，MySQL 100% 兼容：占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false（自增主键回填走 `LastInsertId()`）；`EffectiveSchema` 返回数据库名。框架自动以 `taurusdb` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
+
+### UPDRDB（中国银联）
+
+```properties
+# UPDRDB（中国银联，MySQL 协议兼容，默认端口 3306）
+spring.datasource.url= jdbc:updrdb://localhost:3306/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+UPDRDB（中国银联）为 MySQL 兼容族，MySQL 协议兼容：占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false；`EffectiveSchema` 返回数据库名。框架自动以 `updrdb` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
+
+### Kingwow 金乌（自然原数）
+
+```properties
+# Kingwow 金乌（北京自然原数，MySQL 线协议兼容，默认端口 3306）
+spring.datasource.url= jdbc:kingwow://localhost:3306/testdb?useUnicode=true&characterEncoding=utf-8&useSSL=false
+spring.datasource.username= root
+spring.datasource.password= 123456
+mybatis.mapper-locations= resources/mapper
+```
+
+Kingwow 金乌（北京自然原数）为 MySQL 兼容族，MySQL 线协议兼容（**低置信度，待真机验证**）：占位符保持 `?`（`PlaceholderQuestion`）；`NeedsReturning` 返回 false；`EffectiveSchema` 返回数据库名。框架自动以 `kingwow` 名称注册 `go-sql-driver/mysql` 驱动，无需额外引入。
+
 ### TiDB（PingCAP）
 
 ```properties

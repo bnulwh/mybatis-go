@@ -18,12 +18,12 @@ const (
 type DatabaseFamily = dialector.DatabaseFamily
 
 const (
-	FamilyPostgres = dialector.FamilyPostgres
-	FamilyMySQL    = dialector.FamilyMySQL
-	FamilySQLite   = dialector.FamilySQLite
-	FamilyOracle   = dialector.FamilyOracle
-	FamilyInformix = dialector.FamilyInformix
-	FamilyMSSQL    = dialector.FamilyMSSQL
+	FamilyPostgres   = dialector.FamilyPostgres
+	FamilyMySQL      = dialector.FamilyMySQL
+	FamilySQLite     = dialector.FamilySQLite
+	FamilyOracle     = dialector.FamilyOracle
+	FamilyInformix   = dialector.FamilyInformix
+	FamilyMSSQL      = dialector.FamilyMSSQL
 	FamilyDB2        = dialector.FamilyDB2
 	FamilyClickHouse = dialector.FamilyClickHouse
 )
@@ -31,28 +31,31 @@ const (
 type DatabaseType = dialector.DatabaseType
 
 const (
-	MySqlDb     = dialector.MySqlDb
-	PostgresDb  = dialector.PostgresDb
-	KingbaseDb  = dialector.KingbaseDb
-	SqliteDb    = dialector.SqliteDb
-	TiDBDb      = dialector.TiDBDb
-	TDSQLDb     = dialector.TDSQLDb
-	PolarDBMyDb = dialector.PolarDBMyDb
-	OpenGaussDb = dialector.OpenGaussDb
-	GaussDBDb   = dialector.GaussDBDb
-	HighGoDb    = dialector.HighGoDb
-	VastbaseDb  = dialector.VastbaseDb
-	OceanBaseDb      = dialector.OceanBaseDb
+	MySqlDb           = dialector.MySqlDb
+	PostgresDb        = dialector.PostgresDb
+	KingbaseDb        = dialector.KingbaseDb
+	SqliteDb          = dialector.SqliteDb
+	TiDBDb            = dialector.TiDBDb
+	TDSQLDb           = dialector.TDSQLDb
+	PolarDBMyDb       = dialector.PolarDBMyDb
+	OpenGaussDb       = dialector.OpenGaussDb
+	GaussDBDb         = dialector.GaussDBDb
+	HighGoDb          = dialector.HighGoDb
+	VastbaseDb        = dialector.VastbaseDb
+	OceanBaseDb       = dialector.OceanBaseDb
 	OceanBaseOracleDb = dialector.OceanBaseOracleDb
-	DamengDb         = dialector.DamengDb
-	GBase8sDb        = dialector.GBase8sDb
-	MssqlDb          = dialector.MssqlDb
-	OracleDb         = dialector.OracleDb
-	Db2Db            = dialector.Db2Db
-	ClickHouseDb     = dialector.ClickHouseDb
-	GoldenDBDb       = dialector.GoldenDBDb
-	GreatDBDb        = dialector.GreatDBDb
-	AntDBDb          = dialector.AntDBDb
+	DamengDb          = dialector.DamengDb
+	GBase8sDb         = dialector.GBase8sDb
+	MssqlDb           = dialector.MssqlDb
+	OracleDb          = dialector.OracleDb
+	Db2Db             = dialector.Db2Db
+	ClickHouseDb      = dialector.ClickHouseDb
+	GoldenDBDb        = dialector.GoldenDBDb
+	GreatDBDb         = dialector.GreatDBDb
+	AntDBDb           = dialector.AntDBDb
+	TaurusDBDb        = dialector.TaurusDBDb
+	UPDRDBDb          = dialector.UPDRDBDb
+	KingwowDb         = dialector.KingwowDb
 )
 
 type Dialector = dialector.Dialector

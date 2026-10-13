@@ -116,6 +116,18 @@ func Test_parseDatabaseType(t *testing.T) {
 	if r26 != AntDBDb || err != nil {
 		t.Error("test parseDatabaseType antdb failed.")
 	}
+	r27, err := dialector.ParseDatabaseType("taurusdb")
+	if r27 != TaurusDBDb || err != nil {
+		t.Error("test parseDatabaseType taurusdb failed.")
+	}
+	r28, err := dialector.ParseDatabaseType("updrdb")
+	if r28 != UPDRDBDb || err != nil {
+		t.Error("test parseDatabaseType updrdb failed.")
+	}
+	r29, err := dialector.ParseDatabaseType("kingwow")
+	if r29 != KingwowDb || err != nil {
+		t.Error("test parseDatabaseType kingwow failed.")
+	}
 }
 
 func Test_parseAddr(t *testing.T) {
@@ -233,6 +245,21 @@ func Test_parseAddr(t *testing.T) {
 	tp22, host22, port22, db22, err := parseAddr(mp)
 	if tp22 != "antdb" || host22 != "10.1.2.3" || port22 != 6600 || db22 != "testdb" || err != nil {
 		t.Error("test parseAddr antdb failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:taurusdb://10.1.2.3:3306/testdb"
+	tp23, host23, port23, db23, err := parseAddr(mp)
+	if tp23 != "taurusdb" || host23 != "10.1.2.3" || port23 != 3306 || db23 != "testdb" || err != nil {
+		t.Error("test parseAddr taurusdb failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:updrdb://10.1.2.3:3306/testdb"
+	tp24, host24, port24, db24, err := parseAddr(mp)
+	if tp24 != "updrdb" || host24 != "10.1.2.3" || port24 != 3306 || db24 != "testdb" || err != nil {
+		t.Error("test parseAddr updrdb failed.")
+	}
+	mp["spring.datasource.url"] = "jdbc:kingwow://10.1.2.3:3306/testdb"
+	tp25, host25, port25, db25, err := parseAddr(mp)
+	if tp25 != "kingwow" || host25 != "10.1.2.3" || port25 != 3306 || db25 != "testdb" || err != nil {
+		t.Error("test parseAddr kingwow failed.")
 	}
 }
 
