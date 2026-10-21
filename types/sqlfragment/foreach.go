@@ -11,8 +11,10 @@ import (
 
 // sqlForLoop 对应 MyBatis <foreach>（兼容别名 <for>）：
 // 遍历集合参数，按 open/close/separator 拼接循环体。
+// A1 修复：循环体为片段树 []Node（支持嵌套 <if>/<choose>/文本混排），
+// 不再是单个纯文本节点。
 type sqlForLoop struct {
-	Sql        *simpleSql
+	Sql        []Node
 	Collection string
 	Item       string
 	Index      string
@@ -27,7 +29,7 @@ func init() {
 }
 
 func parseForeachNode(node XmlNode, sns map[string]*SqlElement) (Node, error) {
-	return parseSqlForLoopFromXmlNode(node.Attrs, node.Elements)
+	return parseSqlForLoopFromXmlNode(node.Attrs, node.Elements, sns)
 }
 
 func (in *sqlForLoop) prepareSql(mp map[string]interface{}, items []interface{}, depth int) (string, []string) {
@@ -42,9 +44,11 @@ func (in *sqlForLoop) prepareSql(mp map[string]interface{}, items []interface{},
 	for i, item := range items {
 		buf.WriteString(" ")
 		nmp := in.buildParams(i, item, mp)
-		sqlstr, ritems := in.Sql.PrepareSqlWithMap(nmp, depth+1)
-		buf.WriteString(sqlstr)
-		results = append(results, ritems...)
+		for _, nd := range in.Sql {
+			sqlstr, ritems := nd.PrepareSqlWithMap(nmp, depth+1)
+			buf.WriteString(sqlstr)
+			results = append(results, ritems...)
+		}
 		if i < len(items)-1 {
 			buf.WriteString(in.Separator)
 		}
@@ -64,7 +68,9 @@ func (in *sqlForLoop) generateSql(mp map[string]interface{}, items []interface{}
 	for i, item := range items {
 		buf.WriteString(" ")
 		nmp := in.buildParams(i, item, mp)
-		buf.WriteString(in.Sql.GenerateSqlWithMap(nmp, depth+1))
+		for _, nd := range in.Sql {
+			buf.WriteString(nd.GenerateSqlWithMap(nmp, depth+1))
+		}
 		if i < len(items)-1 {
 			buf.WriteString(in.Separator)
 		}
@@ -159,7 +165,7 @@ func (in *sqlForLoop) GenerateSqlWithoutParam() string {
 }
 
 func (in *sqlForLoop) Children() []Node {
-	return []Node{in.Sql}
+	return in.Sql
 }
 
 // CollectSlots 循环体由集合参数驱动，不入 slots。
@@ -175,13 +181,19 @@ func (in *sqlForLoop) CollectIfTestFields() []string {
 	return nil
 }
 
-func parseSqlForLoopFromXmlNode(attrs map[string]string, elems []XmlElement) (*sqlForLoop, error) {
+// parseSqlForLoopFromXmlNode 解析 <foreach>：循环体经统一注册表解析为片段树
+// （A1 修复：支持嵌套 <if>/<choose>/文本混排，不再断言首个元素为纯文本）。
+func parseSqlForLoopFromXmlNode(attrs map[string]string, elems []XmlElement, sns map[string]*SqlElement) (*sqlForLoop, error) {
 	col, ok := attrs["collection"]
 	if !ok {
 		return nil, fmt.Errorf("not found  collection in input for parsing sql for loop")
 	}
 	if len(elems) < 1 {
 		return nil, fmt.Errorf("wrong input for parsing sql for loop")
+	}
+	nodes, err := ParseFragments(elems, sns)
+	if err != nil {
+		return nil, err
 	}
 	return &sqlForLoop{
 		Collection: col,
@@ -190,6 +202,6 @@ func parseSqlForLoopFromXmlNode(attrs map[string]string, elems []XmlElement) (*s
 		Index:      attrs["index"],
 		Item:       attrs["item"],
 		Separator:  attrs["separator"],
-		Sql:        parseSimpleSqlFromText(elems[0].Val.(string)),
+		Sql:        nodes,
 	}, nil
 }

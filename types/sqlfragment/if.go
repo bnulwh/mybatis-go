@@ -368,6 +368,8 @@ func parseIfConditionsFromText(text string) []ifCondition {
 		}
 		matches := reName.FindStringSubmatch(item)
 		if matches == nil {
+			// A3：无法提取条件名的表达式（如括号/取反开头），记录告警避免静默丢弃
+			log.Warnf("unsupported if test expression (condition dropped, body always renders): %q", item)
 			continue
 		}
 		if reNC.MatchString(item) {
@@ -402,6 +404,9 @@ func parseIfConditionsFromText(text string) []ifCondition {
 				CheckName: matches[0],
 				CheckType: boolCheckCond,
 			})
+		} else {
+			// A3：未命中任何已知模式，记录告警避免静默恒真
+			log.Warnf("unsupported if test expression (condition dropped, body always renders): %q", item)
 		}
 	}
 	return cs

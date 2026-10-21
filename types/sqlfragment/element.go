@@ -16,15 +16,31 @@ type SqlElement struct {
 
 // ParseSqlElementFromXmlNode 解析 <sql> 节点：文本拼接为静态 Sql，
 // 嵌套标签（如 <where>/<if>/<foreach> 等）解析为片段，供 <include> 引用时渲染。
+// A2 修复：文本与嵌套标签混排时，静态文本按文档序一并放入 Fragments
+// （作为 simpleSql 文本节点穿插），避免 <include> 渲染时丢弃静态前后缀。
 func ParseSqlElementFromXmlNode(node XmlNode) *SqlElement {
 	log.Debugf("begin parse sql element from: %v", toJson(node))
 	defer log.Debugf("finish parse sql element from: %v", toJson(node))
+	hasText, hasChild := false, false
+	for _, elem := range node.Elements {
+		switch elem.ElementType {
+		case XmlTextElem:
+			hasText = true
+		case XmlNodeElem:
+			hasChild = true
+		}
+	}
+	mixed := hasText && hasChild
 	var buf strings.Builder
 	var frags []Node
 	for _, elem := range node.Elements {
 		switch elem.ElementType {
 		case XmlTextElem:
-			buf.WriteString(elem.Val.(string))
+			text := elem.Val.(string)
+			buf.WriteString(text)
+			if mixed {
+				frags = append(frags, parseSimpleSqlFromText(text))
+			}
 		case XmlNodeElem:
 			// 嵌套标签（如 <where>/<if>/<foreach> 等）解析为片段，供 <include> 引用时渲染
 			st, err := parseFragmentFromXmlElement(elem, nil)

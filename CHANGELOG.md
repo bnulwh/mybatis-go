@@ -1,5 +1,14 @@
 # 更新日志
 
+- **v0.3.19（动态 SQL 引擎 A1/A2 修复 + A3 可观测性，2026-10-21）**：修复 `<foreach>` 循环体不支持嵌套标签（A1）与 `<include>` 静态文本丢失（A2）两处「静默生成错误 SQL」级缺陷 —
+  - **A1 `<foreach>` 嵌套标签**（`types/sqlfragment/foreach.go`）：`sqlForLoop.Sql` 由 `*simpleSql` 改为 `[]Node`，循环体经 `ParseFragments` 统一解析，支持嵌套 `<if>`/`<choose>`/嵌套 `<foreach>`；此前循环体首个元素为子标签时 `elems[0].Val.(string)` 直接 panic、混排时子标签被静默丢弃，均消除；`Children()` 返回循环体节点，占位符收集不受影响
+  - **A2 `<include>` 静态文本丢失**（双根因修复）：
+    - `types/sqlfragment/xml.go`：`ParseXmlNode` 解析前经新增 `stripXmlComments` 剥离 XML 注释（CDATA 感知：注释替换为单空格保住 `a<!-- c -->b` 无空格场景，CDATA 内 `<!--` 保留，未闭合注释原样保留）——修复注释把 CharData 切成多段、逐段 TrimSpace 拼接后空格丢失（`SELECT a<!-- c -->FROM t` → `SELECT aFROM t`）
+    - `types/sqlfragment/element.go`：`ParseSqlElementFromXmlNode` 在「静态文本 + 子标签」混排时按文档序把文本以 `simpleSql` 节点放入 `Fragments`——修复 `include.go` 有 Fragments 时丢弃 `Sql` 导致 `<sql>` 片段静态前后缀消失（`SELECT a, b FROM t <where>...</where>` 被 include 后只剩 `WHERE` 子句）
+  - **A3 未识别 `<if test>` 可观测性**（`types/sqlfragment/if.go`）：`parseIfConditionsFromText` 两处静默丢弃路径（`reSplit` 子条件未命中任何模式、未命中 else 分支）增加 `log.Warnf`（含原始表达式），恒真渲染行为暂不变（行为变更留待后续决策）
+  - **`<choose>` 重写**（`types/sqlfragment/choose.go`）：`Otherwise` 改为 `[]Node` 经 `ParseFragments` 解析，支持 `<otherwise>` 内嵌套动态标签；直接子文本安全跳过；新增 `prepareOtherwise`/`CollectIfTestFields`/`ContainsForEach` 递归辅助
+  - **回归测试**：新增 `types/sqlfragment/dynamic_fix_test.go`（foreach 嵌套 if / foreach 纯文本行为不变 / include 混排静态文本 / choose otherwise 嵌套 / stripXmlComments 单测）；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.18（安可测评数据库适配 PG 兼容族 4 款，2026-10-13）**：TeleDB（天翼云，PG 协议兼容，端口为示例值）/ DWS（华为云，PG libpq 协议，须 MD5 认证账户）/ ADB-PG（阿里云，PG 协议，OLAP 场景）/ SeaboxSQL（东方金信，PG 血统，待真机验证）— 均内嵌 `PostgresDialector`（PG 兼容族），零成本适配，零新增依赖 — 各新增 `DatabaseType` 常量（`Family()` 映射 `FamilyPostgres`）；`ParseDatabaseType` 支持 `teledb`/`tele-db`、`dws`/`gaussdb-dws`、`adbpg`/`adb-pg`、`seaboxsql`/`seabox` 别名；`GetDriverName` + init 以各自名称注册 `lib/pq` 驱动别名；`NewForType` 支持；JDBC URL 支持 `jdbc:teledb://`、`jdbc:dws://`、`jdbc:adbpg://`、`jdbc:seaboxsql://`；各新增 `cmd/<db>demo` 示例 + properties 配置模板；schema2code `-type` 扩充；dialector + orm 单测覆盖（新增 `orm/dialector/pg_family_test.go`）
 
 - **v0.3.17（安可测评数据库适配 MySQL 兼容族 3 款，2026-10-13）**：TaurusDB（华为云，MySQL 100% 兼容）/ UPDRDB（中国银联，MySQL 协议兼容）/ Kingwow 金乌（北京自然原数，MySQL 线协议兼容，低置信度待真机验证）— 均内嵌 `MySqlDialector`（MySQL 兼容族），零成本适配，零新增依赖 — 各新增 `DatabaseType` 常量（`Family()` 映射 `FamilyMySQL`）；`ParseDatabaseType` 支持 `taurusdb`/`taurus-db`、`updrdb`/`updr-db`、`kingwow` 别名；`GetDriverName` + init 以各自名称注册 `go-sql-driver/mysql` 驱动别名；`NewForType` 支持；JDBC URL 支持 `jdbc:taurusdb://`、`jdbc:updrdb://`、`jdbc:kingwow://`；各新增 `cmd/<db>demo` 示例 + properties 配置模板；schema2code `-type` 扩充；dialector + orm 单测覆盖（新增 `orm/dialector/mysql_family_test.go`）；README 完整示例句改通用表述

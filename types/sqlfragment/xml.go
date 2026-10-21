@@ -47,7 +47,11 @@ func ParseXmlContent(content []byte) (*XmlNode, error) {
 
 // ParseXmlNode 从 Reader 解析 XML 为节点树。
 func ParseXmlNode(r io.Reader) (*XmlNode, error) {
-	parser := xml.NewDecoder(r)
+	content, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	parser := xml.NewDecoder(bytes.NewReader(stripXmlComments(content)))
 	var root XmlNode
 
 	st := newStack()
@@ -98,6 +102,49 @@ func ParseXmlNode(r io.Reader) (*XmlNode, error) {
 	}
 
 	return &root, nil
+}
+
+var (
+	cdataPrefix   = []byte("<![CDATA[")
+	cdataSuffix   = []byte("]]>")
+	commentPrefix = []byte("<!--")
+	commentSuffix = []byte("-->")
+)
+
+// stripXmlComments 解析前移除 XML 注释（A2 前置修复）：
+// 注释会把相邻文本切成多段 CharData，每段独立 TrimSpace 后拼接丢失中间空格
+// （`SELECT a <!-- c --> FROM t` → `SELECT aFROM t`）。统一将注释替换为单个空格，
+// 保证文本连续；CDATA 段内的 `<!--` 属于文本数据，原样保留；未闭合注释保留由解码器报错。
+func stripXmlComments(content []byte) []byte {
+	var out bytes.Buffer
+	out.Grow(len(content))
+	i := 0
+	for i < len(content) {
+		if bytes.HasPrefix(content[i:], cdataPrefix) {
+			end := bytes.Index(content[i+len(cdataPrefix):], cdataSuffix)
+			if end < 0 {
+				out.Write(content[i:])
+				return out.Bytes()
+			}
+			stop := i + len(cdataPrefix) + end + len(cdataSuffix)
+			out.Write(content[i:stop])
+			i = stop
+			continue
+		}
+		if bytes.HasPrefix(content[i:], commentPrefix) {
+			end := bytes.Index(content[i+len(commentPrefix):], commentSuffix)
+			if end < 0 {
+				out.Write(content[i:])
+				return out.Bytes()
+			}
+			i += len(commentPrefix) + end + len(commentSuffix)
+			out.WriteByte(' ')
+			continue
+		}
+		out.WriteByte(content[i])
+		i++
+	}
+	return out.Bytes()
 }
 
 func charData2XmlNode(st *stack, t xml.Token) XmlNode {

@@ -36,3 +36,6 @@ logs/
 # 本地 Go 构建缓存（沙箱/离线环境用作 GOCACHE / GOTMPDIR）
 /.gocache/
 /.gotmp/
+
+# DevEco Code 朜�工具盽�
+/.deveco/
