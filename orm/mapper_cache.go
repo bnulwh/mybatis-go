@@ -68,6 +68,15 @@ func (in *mapperInfo) bindSql(smp *types.SqlMapper) error {
 			errs = append(errs, err)
 		} else {
 			validateIfTestFields(in.Name, fi.Name, sf)
+			// A3：未识别 <if test> 表达式——严格 if-test 模式下注册期直接报错
+			// （宽松注册模式仅告警），否则按语句汇总告警（默认，行为不变）。
+			if u := sf.UnsupportedIfTests; len(u) > 0 {
+				if StrictIfTest() && IsStrictRegister() {
+					errs = append(errs, fmt.Errorf("%v.%v: unsupported if test expressions %v (strict-if-test enabled)", in.Name, fi.Name, u))
+				} else {
+					log.Warnf("[if-test] %v.%v: unsupported expressions (body may always render): %v", in.Name, fi.Name, u)
+				}
+			}
 		}
 	}
 	log.Debugf("%v bind sql mapper %v finished", in.Name, smp.Filename)

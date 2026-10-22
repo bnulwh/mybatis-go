@@ -228,6 +228,32 @@ report := orm.LastConvertReport("SysUserMapper", "selectUserList") // 无记录�
 ```
 
 
+## 未识别 `<if test>` 严格模式（Strict If Test）
+
+`<if test="...">` 只识别 5 种条件模式：`x != null`、`x != ''`、`x == 'literal'`（字符串比较）、
+`x != 0 / x > 18 / x.length > 0`（数值比较）、裸标识符（布尔）。未命中任何模式的子表达式
+（如 `a == b`、`flag ? 1 : 0`、`'x'.toString() == 'y'`）默认被丢弃——空条件恒真，条件体
+**恒渲染**（解析期已输出 Warn 日志，兼容存量行为）。
+
+开启严格模式后，未识别表达式从「静默恒真」变为「显式失败」：
+
+```properties
+mybatis.configuration.strict-if-test=true
+```
+
+```go
+orm.SetStrictIfTest(true) // 运行时开关
+```
+
+- **注册期**：任一语句存在未识别表达式时 `RegisterMapper` 返回 error（错误列出表达式原文），
+  问题在启动期暴露而非运行期静默错数据；
+- **求值期**：整个 test 均未识别的 `<if>/<when>` 按 false 处理（不渲染）+ Warn；部分识别
+  （如 `name != null and a == b`）仍按已识别条件求值，未识别部分靠注册期检查拦截。
+
+无论开关状态，注册期均按语句汇总告警未识别表达式（`[if-test] mapper.func: unsupported
+expressions ...`），语句级清单可通过 `types.SqlFunction.UnsupportedIfTests` 获取。
+
+
 ## MySQL 方言函数翻译（Function Rewrite）
 
 共享 Java XML 中常见的 MySQL 方言函数/语法，在 PG 族数据源（PostgreSQL/KingbaseES PG 模式/

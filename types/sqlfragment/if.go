@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/bnulwh/mybatis-go/log"
 )
@@ -14,10 +15,10 @@ import (
 type checkConditionType string
 
 const (
-	nullCheckCond         checkConditionType = "null"
-	emptyCheckCond        checkConditionType = "empty"
-	boolCheckCond         checkConditionType = "bool"
-	compareCheckCond      checkConditionType = "compare"
+	nullCheckCond          checkConditionType = "null"
+	emptyCheckCond         checkConditionType = "empty"
+	boolCheckCond          checkConditionType = "bool"
+	compareCheckCond       checkConditionType = "compare"
 	stringCompareCheckCond checkConditionType = "stringCompare"
 )
 
@@ -33,7 +34,22 @@ type sqlIfTest struct {
 	Sql        []Node
 	Test       string
 	Conditions []ifCondition
+	// Unsupported test 中未命中任何已知模式、被静默丢弃的子表达式（A3）。
+	// 解析期记录，供注册期汇总与严格模式判断；默认行为不变（空条件恒真）。
+	Unsupported []string
 }
+
+// strictIfTest <if test> 严格模式开关（A3，默认关）：
+// 开启后求值期「整个 test 均未识别」的节点按 false 处理（不渲染），不再恒真。
+var strictIfTest atomic.Bool
+
+// SetStrictIfTest 设置 <if test> 严格模式（A3）。开启后：
+// ① 求值期整个 test 未识别时按 false 处理（不渲染），默认恒真保持不变；
+// ② 注册期存在未识别表达式的语句报错（由 orm 层执行，见 orm/strict_if_test.go）。
+func SetStrictIfTest(on bool) { strictIfTest.Store(on) }
+
+// StrictIfTest 返回 <if test> 严格模式开关状态。
+func StrictIfTest() bool { return strictIfTest.Load() }
 
 func init() {
 	RegisterNodeParser("if", func(node XmlNode, sns map[string]*SqlElement) (Node, error) {
@@ -180,6 +196,12 @@ func (in *sqlIfTest) CollectIfTestFields() []string {
 
 func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 	log.Debugf("sql if test check conditions with param: %v", m)
+	// A3 严格模式：整个 test 未识别（无已知条件但有被丢弃的表达式）时按 false 处理，
+	// 不再恒真；默认（非严格）保持恒真以兼容存量行为。
+	if len(in.Conditions) == 0 && len(in.Unsupported) > 0 && strictIfTest.Load() {
+		log.Warnf("[if-test] strict mode: unrecognized test %q evaluates to false, body not rendered", in.Test)
+		return false
+	}
 	for _, cond := range in.Conditions {
 		bv := cond.checkValue(m)
 		if !bv {
@@ -187,6 +209,12 @@ func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 		}
 	}
 	return true
+}
+
+// UnsupportedIfTests 返回本节点 test 中未识别的子表达式（仅自身，不含嵌套子片段；
+// 树级聚合用 CollectUnsupportedIfTests，嵌套经 Children() 遍历覆盖）。
+func (in *sqlIfTest) UnsupportedIfTests() []string {
+	return in.Unsupported
 }
 
 func (in *ifCondition) checkValue(m map[string]interface{}) bool {
@@ -342,14 +370,23 @@ func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []XmlElement, sns 
 			sts = append(sts, stemp)
 		}
 	}
+	conds, unsupported := parseIfTestConditions(ts)
 	return &sqlIfTest{
-		Test:       ts,
-		Sql:        sts,
-		Conditions: parseIfConditionsFromText(ts),
+		Test:        ts,
+		Sql:         sts,
+		Conditions:  conds,
+		Unsupported: unsupported,
 	}, nil
 }
 
 func parseIfConditionsFromText(text string) []ifCondition {
+	cs, _ := parseIfTestConditions(text)
+	return cs
+}
+
+// parseIfTestConditions 解析 test 文本为条件列表，并收集未命中任何已知模式的
+// 子表达式（A3）。两个返回值：条件列表、未识别表达式列表（按首现序，含原始文本）。
+func parseIfTestConditions(text string) ([]ifCondition, []string) {
 	reSplit := regexp.MustCompile("[aA][nN][dD]")
 	reNC := regexp.MustCompile(`[\w.]+[\s]*[!][=][\s]*null`)
 	reEC := regexp.MustCompile(`[\w.]+[\s]*[!][=][\s]*[']{2}`)
@@ -361,6 +398,7 @@ func parseIfConditionsFromText(text string) []ifCondition {
 	// 字符串比较（OGNL 兼容）：sourceStatus == 'assigned' / status != "draft"
 	reStrCmp := regexp.MustCompile(`([\w.]+)[\s]*(==|!=)[\s]*['"]([^'"]*)['"]`)
 	var cs []ifCondition
+	var unsupported []string
 	for _, item := range reSplit.Split(text, -1) {
 		item = strings.TrimSpace(item)
 		if len(item) == 0 {
@@ -370,6 +408,7 @@ func parseIfConditionsFromText(text string) []ifCondition {
 		if matches == nil {
 			// A3：无法提取条件名的表达式（如括号/取反开头），记录告警避免静默丢弃
 			log.Warnf("unsupported if test expression (condition dropped, body always renders): %q", item)
+			unsupported = append(unsupported, item)
 			continue
 		}
 		if reNC.MatchString(item) {
@@ -407,7 +446,8 @@ func parseIfConditionsFromText(text string) []ifCondition {
 		} else {
 			// A3：未命中任何已知模式，记录告警避免静默恒真
 			log.Warnf("unsupported if test expression (condition dropped, body always renders): %q", item)
+			unsupported = append(unsupported, item)
 		}
 	}
-	return cs
+	return cs, unsupported
 }

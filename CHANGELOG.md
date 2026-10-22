@@ -1,5 +1,12 @@
 # 更新日志
 
+- **v0.3.31（未识别 `<if test>` 表达式根治 A3，2026-10-22）**：未命中已知模式（null 检查/空串/字符串比较/数值比较/裸标识符）的 test 子表达式不再只靠日志告警——记录、汇总、严格模式三段式根治 — 默认行为不变（恒真兼容存量），默认关闭 —
+  - **解析期记录**（`types/sqlfragment/if.go`）：`parseIfTestConditions` 收集未识别子表达式到 `sqlIfTest.Unsupported`；新增树级聚合 `sqlfragment.CollectUnsupportedIfTests`（经 `Children()` 遍历覆盖 if/choose-when/where/set 嵌套，去重按首现序）
+  - **语句级汇总**（`types/sql_function.go`）：`SqlFunction.UnsupportedIfTests` 字段（注册期告警/严格报错依据）；orm 侧注册链（`mapperInfo.bindSql`）按语句汇总告警 `[if-test] mapper.func: unsupported expressions ...`
+  - **严格模式**（新增 `orm/strict_iftest.go`）：`orm.SetStrictIfTest(true)` / `orm.StrictIfTest()` + 配置 `mybatis.configuration.strict-if-test`（默认 false）——开启后 ① 注册期存在未识别表达式即返回 error（与 strictReg 严格注册一致，错误列出表达式原文）；② 求值期「整个 test 均未识别」的 `<if>/<when>` 按 false 处理（不渲染）+ Warn，不再恒真；部分识别语句仍按已识别条件求值
+  - **默认（非严格）行为不变**：未识别表达式静默丢弃 + 空条件恒真（解析期 Warn 已有，v0.3.19），存量 XML 零影响
+  - **测试**：新增 `types/sqlfragment/a3_unsupported_test.go`（解析收集/访问器/嵌套聚合/严格求值翻转/部分识别保持/开关）+ `types/a3_unsupported_test.go`（SqlFunction 聚合/全识别为空）+ `orm/a3_strict_iftest_test.go`（注册期报错+默认告警不报错/配置解析端到端）；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.30（RETURNING 唯一推荐路径文档化 H1，2026-10-22）**：PG 族自增主键回填的推荐路径明确为 RETURNING，currval 变通正式废弃 — 纯文档变更，零代码改动 —
   - **docs/features.md 新增「自增主键回填（RETURNING / LastInsertId）」**：`useGeneratedKeys` + `keyProperty` 即自动回填；**PG 族 RETURNING 是唯一推荐路径**（单次往返、无会话依赖），`currval` 序列回读属 v0.1.7 时代变通（lib/pq 连接池下「当前会话刚 nextval」前提不可靠），明确废弃；MySQL/SQLite 族走 `LastInsertId()`
   - **lib/pq → pgx/v5 迁移保持暂缓**（TODO.md 结论不变；未来做 COPY 批量写入时再评估）

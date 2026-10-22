@@ -422,6 +422,7 @@ mybatis.mapper-locations= resources/mapper
 | `mybatis.configuration.safe-update` | UPDATE/DELETE 无 WHERE 子句时阻止执行 | false |
 | `mybatis.configuration.function-rewrite` | MySQL 方言函数翻译（`ifnull`/`find_in_set`/`date_format`/反引号 → PG 等价形式），仅 PG 族数据源生效，详见[功能文档](features.md) | false |
 | `mybatis.configuration.portability-check` | `||` 跨模式语义差异检测：MySQL 族/金仓执行 SQL 含 `\|\|` 时告警（每条 SQL 一次），详见[功能文档](features.md) | false |
+| `mybatis.configuration.strict-if-test` | `<if test>` 严格模式：注册期存在未识别 test 表达式即报错，求值期整个 test 未识别按 false 处理（不渲染）；默认未识别表达式恒真兼容存量，详见[功能文档](features.md) | false |
 | `mybatis.configuration.pretty-sql` | 日志中 SQL 格式化输出（参数绑定替换 + 关键字换行缩进，仅用于调试） | false |
 | `mybatis.configuration.explain-slow-sql` | 慢 SELECT 自动执行 EXPLAIN 并输出执行计划 | false |
 | `mybatis.configuration.slow-sql-threshold` | 慢 SQL 阈值（毫秒），超过此值触发 EXPLAIN 分析 | 3000 |

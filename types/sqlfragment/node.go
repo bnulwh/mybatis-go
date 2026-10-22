@@ -326,3 +326,30 @@ func ContainsForEach(items []Node) bool {
 	}
 	return false
 }
+
+// CollectUnsupportedIfTests 从片段树递归提取所有 <if>/<when test> 中未识别的
+// 子表达式（A3）。经 Children() 遍历覆盖嵌套（if/choose/where/set 等），
+// 未识别表达式全局去重后按首现序返回；无未识别时返回 nil。
+func CollectUnsupportedIfTests(items []Node) []string {
+	seen := map[string]bool{}
+	var out []string
+	var walk func(nodes []Node)
+	walk = func(nodes []Node) {
+		for _, it := range nodes {
+			if it == nil {
+				continue
+			}
+			if p, ok := it.(interface{ UnsupportedIfTests() []string }); ok {
+				for _, u := range p.UnsupportedIfTests() {
+					if u != "" && !seen[u] {
+						seen[u] = true
+						out = append(out, u)
+					}
+				}
+			}
+			walk(it.Children())
+		}
+	}
+	walk(items)
+	return out
+}

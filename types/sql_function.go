@@ -14,26 +14,29 @@ import (
 )
 
 type SqlFunction struct {
-	Id               string
-	Owner            string
-	Type             SqlFunctionType
-	Param            SqlParam
-	Result           SqlResult
-	Items            []sqlfragment.Node
-	IfTestFields     []string
-	UseGeneratedKeys bool   // <insert useGeneratedKeys="true">：自增主键回填开关（S-11）
-	KeyProperty      string // 回填目标属性名（如 jobId）
-	KeyColumn        string // 回填目标列名（如 job_id，可选）
-	HasVersion       bool   // 乐观锁：updateById 涉及 version 列，CAS 检测
-	FlushCache       bool   // 执行后刷新当前 namespace 缓存
-	UseCache         bool   // 是否启用二级缓存（默认 true，false 时跳过）
-	TotalUsage       int64
-	FailedUsage      int64
-	TotalDuration    int64
-	MaxDuration      int64
-	MinDuration      int64
-	GenerateCount    int64
-	GenerateDuration int64
+	Id           string
+	Owner        string
+	Type         SqlFunctionType
+	Param        SqlParam
+	Result       SqlResult
+	Items        []sqlfragment.Node
+	IfTestFields []string
+	// UnsupportedIfTests 语句内所有 <if>/<when test> 中未识别的子表达式（A3，
+	// 去重后按首现序）：注册期汇总告警/严格模式报错的依据。空表示全部识别。
+	UnsupportedIfTests []string
+	UseGeneratedKeys   bool   // <insert useGeneratedKeys="true">：自增主键回填开关（S-11）
+	KeyProperty        string // 回填目标属性名（如 jobId）
+	KeyColumn          string // 回填目标列名（如 job_id，可选）
+	HasVersion         bool   // 乐观锁：updateById 涉及 version 列，CAS 检测
+	FlushCache         bool   // 执行后刷新当前 namespace 缓存
+	UseCache           bool   // 是否启用二级缓存（默认 true，false 时跳过）
+	TotalUsage         int64
+	FailedUsage        int64
+	TotalDuration      int64
+	MaxDuration        int64
+	MinDuration        int64
+	GenerateCount      int64
+	GenerateDuration   int64
 
 	// 无参 SQL 结果静态不变，首次生成后缓存（P2-5）
 	noParamOnce sync.Once
@@ -352,25 +355,25 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 	param.Slots = slots
 	param.AllSlots = sqlfragment.CollectAllSqlSlots(items)
 	return &SqlFunction{
-		Id:               node.Id,
-		Owner:            owner,
-		Type:             tp,
-		Param:            param,
-		Result:           parseSqlResultFromXmlAttrs(node.Attrs, rms),
-		Items:            items,
-		IfTestFields:     sqlfragment.CollectIfTestFieldNames(items),
-		UseGeneratedKeys: strings.EqualFold(node.Attrs["useGeneratedKeys"], "true"),
-		KeyProperty:      node.Attrs["keyProperty"],
-		KeyColumn:        node.Attrs["keyColumn"],
-		TotalDuration:    0,
-		TotalUsage:       0,
-		MinDuration:      0,
-		MaxDuration:      0,
-		FailedUsage:      0,
-		GenerateDuration: 0,
-		GenerateCount:    0,
+		Id:                 node.Id,
+		Owner:              owner,
+		Type:               tp,
+		Param:              param,
+		Result:             parseSqlResultFromXmlAttrs(node.Attrs, rms),
+		Items:              items,
+		IfTestFields:       sqlfragment.CollectIfTestFieldNames(items),
+		UnsupportedIfTests: sqlfragment.CollectUnsupportedIfTests(items),
+		UseGeneratedKeys:   strings.EqualFold(node.Attrs["useGeneratedKeys"], "true"),
+		KeyProperty:        node.Attrs["keyProperty"],
+		KeyColumn:          node.Attrs["keyColumn"],
+		TotalDuration:      0,
+		TotalUsage:         0,
+		MinDuration:        0,
+		MaxDuration:        0,
+		FailedUsage:        0,
+		GenerateDuration:   0,
+		GenerateCount:      0,
 	}
 }
 
 // parsesqlFragmentsFromXmlElements 已迁移至 sqlfragment.ParseFragments（log-and-continue 容错保持不变）。
-

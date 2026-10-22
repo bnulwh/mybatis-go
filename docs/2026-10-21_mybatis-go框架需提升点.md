@@ -14,7 +14,7 @@
 |---|---|---|---|---|
 | A1 | `<foreach>` 循环体只支持纯文本，嵌套标签被丢弃（甚至 panic） | 动态 SQL 缺陷 | 共享 Java XML 里 `<foreach>` 内套 `<if>` 的语句全部不可用 | 高（✅ v0.3.19 已修复） |
 | A2 | `<include>` 的 `<sql>` 片段「静态文本 + 动态标签混排」时丢静态文本 | 动态 SQL 缺陷 | 拼出的 SQL 缺片段，直接语法错误 | **最高**（静默生成错误 SQL）（✅ v0.3.19 已修复） |
-| A3 | 未识别的 `<if test>` 表达式被静默丢弃 → 条件恒真 → 条件体恒渲染 | 动态 SQL 缺陷 | 与 v0.3.11「字符串等值恒不渲染」同源，仍未根治 | **最高**（静默错数据）（⚠️ v0.3.19 部分修复：已加解析期告警，行为未变） |
+| A3 | 未识别的 `<if test>` 表达式被静默丢弃 → 条件恒真 → 条件体恒渲染 | 动态 SQL 缺陷 | 与 v0.3.11「字符串等值恒不渲染」同源，仍未根治 | **最高**（静默错数据）（✅ v0.3.31 已修复：UnsupportedIfTests 记录/汇总 + strict-if-test 严格模式，默认行为不变） |
 | B1/B2 | `buildCountSQL` / `ApplyPagination` 用正则剥 `ORDER BY`/`LIMIT`，会误剥子查询内层 | 分页缺陷 | 启用 `PageParam` 后 total 错、内层 LIMIT 被删 | 高（✅ v0.3.20 已修复：深度感知扫描器替代正则） |
 | B3 | 全局行数上限 10000 静默截断，无按语句覆盖，`MaxRows` 是死字段 | 正确性 | 大结果集静默丢行 | 高（⚠️ v0.3.20 部分修复：严格模式 ErrRowLimitExceeded + max-rows 配置接入；语句级覆盖未做） |
 | B4 | `PageParam` 与 XML 手写 `LIMIT` 共存无诊断 | 分页缺陷 | 双重分页静默错数据 | 低（✅ v0.3.20 已修复：运行时告警） |
@@ -98,7 +98,7 @@ func (in *sqlInclude) renderFragments(render func(f Node, depth int) (string, []
 
 ### A3【最高】未识别的 `<if test>` 表达式 → 条件恒真 → 条件体恒渲染
 
-> ⚠️ **v0.3.19 部分修复**：`parseIfConditionsFromText`（`types/sqlfragment/if.go`）两处静默丢弃路径已加 `log.Warnf`（未命中模式 / 未命中 else 分支），可观测性具备；**恒真行为未变**——建议中的 ②`SetStrictIfTest` 严格模式与 ③求值期空条件按 false 处理涉及行为变更，留待后续版本决策。
+> ✅ **已于 v0.3.31 修复**：① 解析期未命中模式的子表达式记录到 `sqlIfTest.Unsupported`，语句级聚合为 `SqlFunction.UnsupportedIfTests`（`types/sqlfragment.CollectUnsupportedIfTests`，含 `<choose>/<when>` 嵌套），注册期按语句汇总告警；② 新增 `orm.SetStrictIfTest(true)`（配置 `mybatis.configuration.strict-if-test`，默认关）：注册期存在未识别表达式即返回 error（与 strictReg 一致）；③ 严格模式下求值期「整个 test 均未识别」按 false 处理（不渲染）+ Warn，**默认（非严格）恒真行为保持不变**（存量兼容）。测试见 `types/sqlfragment/a3_unsupported_test.go` + `types/a3_unsupported_test.go` + `orm/a3_strict_iftest_test.go`。
 
 **框架证据**：`types/sqlfragment/if.go:353-420`（解析）+ `:181-190`（求值）
 ```go
