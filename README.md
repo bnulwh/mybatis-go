@@ -2,6 +2,22 @@
 
 Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQL，利用反射为 struct 的函数字段注入代理实现，支持 **PostgreSQL、MySQL、SQLite 和人大金仓 KingbaseES**。
 
+## 能力矩阵（按版本）
+
+早期使用文档（docs/mybatis-go使用问题与解决方案.md，v0.1.7 时代）中被记录为「框架不支持」的能力，现已陆续补齐：
+
+| 能力 | 最早版本 | 入口 |
+|---|---|---|
+| `<if>` 数值比较（`!= 0`/`> 0`/`== 0`、`x.length > 0`） | v0.1.8（M-02） | 原生支持，无需规避 |
+| 参数 struct nil 指针字段 panic | v0.1.8（M-01） | 原生修复 |
+| PG/金仓自增主键回填（RETURNING） | v0.1.12（M-03） | `useGeneratedKeys` + `keyProperty` |
+| 分页（PageHelper 等价） | v0.3.0（M-07） | `*orm.PageParam` → `*orm.Page` |
+| `<if>` 字符串等值（`field == 'value'`） | v0.3.12 | 原生支持 |
+| 二级缓存 | v0.3.8（P1-3） | `mybatis.configuration.cache-enabled` |
+| 严格结果模式（行级丢弃可感知） | v0.3.22（D3） | `mybatis.configuration.strict-result` + `orm.LastConvertReport` |
+| MySQL→PG 族函数翻译（ifnull/find_in_set/date_format/反引号） | v0.3.26（F1） | `mybatis.configuration.function-rewrite` |
+| `||` 跨模式语义检测 | v0.3.27（F2） | `mybatis.configuration.portability-check` |
+
 ## 特性
 
 - **MyBatis 风格**：XML Mapper 定义 SQL，`#{}` / `${}` 参数绑定，完整动态 SQL（`<if>` / `<where>` / `<set>` / `<trim>` / `<foreach>` / `<choose>` / `<include>`），动态 SQL 引擎独立为 `types/sqlfragment` 包（`Node` 接口 + 节点注册表，开放封闭扩展新节点）

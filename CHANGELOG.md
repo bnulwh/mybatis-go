@@ -1,5 +1,10 @@
 # 更新日志
 
+- **v0.3.28（使用文档过时结论标注 G1，2026-10-22）**：v0.1.7 时代使用问题文档的过时结论不再误导 — 纯文档变更，零代码改动 —
+  - **使用问题文档状态横幅**（`docs/mybatis-go使用问题与解决方案.md`）：顶部声明「写于 v0.1.7、保留作历史记录」，过时条目以 `✅ Fixed in` 标注区分；7 个已修复条目逐个标注——P4（v0.1.12 M-03 RETURNING 回填，currval 变通废弃）、P8 坑1（v0.1.8 M-01 nil 指针不再 panic）、P10（v0.1.8 M-02 数值比较 + v0.3.12 字符串等值，零值剔除规避不再必要）、P14（v0.3.22 D3 strict-result 可检测）、P20/P21（v0.3.26 F1 function-rewrite 自动翻译，手改 XML 副本/数据库侧 find_in_set 重载不再必要，`status = 0` varchar 类型差异仍需手改）、P22（v0.3.0 M-07 PageParam/Page，内存分页规避废弃）
+  - **README 能力矩阵（按版本）**：顶部新增 9 行能力表（能力 × 最早版本 × 入口），早期文档记录为「不支持」的能力一表可查
+  - **边界**：使用方仓库（backend-go 等）的过时注释与 currval 回读代码不在本仓库范围，待使用方按标注自行清理
+
 - **v0.3.27（`||` 跨模式语义检测 F2，2026-10-22）**：共享 XML 带 `||` 时「换 database_mode 语义全变」的隐性风险可检测 — 新增诊断告警，默认关闭，不改写 SQL，存量行为不变 —
   - **检测引擎**（新增 `orm/portability_check.go` + `orm/dialector/sql_scan.go` 增 `ContainsConcatOp`）：引号（`'`/`"`/`` ` ``，含成对转义）与注释（`--`、`/* */`）感知的 `||` 扫描；命中情形：MySQL 族（`||` 默认逻辑或，除非 `PIPES_AS_CONCAT`）→ 告警语义差异；KingbaseES（框架无法感知实际 database_mode，`||` 语义随兼容模式变化）→ 告警模式依赖；纯 PG/Oracle（`||` 即拼接）不告警
   - **挂载收口**（`orm/database_connection.go`）：`DB.ExecContext`/`QueryContext`/`QueryRowContext` 三个执行收口点检测，每条 SQL 仅告警一次（`sync.Map` 去重）；`strings.Contains("||")` 快速预检零开销

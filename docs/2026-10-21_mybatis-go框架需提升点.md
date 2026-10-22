@@ -28,7 +28,7 @@
 | E3 | namespace 冲突无诊断/别名机制 | 代码生成 | 共享 XML 被迫改名抬进仓库 | 中（✅ v0.3.25 已修复：重复 namespace 检测 + NamespacePrefix + RegisterNamespaceAlias） |
 | F1 | 缺 MySQL→PG 族函数/语法翻译层（`ifnull`/`find_in_set`/`date_format`/反引号/`col = 0`） | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高（✅ v0.3.26 已修复：RewriteMySqlCompat 翻译引擎 + function-rewrite 开关；`col = 0` 类型推断保守跳过） |
 | F2 | `||` 跨模式语义差异无检测 | 方言能力 | 共享 XML 换 database_mode 语义全变 | 中（✅ v0.3.27 已修复：portability-check 开关 + 执行收口点告警） |
-| G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本） |
+| G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本）（✅ v0.3.28 已修复：文档状态横幅 + 7 条目 Fixed in 标注 + README 能力矩阵） |
 | G2 | 生产级开关（safe-update/explain-slow/pool-stats/cache）默认全关，无推荐预设 | 运维 | 上线默认无防护、无观测 | 中 |
 
 ---
@@ -357,7 +357,7 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 
 ## G. 文档与生产默认值
 
-### G1【中高，低成本】使用问题文档停留在 v0.1.7，多结论已过时且无废弃标注
+### G1【中高，低成本】使用问题文档停留在 v0.1.7，多结论已过时且无废弃标注 ✅（v0.3.28 已修复）
 
 `docs/mybatis-go使用问题与解决方案.md`（397 行，标注"版本：v0.1.7"）中至少 3 条已失效：
 
@@ -370,6 +370,8 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 **本项目已中招**：`backend-go/domain/monitor/common.go:52` 注释仍写"mybatis-go 无 PageHelper → 内存分页"；`mybatis/querymap.go:8-11` 注释仍写"mybatis-go 不支持 `!= 0` 求值"；`domain/system/common.go:103` 仍走 `currval` 回读。
 
 **建议**：文档按版本小节重构（"≤v0.3.5 适用 / v0.3.6+ 已解决"），每条问题加 `Fixed in` 标记；README 顶部加"能力矩阵（按版本）"。
+
+> **✅ 修复说明（v0.3.28）**：① 使用问题文档顶部加「文档状态」横幅（历史记录定位 + 指引新版能力）；7 个过时条目加 `✅ Fixed in` 标注（P4→v0.1.12 RETURNING、P8 坑1→v0.1.8 M-01、P10→v0.1.8 M-02 + v0.3.12、P14→v0.3.22 D3 可检测、P20/P21→v0.3.26 F1 自动翻译、P22→v0.3.0 M-07 分页），原文保留作历史记录；② README 顶部新增「能力矩阵（按版本）」表（9 项能力 × 最早版本 × 入口）；③ `backend-go` 使用方代码注释不属本仓库，待使用方自行按标注更新（currval 回读应在升级后删除，RETURNING 已是推荐路径）。未按建议做「按版本小节全量重构」（成本高且历史记录本身有价值，横幅 + 逐条标注已消除误导）。
 
 ### G2【中】生产级开关默认全关，无推荐预设
 

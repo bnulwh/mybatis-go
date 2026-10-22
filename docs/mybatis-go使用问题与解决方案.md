@@ -5,6 +5,11 @@
 > 场景：使用 mybatis-go 在 Go 中直接执行 Java 后端 Mapper XML（RuoYi + MDM，金仓 KingbaseES 数据库）
 > 版本：**v0.1.7**（0.1.6 存在 parseTime 缺陷，见问题 P2）
 
+> **⚠️ 文档状态（2026-10-22 更新）**：本文写于 v0.1.7，保留作为历史记录与排查思路参考。
+> 框架此后迭代至 v0.3.x，**多条结论已过时**：已修复问题在各条目加 `✅ Fixed in vX.Y.Z` 标注
+> （P4 / P8 坑1 / P10 / P14 / P20 / P21 / P22 等），未标注条目仍适用当前版本。
+> 完整版本能力见 README「能力矩阵（按版本）」与 CHANGELOG。
+
 ---
 
 ## 一、背景与用法概述
@@ -100,7 +105,11 @@ type SysUserMapper struct {
 
 ---
 
-#### P4. PG/金仓不支持 `LastInsertId()`：自增主键不回填
+#### P4. PG/金仓不支持 `LastInsertId()`：自增主键不回填 ✅ Fixed in v0.1.12（RETURNING 回填）
+
+> **✅ 已修复（v0.1.12，M-03）**：PG/金仓下 `useGeneratedKeys` + `keyProperty` 的 INSERT 自动追加
+> `RETURNING col` 并回填主键，**`currval` 序列回读变通不再需要**（H1 结论：RETURNING 是 PG 族
+> 主键回填的推荐唯一路径，currval 自然消亡）。下方 v0.1.7 时代的变通仅作历史记录。
 
 - **现象**：`useGeneratedKeys="true" keyProperty="userId"` 的 insert 执行后，入参 map 里 `userId` 仍为 0，导致后续关联表（如 sys_user_role）插入 `user_id=0`，且触发唯一约束冲突。
 - **原因**：`backfillGeneratedKey()` 依赖 `sql.Result.LastInsertId()`，**lib/pq 不支持**（返回 error）→ 回填被跳过。
@@ -156,6 +165,9 @@ type SysUserMapper struct {
 
 #### P8. 自定义 model 参数传 struct 的两个坑 → 统一用 `map[string]interface{}`
 
+> **✅ 坑 1 已修复（v0.1.8，M-01）**：`convert2Map` 对 nil 指针字段（如 `*time.Time`）不再 panic。
+> 坑 2 见 P10（已修复）。「参数一律改 map」的规避仅坑 2 场景仍有意义。
+
 - **坑 1（nil 指针 panic）**：`convert2Map` 对 struct 字段 `reflect.Indirect(fval).Interface()`，**nil 指针字段（如 `*time.Time`）会 panic**（0.1.6 与 0.1.7 均未修复）。
 - **坑 2（`!= 0` 语义）**：见 P10。
 - **解决**：
@@ -180,7 +192,12 @@ type SysUserMapper struct {
 
 ---
 
-#### P10. `<if test="userId != null and userId != 0">` 恒渲染：不支持 `!= 0`
+#### P10. `<if test="userId != null and userId != 0">` 恒渲染：不支持 `!= 0` ✅ Fixed in v0.1.8（M-02）/ v0.3.12
+
+> **✅ 已修复**：v0.1.8（M-02）起 `<if>` 数值比较（`!= 0` / `> 0` / `== 0` 及 `x.length > 0`）
+> 正确解析求值；v0.3.12 又补字符串等值（`field == 'value'` / `field != "value"`，单双引号均可）。
+> **「查询参数用 map 且零值不入 map」的规避不再必要**（`!= 0` 与零值剔除语义等价时仍可用）。
+> 仍不支持：三元、方法调用等任意 OGNL 表达式（见 P19）。
 
 - **现象**：`selectUserList` 传 `SysUser{UserId:0}`（未指定用户）时，SQL 仍生成 `AND u.user_id = 0`，查询返回 0 行。
 - **原因**：`parseIfConditionsFromText` 只识别三种条件：
@@ -236,7 +253,12 @@ type SysUserMapper struct {
 
 ---
 
-#### P14. `sql: Scan error` 导致整行被丢弃（静默）
+#### P14. `sql: Scan error` 导致整行被丢弃（静默）✅ v0.3.22 起可检测
+
+> **✅ 可检测（v0.3.22，D3）**：默认行为不变（部分数据 + 聚合 ERROR 日志），但
+> `mybatis.configuration.strict-result=true` 后转换不完整返回 `ErrResultConvertIncomplete`
+> 而非部分数据；任意时刻可用 `orm.LastConvertReport(namespace, id)` 查询最近一次转换异常
+> 报告（行号/列名/消息）。「0 行但 SQL 能查到」排查不再只能翻日志。
 
 - **现象**：个别列 Scan 失败时 `convertMap2Result` 返回 err → 该行被 `continue` 跳过，且错误仅在 debug 日志可见。
 - **原因**：`convert2Results` 对每行 `if err != nil { continue }`。
@@ -297,7 +319,13 @@ type SysUserMapper struct {
 
 ---
 
-#### P20. MySQL 方言函数/语法在金仓（PG）不兼容
+#### P20. MySQL 方言函数/语法在金仓（PG）不兼容 ✅ v0.3.26 起可自动翻译（F1）
+
+> **✅ 已修复（v0.3.26，F1）**：`mybatis.configuration.function-rewrite=true`（或
+> `orm.SetFunctionRewrite(true)`）后，执行前自动翻译——反引号 → 双引号标识符、
+> `ifnull` → `coalesce`、`find_in_set` → `position(...)`、`date_format` → `to_char`
+> （25 个格式符映射），**「仅 Go XML 副本修正」的手改流程不再必要，Java 原始 XML 可直接跑**。
+> 例外：`status = 0`（varchar 列）类型差异不做推断改写，仍需手改（见下表第 4 行）。
 
 | 方言 | 问题 | 生成器修正（仅 Go XML 副本） |
 |---|---|---|
@@ -310,7 +338,11 @@ type SysUserMapper struct {
 
 ---
 
-#### P21. `find_in_set` 参数类型重载
+#### P21. `find_in_set` 参数类型重载 ✅ v0.3.26 起可免（F1 翻译）
+
+> **✅ 已修复（v0.3.26，F1）**：开启 `function-rewrite` 后 `find_in_set(x, csv)` 直接翻译为
+> PG 原生 `position(','||x||',' in ','||csv||',')`，**不再依赖数据库侧 find_in_set 函数，
+> int/varchar 重载问题随之消失**。未开启翻译时下方补重载方案仍适用。
 
 - **现象**：PG 报 `function find_in_set(integer, character varying) does not exist`。
 - **原因**：金仓脚本定义的 `find_in_set(TEXT, TEXT)` 不匹配调用 `find_in_set(0, ancestors)`（int, varchar）。
@@ -326,7 +358,12 @@ type SysUserMapper struct {
 
 ---
 
-#### P22. 无分页支持（PageHelper 等价物缺失）
+#### P22. 无分页支持（PageHelper 等价物缺失）✅ Fixed in v0.3.0（M-07 PageParam/Page）
+
+> **✅ 已修复（v0.3.0，M-07）**：`orm.PageParam` / `orm.Page` 提供 PageHelper 等价能力——
+> Mapper 方法声明 `*orm.PageParam` 参数即自动派生 COUNT + 注入 LIMIT/OFFSET，返回
+> `*orm.Page`（Total/Records）。**内存分页变通不再需要**。v0.3.20 又修复了 COUNT 派生与
+> 分页注入误剥子查询内层子句的缺陷（B1/B2）。下方 v0.1.7 时代的内存分页仅作历史记录。
 
 - **现象**：RuoYi 用 PageHelper 自动给 SQL 加 limit；mybatis-go 无此能力，XML 的 selectList 无 limit。
 - **解决**：**内存分页**（数据量小可接受）：
