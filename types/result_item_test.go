@@ -114,7 +114,7 @@ func Test_ResultItemGolangType_Samples(t *testing.T) {
 		if dept.Kind != ResultItemKindAssociation {
 			t.Error("dept kind =", dept.Kind, "want association")
 		}
-		if g := dept.golangType(namedMaps); g != "*SysDept" {
+		if g := dept.golangType(namedMaps, nil); g != "*SysDept" {
 			t.Error("dept golangType =", g, "want *SysDept")
 		}
 	}
@@ -124,7 +124,7 @@ func Test_ResultItemGolangType_Samples(t *testing.T) {
 		if roles.Kind != ResultItemKindCollection {
 			t.Error("roles kind =", roles.Kind, "want collection")
 		}
-		if g := roles.golangType(namedMaps); g != "[]SysRole" {
+		if g := roles.golangType(namedMaps, nil); g != "[]SysRole" {
 			t.Error("roles golangType =", g, "want []SysRole")
 		}
 	}

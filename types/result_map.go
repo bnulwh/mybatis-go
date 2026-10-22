@@ -48,7 +48,7 @@ func (in *ResultMap) generateContent(pkg string, namedMaps map[string]*ResultMap
 		if strings.Compare(strings.ToLower(item.Property), "delete_time") == 0 {
 			continue
 		}
-		buf.WriteString(fmt.Sprintf("\t%s \t%s\t`json:\"%s\"`\n", UpperFirst(item.Property), item.golangType(namedMaps), item.Property))
+		buf.WriteString(fmt.Sprintf("\t%s \t%s\t`json:\"%s\"`\n", UpperFirst(item.Property), item.golangType(namedMaps, nil), item.Property))
 	}
 	buf.WriteString("}\n\n")
 	//buf.WriteString("func init(){\n")

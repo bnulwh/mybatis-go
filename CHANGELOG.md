@@ -1,5 +1,10 @@
 # 更新日志
 
+- **v0.3.24（xml2go 跨 Mapper resultMap 限定名引用修复 E2，2026-10-22）**：共享 Java XML 多 Mapper 复用时关联字段不再退化 `interface{}` —
+  - **修复**（`types/xml2go_gen.go` + `types/result_item.go`）：`GenerateXml2GoFiles` 先扫全量 XML 建 resultMap 全局索引（全限定 `namespace.id` + 短前缀 `Mapper短名.id` 两种键，同键先注册者生效）；嵌套 association/collection 的限定名引用经 `lookupNestedResultMap` 静态解析为真实关联类型（`*SysDept` / `[]SysRole`）
+  - **边界保持**：裸 id 跨 Mapper 引用仍退化（与 MyBatis 裸 id 仅本 Mapper 解析语义一致，避免同名 id 歧义）；`golangType`/`nestedTypeName` 增加 globalResultMaps 参数（querier_gen/result_map 旧调用点传 nil，行为不变）
+  - **测试**：types `Test_GenerateXml2GoFiles_CrossMapperResultMap`（全限定/短前缀解析 + 裸 id 退化保持 + 被引用模型生成）；全量零回归
+
 - **v0.3.23（xml2go 动态参数签名修复 E1，2026-10-22）**：生成签名不再丢 `<if>/<choose>/<foreach>` 体内占位符 —
   - **根因**：xml2go 复用运行期 `CollectSqlSlots`（仅无条件位置）推导签名 → 动态体占位符（lastPersonId/period/status 等）从生成的函数签名中消失，动态 SQL Mapper 被迫手写
   - **修复**（`types/sqlfragment/node.go` + `types/sql_param.go` + `types/sql_function.go`）：新增 `sqlfragment.CollectAllSqlSlots`（递归收集片段树全部占位符：if/choose/foreach/where/set/include 体内，去重、按首现序）与 `SqlParam.AllSlots`（仅签名推导用，不参与运行期按位绑定）

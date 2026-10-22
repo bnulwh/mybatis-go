@@ -233,6 +233,90 @@ func Test_GenerateXml2GoFiles_DynamicSlots(t *testing.T) {
 	}
 }
 
+// Test_GenerateXml2GoFiles_CrossMapperResultMap E2：跨 Mapper resultMap 限定名引用
+// 经全局索引静态解析——全限定（namespace.id）与短前缀（Mapper短名.id）引用生成真实关联类型；
+// 裸 id 跨 Mapper 引用保持 interface{} 退化（与 MyBatis 裸 id 仅本 Mapper 解析语义一致）。
+func Test_GenerateXml2GoFiles_CrossMapperResultMap(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, xml string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(xml), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("DeptMapper.xml", `<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.demo.mapper.DeptMapper">
+  <resultMap id="deptResult" type="com.demo.domain.SysDept">
+    <id column="dept_id" jdbcType="BIGINT" property="deptId" />
+    <result column="dept_name" jdbcType="VARCHAR" property="deptName" />
+  </resultMap>
+  <select id="selectDept" resultMap="deptResult">
+    select dept_id, dept_name from sys_dept where dept_id = #{deptId}
+  </select>
+</mapper>`)
+	write("SysRoleMapper.xml", `<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.demo.mapper.SysRoleMapper">
+  <resultMap id="roleResult" type="com.demo.domain.SysRole">
+    <id column="role_id" jdbcType="BIGINT" property="roleId" />
+    <result column="role_name" jdbcType="VARCHAR" property="roleName" />
+  </resultMap>
+</mapper>`)
+	write("CrossUserMapper.xml", `<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.demo.mapper.CrossUserMapper">
+  <resultMap id="crossUserResult" type="com.demo.domain.CrossUser">
+    <id column="user_id" jdbcType="BIGINT" property="userId" />
+    <result column="user_name" jdbcType="VARCHAR" property="userName" />
+    <association property="dept" resultMap="com.demo.mapper.DeptMapper.deptResult" />
+    <collection property="roles" resultMap="SysRoleMapper.roleResult" />
+    <association property="ext" resultMap="otherExtResult" />
+  </resultMap>
+  <select id="selectCrossUser" resultMap="crossUserResult">
+    select user_id, user_name from cross_user where user_id = #{userId}
+  </select>
+</mapper>`)
+	mps := NewSqlMappers(dir)
+	if len(mps.Mappers) == 0 {
+		t.Error("load cross mapper failed")
+		return
+	}
+	out := t.TempDir()
+	result, err := mps.GenerateXml2GoFiles(&Xml2GoOptions{OutputDir: out, ModulePrefix: "example.com/demo"})
+	if err != nil {
+		t.Error("GenerateXml2GoFiles failed:", err)
+		return
+	}
+	for _, f := range result.ModelFiles {
+		if err := ParseQuerierFileSyntax(f); err != nil {
+			t.Errorf("model file %v syntax invalid: %v", f, err)
+		}
+	}
+	uc, err := os.ReadFile(filepath.Join(out, "models", "CrossUser.go"))
+	if err != nil {
+		t.Error("read CrossUser.go failed:", err)
+		return
+	}
+	src := collapseSpace(string(uc))
+	for _, want := range []string{
+		// E2：全限定 + 短前缀限定名引用 → 真实关联类型
+		"Dept *SysDept `db:\"-\" json:\"dept\"`",
+		"Roles []SysRole `db:\"-\" json:\"roles\"`",
+		// 裸 id 跨 Mapper 引用保持退化（MyBatis 裸 id 仅本 Mapper 解析）
+		"Ext *interface{} `db:\"-\" json:\"ext\"`",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("CrossUser model missing %q, got:\n%v", want, src)
+		}
+	}
+	// 被引用模型同样生成
+	for _, sn := range []string{"SysDept", "SysRole"} {
+		if _, err := os.Stat(filepath.Join(out, "models", sn+".go")); err != nil {
+			t.Errorf("referenced model %v not generated: %v", sn, err)
+		}
+	}
+}
+
 // Test_GenerateXml2GoFiles_SkipMP skip-mp：MP 内置字段全部剔除，手写语句保留。
 func Test_GenerateXml2GoFiles_SkipMP(t *testing.T) {
 	src := t.TempDir()

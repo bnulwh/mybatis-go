@@ -303,6 +303,8 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 
 ### E2【中】跨 Mapper resultMap 引用退化为 `interface{}`
 
+> ✅ **已于 v0.3.24 修复**：`GenerateXml2GoFiles` 先扫全量 XML 建 resultMap 全局索引（全限定 `namespace.id` + 短前缀 `Mapper短名.id` 两种键，同键先注册者生效），嵌套 association/collection 的限定名引用（`resultMap="OtherMapper.Xxx"`）静态解析为真实关联类型（`*SysDept` / `[]SysRole`），不再退化 `interface{}`；裸 id 跨 Mapper 引用保持退化（与 MyBatis 裸 id 仅本 Mapper 解析语义一致，避免同名 id 歧义）。见 `types/result_item.go` lookupNestedResultMap + `types/xml2go_gen.go`。
+
 `docs/agents/xml2go.md` 已列为已知边界（`resultMap="OtherMapper.Xxx"` 静态不可解析 → 字段 `interface{}`）。对共享 Java XML 的多 Mapper 复用场景影响面不小。建议：支持 `-resultmap-index` 全局索引（先扫全量 XML 建 resultMap 表，再生成）。
 
 ### E3【中】namespace 冲突无诊断/别名机制

@@ -107,19 +107,21 @@ func parseResultItemFromXmlNode(elem xmlElement) *ResultItem {
 // golangType 返回生成模型字段的 Go 类型字符串。
 // 普通 result/id 沿用 jdbcType 推断；association/collection 依据
 // javaType/ofType/嵌套 resultMap 建立真实关联类型（如 *SysDept / []SysRole）。
-func (in *ResultItem) golangType(namedMaps map[string]*ResultMap) string {
+// globalResultMaps 为跨 Mapper 全局 resultMap 索引（E2）：限定名引用
+// （resultMap="OtherMapper.xxx" / 全限定 namespace.xxx）经索引静态解析，可为 nil。
+func (in *ResultItem) golangType(namedMaps map[string]*ResultMap, globalResultMaps map[string]*ResultMap) string {
 	switch in.Kind {
 	case ResultItemKindAssociation:
-		return "*" + in.nestedTypeName(namedMaps)
+		return "*" + in.nestedTypeName(namedMaps, globalResultMaps)
 	case ResultItemKindCollection:
-		return "[]" + in.nestedTypeName(namedMaps)
+		return "[]" + in.nestedTypeName(namedMaps, globalResultMaps)
 	}
 	return in.Type.String()
 }
 
 // nestedTypeName 解析嵌套模型短名：
 // association 优先 javaType；collection 优先 ofType，其次引用的 resultMap 的 type。
-func (in *ResultItem) nestedTypeName(namedMaps map[string]*ResultMap) string {
+func (in *ResultItem) nestedTypeName(namedMaps map[string]*ResultMap, globalResultMaps map[string]*ResultMap) string {
 	tn := ""
 	switch in.Kind {
 	case ResultItemKindAssociation:
@@ -136,8 +138,8 @@ func (in *ResultItem) nestedTypeName(namedMaps map[string]*ResultMap) string {
 	case "LIST", "ARRAY", "ARRAYLIST", "LINKEDLIST", "SLICE", "SET", "HASHSET", "TREESET", "COLLECTION":
 		sname = ""
 	}
-	if sname == "" && in.ResultMap != "" && namedMaps != nil {
-		if rm, ok := namedMaps[in.ResultMap]; ok {
+	if sname == "" && in.ResultMap != "" {
+		if rm := lookupNestedResultMap(in.ResultMap, namedMaps, globalResultMaps); rm != nil {
 			sname = GetShortName(rm.TypeName)
 		}
 	}
@@ -147,4 +149,25 @@ func (in *ResultItem) nestedTypeName(namedMaps map[string]*ResultMap) string {
 		return "interface{}"
 	}
 	return strings.TrimPrefix(toGolangType(sname), "models.")
+}
+
+// lookupNestedResultMap 解析嵌套 resultMap 引用（E2）：
+// 裸 id 仅在本 Mapper 的 namedMaps 内查找（与 MyBatis 语义一致——同名 id 跨 Mapper
+// 不做歧义解析）；限定名引用（resultMap="OtherMapper.xxx" 短前缀或全限定
+// namespace.xxx）经全局索引解析，同键先注册者生效。
+func lookupNestedResultMap(ref string, namedMaps, globalResultMaps map[string]*ResultMap) *ResultMap {
+	if ref == "" {
+		return nil
+	}
+	for _, key := range []string{ref, buildKey(ref), strings.ToLower(ref)} {
+		if rm, ok := namedMaps[key]; ok {
+			return rm
+		}
+	}
+	if strings.Contains(ref, ".") && globalResultMaps != nil {
+		if rm, ok := globalResultMaps[buildKey(ref)]; ok {
+			return rm
+		}
+	}
+	return nil
 }

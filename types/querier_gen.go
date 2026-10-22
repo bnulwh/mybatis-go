@@ -192,7 +192,7 @@ func renderQuerierModel(rm *ResultMap, namedMaps map[string]*ResultMap, shared *
 		if item.Property == "" {
 			continue
 		}
-		typ := item.golangType(namedMaps)
+		typ := item.golangType(namedMaps, nil)
 		tag := "-"
 		switch item.Kind {
 		case ResultItemKindId, ResultItemKindResult:
