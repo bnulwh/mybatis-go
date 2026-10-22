@@ -313,6 +313,28 @@ orm.InitializeFromSettings(cm)
 （Warn 级，每进程一次），可据此补齐。`cache-enabled` 未纳入推荐——二级缓存正确性
 依赖 DML flush 语义理解，请按业务显式开启。
 
+## 自增主键回填（RETURNING / LastInsertId）
+
+XML 声明 `useGeneratedKeys="true" keyProperty="id"`（或 Go 参数为 struct 指针）时，
+Insert 后自增主键自动回填到入参：
+
+- **PG 族**（PostgreSQL/KingbaseES/openGauss 等）：**RETURNING 回填是唯一推荐路径**
+  ——INSERT 自动追加 `RETURNING id` 并读取回填。**不要再用 `currval` 序列回读变通**
+  （v0.1.7 时代做法）：lib/pq 无 per-connection 会话保证，`currval` 依赖「当前会话刚
+  nextval」这一前提，连接池下不可靠；RETURNING 单次往返且无此约束。
+- **MySQL/SQLite 族**：走 `sql.Result.LastInsertId()` 回填。
+
+```xml
+<insert id="insertUser" useGeneratedKeys="true" keyProperty="userId">
+    INSERT INTO sys_user(...) VALUES (#{userName}, ...)
+</insert>
+```
+
+```go
+u := &SysUser{UserName: "admin"}
+mp.InsertUser(u) // u.UserId 已回填，可直接用于关联表插入
+```
+
 ## SQL 格式化输出（Pretty SQL）
 
 开启后日志中的 SQL 将自动格式化：参数值替换占位符 + 关键字换行缩进，便于开发调试。**仅用于日志展示，不影响实际执行。**

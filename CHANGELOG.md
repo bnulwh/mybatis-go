@@ -1,5 +1,9 @@
 # 更新日志
 
+- **v0.3.30（RETURNING 唯一推荐路径文档化 H1，2026-10-22）**：PG 族自增主键回填的推荐路径明确为 RETURNING，currval 变通正式废弃 — 纯文档变更，零代码改动 —
+  - **docs/features.md 新增「自增主键回填（RETURNING / LastInsertId）」**：`useGeneratedKeys` + `keyProperty` 即自动回填；**PG 族 RETURNING 是唯一推荐路径**（单次往返、无会话依赖），`currval` 序列回读属 v0.1.7 时代变通（lib/pq 连接池下「当前会话刚 nextval」前提不可靠），明确废弃；MySQL/SQLite 族走 `LastInsertId()`
+  - **lib/pq → pgx/v5 迁移保持暂缓**（TODO.md 结论不变；未来做 COPY 批量写入时再评估）
+
 - **v0.3.29（生产推荐配置预设 G2，2026-10-22）**：防护/观测开关默认全关易遗漏，提供一键推荐配置与启动期提示 — 新增 API，默认值不变，存量行为零变化 —
   - **`orm.RecommendedProductionSettings()`**（新增 `orm/production_settings.go`）：一键生成推荐配置（`safe-update=true` / `pool-stats-interval=60` / `explain-slow-sql=true` / `slow-sql-threshold=3000`），使用方合并进配置 map（不覆盖显式配置）后 `InitializeFromSettings` 即启用
   - **启动期未开启项提示**：`InitializeFromSettings` 完成套用后自动打印「未开启的推荐配置项」清单（Warn 级，每进程一次 `sync.Once`）；`orm.UnrecommendedSettingItems(setting)` 纯函数返回缺失项描述（已排序，供测试断言）

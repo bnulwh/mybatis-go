@@ -30,6 +30,7 @@
 | F2 | `||` 跨模式语义差异无检测 | 方言能力 | 共享 XML 换 database_mode 语义全变 | 中（✅ v0.3.27 已修复：portability-check 开关 + 执行收口点告警） |
 | G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本）（✅ v0.3.28 已修复：文档状态横幅 + 7 条目 Fixed in 标注 + README 能力矩阵） |
 | G2 | 生产级开关（safe-update/explain-slow/pool-stats/cache）默认全关，无推荐预设 | 运维 | 上线默认无防护、无观测 | 中（✅ v0.3.29 已修复：RecommendedProductionSettings + 启动期未开启项提示） |
+| H1 | lib/pq → pgx/v5 暂缓；RETURNING 唯一推荐路径未文档化 | 技术选型 | currval 变通残留、不稳定 | 跟踪（✅ v0.3.30 已文档化：RETURNING 唯一推荐路径 + currval 废弃指引；迁移保持暂缓） |
 
 ---
 
@@ -385,7 +386,7 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 
 ## H. 长期技术选型
 
-### H1【跟踪】lib/pq → pgx/v5 官方暂缓
+### H1【跟踪】lib/pq → pgx/v5 官方暂缓 ✅（v0.3.30 已按建议文档化）
 
 `TODO.md` 记录「lib/pq 迁移 pgx/v5 已评估，当前 v1.12.3 仍可维护，收益有限暂缓」。影响本项目的能力缺口：
 - 无 per-connection 会话保证 → `currval` 回读主键（当前用 `PlatformApiMapper.SelectCurrval` 兜底）不稳；
@@ -393,6 +394,8 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 - 无 `search_path` 之外的原生 session 参数能力。
 
 **建议**：保持暂缓结论，但把"RETURNING 回填"作为 PG 族主键回填的**唯一推荐路径**写进文档（这样 currval 变通自然消亡）；未来若做 COPY，再评估 pgx。
+
+> **✅ 处理说明（v0.3.30）**：暂缓结论保持（TODO.md 不变）；docs/features.md 新增「自增主键回填（RETURNING / LastInsertId）」章节——明确 **RETURNING 是 PG 族主键回填唯一推荐路径**、`currval` 回读属 v0.1.7 时代变通且连接池下不可靠（应删除）；使用问题文档 P4 标注同步指路（见 G1/v0.3.28）。使用方 `SelectCurrval` 兜底代码待其升级后自行移除。未来做 COPY 时再评估 pgx。
 
 ---
 
