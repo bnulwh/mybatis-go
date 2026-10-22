@@ -1,92 +1,48 @@
 # 更新日志
 
-- **v0.3.32（语句级行数上限与截断可观测 B3 完成，2026-10-22）**：`<select maxRows>` 语句级覆盖 + `orm.LastQueryTruncated()` 截断记录 —— 收口 B3 剩余第 ③ 条，默认行为不变 —
-  - **语句级覆盖**（`types/sql_function.go` + `orm/row_limit_ctx.go`）：`<select maxRows="N">` 属性解析到 `SqlFunction.MaxRows`（0=未设置沿用全局 `DefaultRowLimit`，-1=不限制，>0=语句级上限；非法值 `parseMaxRowsAttr` 告警后按未设置回退）；生效上限经 context 下发（`withStatementRowLimit`/`effectiveRowLimit`，**不改公共 API 签名**）——Mapper 代理全路径（`executeMethod`/`executeStream`/`executePage`）与原生查询（`Query`/`QueryTo`/`QueryStream`）统一解析；`RowStream` 打开时快照（语义保持 v0.3.20）
-  - **截断可观测**：新增 `orm.LastQueryTruncated() *QueryTruncation`（`Statement`=namespace.id / `Limit` / `Time`）——静默截断与严格模式拦截均记录（原子指针，并发安全，总是最近一次）；`orm.ResetQueryTruncation()` 清空（测试用）；截断点全覆盖：`fetchRows` / `scanRowsToStructSlice` / `scanRowsToMapSlice` / `scanRowsToScalarSlice` / `RowStream.Next`
-  - **签名调整（内部）**：`fetchRows`/`scanRowsInto`/`scanRowsToSlice`（及三个 slice 填充函数）增加 ctx 参数（包内调用链适配，无外部 API 变化）
-  - **测试**：新增 `orm/b3_stmt_maxrows_test.go`（语句级覆盖端到端：全局回退/语句上限/‑1 不限/非法值回退/流式快照 + 截断记录断言；严格模式叠加：语句级超限 `ErrRowLimitExceeded`、`maxRows=-1` 严格下不报错）；全量 `go vet` / `go test ./...` 零回归
-  - **文档**：docs/features.md 新增「行数上限」章节（全局/语句级/严格模式/可观测四层说明）；docs/configuration.md 补 `mybatis.max-rows` / `mybatis.configuration.row-limit-strict` 配置行（v0.3.20 遗漏）
+- **v0.3.19（框架质量大修：动态 SQL / 分页 / 事务 / API / 代码生成 / 方言 / 运维，A-H 八大系列 24 项修复与增强，2026-10-22）**：按《框架需提升点》清单一次性收口 — 新增能力默认关闭或行为不变，存量代码零破坏 —
 
-- **v0.3.31（未识别 `<if test>` 表达式根治 A3，2026-10-22）**：未命中已知模式（null 检查/空串/字符串比较/数值比较/裸标识符）的 test 子表达式不再只靠日志告警——记录、汇总、严格模式三段式根治 — 默认行为不变（恒真兼容存量），默认关闭 —
-  - **解析期记录**（`types/sqlfragment/if.go`）：`parseIfTestConditions` 收集未识别子表达式到 `sqlIfTest.Unsupported`；新增树级聚合 `sqlfragment.CollectUnsupportedIfTests`（经 `Children()` 遍历覆盖 if/choose-when/where/set 嵌套，去重按首现序）
-  - **语句级汇总**（`types/sql_function.go`）：`SqlFunction.UnsupportedIfTests` 字段（注册期告警/严格报错依据）；orm 侧注册链（`mapperInfo.bindSql`）按语句汇总告警 `[if-test] mapper.func: unsupported expressions ...`
-  - **严格模式**（新增 `orm/strict_iftest.go`）：`orm.SetStrictIfTest(true)` / `orm.StrictIfTest()` + 配置 `mybatis.configuration.strict-if-test`（默认 false）——开启后 ① 注册期存在未识别表达式即返回 error（与 strictReg 严格注册一致，错误列出表达式原文）；② 求值期「整个 test 均未识别」的 `<if>/<when>` 按 false 处理（不渲染）+ Warn，不再恒真；部分识别语句仍按已识别条件求值
-  - **默认（非严格）行为不变**：未识别表达式静默丢弃 + 空条件恒真（解析期 Warn 已有，v0.3.19），存量 XML 零影响
-  - **测试**：新增 `types/sqlfragment/a3_unsupported_test.go`（解析收集/访问器/嵌套聚合/严格求值翻转/部分识别保持/开关）+ `types/a3_unsupported_test.go`（SqlFunction 聚合/全识别为空）+ `orm/a3_strict_iftest_test.go`（注册期报错+默认告警不报错/配置解析端到端）；全量 `go vet` / `go test ./...` 零回归
+  - **动态 SQL 引擎（A1/A2/A3）**
+    - A1 `<foreach>` 嵌套标签（`types/sqlfragment/foreach.go`）：`sqlForLoop.Sql` 改为 `[]Node` 经 `ParseFragments` 统一解析，支持嵌套 `<if>`/`<choose>`/嵌套 `<foreach>`；循环体首个元素为子标签时的 panic 与混排静默丢弃均消除；`<choose>` 的 `Otherwise` 同步改为 `[]Node`（`<otherwise>` 内可嵌套动态标签）
+    - A2 `<include>` 静态文本丢失（双根因修复）：`ParseXmlNode` 解析前经新增 `stripXmlComments` 剥离 XML 注释（CDATA 感知，注释替换为单空格保住无空格场景）；`ParseSqlElementFromXmlNode`「静态文本 + 子标签」混排按文档序把文本以 `simpleSql` 节点放入 `Fragments` —— `<sql>` 片段静态前后缀不再丢失（`SELECT a, b FROM t <where>...</where>` include 后完整）
+    - A3 未识别 `<if test>` 根治（三段式）：解析期未命中已知模式的子表达式收集到 `sqlIfTest.Unsupported`（`parseIfTestConditions`）→ 树级聚合 `sqlfragment.CollectUnsupportedIfTests`（if/choose-when/where/set 嵌套、去重按首现序）→ 语句级汇总 `SqlFunction.UnsupportedIfTests`（注册期按语句告警）；**严格模式** `orm.SetStrictIfTest` / 配置 `mybatis.configuration.strict-if-test`（默认关）：注册期存在未识别表达式即返回 error（错误列出表达式原文）、求值期「整个 test 均未识别」按 false 处理不渲染；默认恒真行为保持不变（存量兼容）
+    - 测试：`types/sqlfragment/dynamic_fix_test.go` / `a3_unsupported_test.go`、`types/a3_unsupported_test.go`、`orm/a3_strict_iftest_test.go`
 
-- **v0.3.30（RETURNING 唯一推荐路径文档化 H1，2026-10-22）**：PG 族自增主键回填的推荐路径明确为 RETURNING，currval 变通正式废弃 — 纯文档变更，零代码改动 —
-  - **docs/features.md 新增「自增主键回填（RETURNING / LastInsertId）」**：`useGeneratedKeys` + `keyProperty` 即自动回填；**PG 族 RETURNING 是唯一推荐路径**（单次往返、无会话依赖），`currval` 序列回读属 v0.1.7 时代变通（lib/pq 连接池下「当前会话刚 nextval」前提不可靠），明确废弃；MySQL/SQLite 族走 `LastInsertId()`
-  - **lib/pq → pgx/v5 迁移保持暂缓**（TODO.md 结论不变；未来做 COPY 批量写入时再评估）
+  - **分页与行数上限（B1-B4）**
+    - 顶层 SQL 子句扫描器（新增 `orm/dialector/sql_scan.go`）：括号深度 + 引号（`'`/`"`/`` ` ``）+ 注释（`--`、`/* */`）感知，只识别**顶层**（深度 0）关键字，词边界/短语内任意空白/最左命中，替代旧正则
+    - B1 `buildCountSQL` 深度感知重写：派生 COUNT 前只剥顶层尾部子句（order by/limit/offset/returning/for update 族），SELECT→COUNT(*) 替换边界按顶层定位 —— 子查询内层 ORDER BY/LIMIT（`ROW_NUMBER() OVER (ORDER BY ...)`、标量子查询）原样保留；新支持 WITH/CTE 前缀语句；旧正则全部移除
+    - B2 `ApplyPagination` 只替换顶层 LIMIT/OFFSET（`orm/dialector/base.go` 及 Oracle/MSSQL/DB2/ClickHouse 方言），标量子查询 `(SELECT ... LIMIT 1)` 不再被误删
+    - B3 行数上限四层能力：全局 `mybatis.max-rows`（原死字段接入 `SetDefaultRowLimit`，0=默认 10000、负数不限）→ 语句级 `<select maxRows="N">` 覆盖（`SqlFunction.MaxRows`，context 下发不改公共 API；Mapper 代理全路径与原生查询统一生效；RowStream 打开时快照）→ 严格模式 `mybatis.configuration.row-limit-strict` / `SetRowLimitStrict`（超限返回 `ErrRowLimitExceeded`，`errors.Is` 可判，不再静默截断）→ 可观测 `orm.LastQueryTruncated()`（Statement/Limit/Time，静默截断与严格拦截均记录，原子指针并发安全）
+    - B4 PageParam 与手写 LIMIT 共存运行时告警（`executePage`，每 namespace.id 仅一次）
+    - 测试：`orm/dialector/sql_scan_test.go`、`orm/row_limit_strict_test.go`、`orm/b3_stmt_maxrows_test.go`、`orm/sql_rewrite_test.go` 扩展
 
-- **v0.3.29（生产推荐配置预设 G2，2026-10-22）**：防护/观测开关默认全关易遗漏，提供一键推荐配置与启动期提示 — 新增 API，默认值不变，存量行为零变化 —
-  - **`orm.RecommendedProductionSettings()`**（新增 `orm/production_settings.go`）：一键生成推荐配置（`safe-update=true` / `pool-stats-interval=60` / `explain-slow-sql=true` / `slow-sql-threshold=3000`），使用方合并进配置 map（不覆盖显式配置）后 `InitializeFromSettings` 即启用
-  - **启动期未开启项提示**：`InitializeFromSettings` 完成套用后自动打印「未开启的推荐配置项」清单（Warn 级，每进程一次 `sync.Once`）；`orm.UnrecommendedSettingItems(setting)` 纯函数返回缺失项描述（已排序，供测试断言）
-  - **边界**：`cache-enabled` 未纳入推荐（二级缓存正确性依赖 DML flush 语义理解，保守由使用方显式开启）；所有默认值保持不变
-  - **测试**：新增 `orm/g2_production_test.go`（推荐项齐全性 / 默认 3 项缺失·全开为空·部分缺失 / 推荐配置合并端到端解析套用复检）；全量 `go vet` / `go test ./...` 零回归
+  - **事务（C1/C2）**
+    - C1 `orm.Begin`/`BeginTx`（含 `DB.Begin`/`DB.BeginTx` 多数据源变体）标记 `Deprecated` 指向 `WithTx(ctx, fn)`（goroutine 安全、嵌套复用、不占全局槽），首次使用迁移告警（每进程一次）
+    - C2 WithTx 作用域诊断（新增 `orm/tx_scope.go`）：goroutine 级作用域标记（嵌套计数、panic 路径平衡）；Mapper 代理（executeMethod/executeStream/executePage）检测「语句 ctx 未携带事务且处于 WithTx 作用域内」→ 告警；开关 `mybatis.configuration.tx-scope-warn`（默认开）
+    - 测试：`orm/tx_scope_test.go`
 
-- **v0.3.28（使用文档过时结论标注 G1，2026-10-22）**：v0.1.7 时代使用问题文档的过时结论不再误导 — 纯文档变更，零代码改动 —
-  - **使用问题文档状态横幅**（`docs/mybatis-go使用问题与解决方案.md`）：顶部声明「写于 v0.1.7、保留作历史记录」，过时条目以 `✅ Fixed in` 标注区分；7 个已修复条目逐个标注——P4（v0.1.12 M-03 RETURNING 回填，currval 变通废弃）、P8 坑1（v0.1.8 M-01 nil 指针不再 panic）、P10（v0.1.8 M-02 数值比较 + v0.3.12 字符串等值，零值剔除规避不再必要）、P14（v0.3.22 D3 strict-result 可检测）、P20/P21（v0.3.26 F1 function-rewrite 自动翻译，手改 XML 副本/数据库侧 find_in_set 重载不再必要，`status = 0` varchar 类型差异仍需手改）、P22（v0.3.0 M-07 PageParam/Page，内存分页规避废弃）
-  - **README 能力矩阵（按版本）**：顶部新增 9 行能力表（能力 × 最早版本 × 入口），早期文档记录为「不支持」的能力一表可查
-  - **边界**：使用方仓库（backend-go 等）的过时注释与 currval 回读代码不在本仓库范围，待使用方按标注自行清理
+  - **API 类型安全与可观测（D1-D3）**
+    - D1 泛型/error 取用（新增 `orm/mapper_generic.go`）：`orm.Mapper[T](name) (T, error)`（T 支持值/指针/接口形态）、`orm.MustMapper[T](name) T`（显式 panic 命名）、`orm.NewMapperE(name) (interface{}, error)`；bindMapper 绑定 panic 转 error 不再击穿调用栈
+    - D2 注册表自省（`orm/orm_cache.go`）：`orm.RegisteredMapperNames() []string`（去重排序，跨包 init 注册数量可自证）、`orm.MapperFuncCount(name) (int, error)`
+    - D3 严格结果模式（新增 `orm/result_convert.go`）：`orm.SetStrictResult` / 配置 `mybatis.configuration.strict-result`（默认关）——结果集转换不完整（Skipped>0 或 Errors 非空）返回 `ErrResultConvertIncomplete`（`errors.Is` 可判）而非部分数据，且不进二级缓存；`orm.LastConvertReport(namespace, id)` 查询最近一次转换异常报告（行号/列名/消息）
+    - 测试：`orm/d_api_test.go`
 
-- **v0.3.27（`||` 跨模式语义检测 F2，2026-10-22）**：共享 XML 带 `||` 时「换 database_mode 语义全变」的隐性风险可检测 — 新增诊断告警，默认关闭，不改写 SQL，存量行为不变 —
-  - **检测引擎**（新增 `orm/portability_check.go` + `orm/dialector/sql_scan.go` 增 `ContainsConcatOp`）：引号（`'`/`"`/`` ` ``，含成对转义）与注释（`--`、`/* */`）感知的 `||` 扫描；命中情形：MySQL 族（`||` 默认逻辑或，除非 `PIPES_AS_CONCAT`）→ 告警语义差异；KingbaseES（框架无法感知实际 database_mode，`||` 语义随兼容模式变化）→ 告警模式依赖；纯 PG/Oracle（`||` 即拼接）不告警
-  - **挂载收口**（`orm/database_connection.go`）：`DB.ExecContext`/`QueryContext`/`QueryRowContext` 三个执行收口点检测，每条 SQL 仅告警一次（`sync.Map` 去重）；`strings.Contains("||")` 快速预检零开销
-  - **开关与配置**：`orm.SetPortabilityCheck(on)` / `orm.PortabilityCheck()` + 配置 `mybatis.configuration.portability-check`（默认 false）；log 包补 `GetLogger()`（测试/临时替换后恢复）
-  - **测试**：新增 `orm/f2_portability_test.go`（MySQL 族告警+去重/引号注释不触发/开关关闭/金仓模式依赖告警/纯 PG 不告警/配置解析端到端）+ `orm/dialector/sql_scan_test.go` 增 `Test_ContainsConcatOp`（9 用例：转义引号/行注释/块注释/单管道/双引号标识符）；全量 `go vet` / `go test ./...` 零回归
+  - **代码生成 xml2go（E1/E2/E3）**
+    - E1 动态参数签名：新增 `sqlfragment.CollectAllSqlSlots`（递归收集片段树全部占位符，含 `<if>/<choose>/<foreach>` 体内，去重按首现序）与 `SqlParam.AllSlots`——生成签名不再丢动态体占位符（存在动态体专属占位符时退化为 `param map[string]interface{}` 按名取数，与 foreach 惯例一致）
+    - E2 跨 Mapper resultMap 限定名引用：`GenerateXml2GoFiles` 先扫全量 XML 建全局 resultMap 索引（全限定 `namespace.id` + 短前缀两键），嵌套 association/collection 限定名引用静态解析为真实关联类型（`*SysDept`/`[]SysRole`），不再退化 `interface{}`；裸 id 跨 Mapper 引用保持退化（与 MyBatis 语义一致）
+    - E3 namespace 冲突诊断与隔离：重复 namespace 检测（`SqlMappers.NamespaceConflicts` + `orm.NamespaceConflicts()`，加载期 Warn 列出全部文件）；`MapperSource.NamespacePrefix` 前缀隔离（绑定键带前缀且不注册裸短名键，同名 Mapper 并存互不覆盖）；`orm.RegisterNamespaceAlias(alias, name)` 别名重绑已注册结构体（新增 `orm/namespace_alias.go`）
+    - 测试：`Test_CollectAllSqlSlots`、`Test_GenerateXml2GoFiles_DynamicSlots`、`Test_GenerateXml2GoFiles_CrossMapperResultMap`、`Test_E1DynamicSlotMapParam`、`namespace_e3_test.go`、`e3_namespace_test.go`
 
-- **v0.3.26（MySQL→PG 族函数翻译层 F1，2026-10-22）**：共享 Java XML 中的 MySQL 方言函数在 PG 族数据源上自动翻译，无需手改 XML 副本 — 新增功能、默认关闭，存量行为不变 —
-  - **翻译引擎**（新增 `orm/dialector/mysql_compat.go`）：`RewriteMySqlCompat` —— 引号（`'`/`"`，含 `''`/`\"` 转义）与注释（`--`、`/* */`）保护下的词级扫描改写；支持 `ifnull(a,b)→coalesce(a,b)`、`find_in_set(x,csv)→position(','||x||',' in ','||csv||',')`、`date_format(d,'fmt')→to_char(d,'fmt')`（25 个 MySQL 格式符映射，`%T`/`%r` 复合展开，第二参数须字符串字面量否则跳过并告警）、`` `col`→"col" ``（反引号标识符，`` ` `` 转义保留）；函数参数递归改写（嵌套 `find_in_set(ifnull(a,b), csv)` 可用）；错参个数原样保留；可重入
-  - **挂载收口**（`orm/database_connection.go`）：`DB.ExecContext`/`QueryContext`/`QueryRowContext` 三个执行收口点在表前缀改写后统一应用（COUNT 派生/分页注入/RowStream/流式查询全部路径覆盖）
-  - **开关与配置**（新增 `orm/function_rewrite.go`）：`orm.SetFunctionRewrite(on)` / `orm.FunctionRewrite()`（atomic.Bool 默认关）+ 配置 `mybatis.configuration.function-rewrite`（默认 false）；仅 PG 族数据源（PostgreSQL/KingbaseES PG 模式/openGauss/GaussDB/HighGo/Vastbase 等 `FamilyPostgres`）生效，MySQL 族原生语法不动；`needsMySqlCompatRewrite` 快速预检（无命中关键字直接返回，零开销）
-  - **已知边界**（文档明示）：`find_in_set` 返回值 ≠ MySQL 1 基序号，适用 `> 0` 存在性判断；`col = 0`（varchar）与 `col = '0'` 类型差异不做推断改写
-  - **测试**：新增 `orm/dialector/mysql_compat_test.go`（5 组 40+ 用例：标识符/引号/注释/词边界/ifnull/find_in_set/date_format/组合/嵌套/幂等）+ `orm/f1_rewrite_test.go`（PG 族生效/开关关闭原样/非 PG 族不动/配置解析端到端）；全量 `go vet` / `go test ./...` 零回归
+  - **方言能力（F1/F2）**
+    - F1 MySQL→PG 族函数翻译层（新增 `orm/dialector/mysql_compat.go`，`RewriteMySqlCompat`）：`ifnull(a,b)→coalesce(a,b)`、`find_in_set(x,csv)→position(','||x||',' in ','||csv||',')`、`date_format(d,'fmt')→to_char(d,'fmt')`（25 个 MySQL 格式符映射，`%T`/`%r` 复合展开）、`` `col`→"col" ``；引号/注释保护、函数参数递归改写、错参个数保留、可重入；开关 `mybatis.configuration.function-rewrite`（默认关），`ExecContext/QueryContext/QueryRowContext` 三执行收口点挂载全路径覆盖，仅 PG 族数据源生效
+    - F2 `||` 跨模式语义检测（新增 `orm/portability_check.go` + `dialector.ContainsConcatOp`）：MySQL 族（`||` 默认逻辑或）/ KingbaseES（语义随兼容模式变化）执行含 `||` SQL 告警语义差异，每 SQL 仅一次（sync.Map 去重）；开关 `mybatis.configuration.portability-check`（默认关），仅诊断不改写
+    - 测试：`orm/dialector/mysql_compat_test.go`、`orm/f1_rewrite_test.go`、`orm/f2_portability_test.go`、`Test_ContainsConcatOp`
 
-- **v0.3.25（namespace 冲突诊断与前缀/别名机制 E3，2026-10-22）**：共享 XML 与本地 Mapper 同名冲突可诊断、可隔离 —— 均为可观测性/新增 API，覆盖行为不变，存量代码零破坏 —
-  - **重复 namespace 检测**（`types/sql_mappers.go`）：加载期「同 namespace 多文件」覆盖时 `log.Warnf` 列出全部文件（后者覆盖前者行为不变），并记入新增 `SqlMappers.NamespaceConflicts`（`NamespaceConflict{Namespace, Files}`，按 namespace 排序）；orm 侧新增 `orm.NamespaceConflicts()` 查询
-  - **`MapperSource.NamespacePrefix`**（`types/sql_mappers.go` + `types/sql_mapper.go`）：该来源所有 namespace 加 `prefix.` 前缀（`mapperInfo.nsPrefix` 在解析期统一注入，函数 Owner / MP 内置 CRUD 等 namespace 消费点一致；两端空白与点号自动规整）；绑定键改「前缀 + 短名」且**不注册裸短名键** —— 带前缀来源与无前缀同名 Mapper 并存互不覆盖，Go 结构体命名 前缀+短名（如 `QualityPlatformDisplayMapper`）即可绑定
-  - **`orm.RegisterNamespaceAlias(alias, name)`**（新增 `orm/namespace_alias.go`）：别名各查找键（原名/小写/短名/小写短名）解析到与 name 相同的 `*types.SqlMapper`，注册后自动重绑全部已注册结构体 —— namespace 改名/加前缀后旧引用（旧名结构体、`NewMapper("OldName")`）不失效；alias 覆盖既有不同 Mapper 仅告警不报错
-  - **测试**：types `namespace_e3_test.go`（重复 namespace 记录/无冲突为空/前缀键隔离与 Owner 一致性/前缀规整）+ orm `e3_namespace_test.go`（别名 sqlite 端到端、失败路径、前缀绑定端到端、冲突查询）；全量 `go vet` / `go test ./...` 零回归
-
-- **v0.3.24（xml2go 跨 Mapper resultMap 限定名引用修复 E2，2026-10-22）**：共享 Java XML 多 Mapper 复用时关联字段不再退化 `interface{}` —
-  - **修复**（`types/xml2go_gen.go` + `types/result_item.go`）：`GenerateXml2GoFiles` 先扫全量 XML 建 resultMap 全局索引（全限定 `namespace.id` + 短前缀 `Mapper短名.id` 两种键，同键先注册者生效）；嵌套 association/collection 的限定名引用经 `lookupNestedResultMap` 静态解析为真实关联类型（`*SysDept` / `[]SysRole`）
-  - **边界保持**：裸 id 跨 Mapper 引用仍退化（与 MyBatis 裸 id 仅本 Mapper 解析语义一致，避免同名 id 歧义）；`golangType`/`nestedTypeName` 增加 globalResultMaps 参数（querier_gen/result_map 旧调用点传 nil，行为不变）
-  - **测试**：types `Test_GenerateXml2GoFiles_CrossMapperResultMap`（全限定/短前缀解析 + 裸 id 退化保持 + 被引用模型生成）；全量零回归
-
-- **v0.3.23（xml2go 动态参数签名修复 E1，2026-10-22）**：生成签名不再丢 `<if>/<choose>/<foreach>` 体内占位符 —
-  - **根因**：xml2go 复用运行期 `CollectSqlSlots`（仅无条件位置）推导签名 → 动态体占位符（lastPersonId/period/status 等）从生成的函数签名中消失，动态 SQL Mapper 被迫手写
-  - **修复**（`types/sqlfragment/node.go` + `types/sql_param.go` + `types/sql_function.go`）：新增 `sqlfragment.CollectAllSqlSlots`（递归收集片段树全部占位符：if/choose/foreach/where/set/include 体内，去重、按首现序）与 `SqlParam.AllSlots`（仅签名推导用，不参与运行期按位绑定）
-  - **签名规则**（`types/xml2go_gen.go`）：AutoDerive 语句存在动态体专属占位符（AllSlots ⊃ Slots，含占位符全在 if 体内）→ 退化为 `param map[string]interface{}` 单 map 按名取数（与 foreach 惯例一致）；纯无条件占位符语句保持具名参数、纯无占位符语句保持无参不变；运行期 `Need` 推导与 Slots 按位绑定行为不变
-  - **测试**：sqlfragment `Test_CollectAllSqlSlots`（6 类节点递归/去重/首现序）、types `Test_GenerateXml2GoFiles_DynamicSlots`（全动态/混合/choose/纯无条件/纯无参 5 种签名断言）、orm `Test_E1DynamicSlotMapParam`（sqlite 端到端：新签名注册 + if 条件求值 + map 按名取数全链路）；全量零回归
-
-- **v0.3.22（API 类型安全与可观测性 D1-D3 修复，2026-10-22）**：Mapper 取用增加泛型/error 版本（D1）、注册表自省 API（D2）、结果集转换严格模式与报告查询（D3）—— 均为新增 API，存量行为不变 —
-  - **D1 泛型/error 取用**（新增 `orm/mapper_generic.go`）：`orm.Mapper[T](name) (T, error)`（类型安全 + error，T 支持值/指针/接口形态）、`orm.MustMapper[T](name) T`（显式 panic 命名，适合 init 期快速失败）、`orm.NewMapperE(name) (interface{}, error)`；bindMapper 绑定 panic 一并转为 error，不再击穿调用栈；`NewMapper`/`NewMapperPtr` 原样保留（存量兼容）
-  - **D2 注册表自省**（`orm/orm_cache.go`）：`orm.RegisteredMapperNames() []string`（去重、排序的规范结构体名——同一 Mapper 的多别名键只返回一次，跨包 init() 注册数量可自证）+ `orm.MapperFuncCount(name) (int, error)`（函数字段数，大小写/别名均可查）
-  - **D3 严格结果模式**（`orm/result_convert.go` + `orm/base_mapper.go`）：`orm.SetStrictResult(on)` / `orm.StrictResult()` + 配置 `mybatis.configuration.strict-result`（默认关）—— 开启后结果集转换不完整（Skipped>0 或 Errors 非空）的查询返回 `ErrResultConvertIncomplete`（`%w` wrap，`errors.Is` 可判）而非部分数据，且不进二级缓存；默认关闭保持旧行为（聚合 ERROR 日志 + 部分数据），但新增 `orm.LastConvertReport(namespace, id)` 查询最近一次转换异常报告（行号/列名/消息，仅异常语句记录）
-  - **测试**：新增 `orm/d_api_test.go`（Mapper[T] 值/指针/类型不匹配/未注册、MustMapper panic、NewMapperE、自省 API、strict 端到端含 chan 列强制转换失败、配置解析）；全量 `go vet` / `go test ./...` 零回归
-
-- **v0.3.21（事务 C1/C2 修复，2026-10-22）**：TCC 全局单事务槽 API 标记 Deprecated 引导迁移 `WithTx`（C1）；`WithTx` 内调用未加入事务的 Mapper 方法增加运行时告警（C2）—— 均为行为不变的可观测性增强，存量代码零破坏 —
-  - **C1 Deprecated + 迁移告警**（`orm/transaction.go`）：`orm.Begin`/`orm.BeginTx`（含 `DB.Begin`/`DB.BeginTx` 多数据源变体）标记 `Deprecated: 请使用 WithTx(ctx, fn)`（goroutine 安全、嵌套复用、不占全局槽）；首次使用时 `log.Warnf` 迁移提示（`sync.Once` 每进程一次）；docs/features.md 事务章节重写为 WithTx 优先 + 旧 API 迁移指引
-  - **C2 WithTx 作用域诊断**（新增 `orm/tx_scope.go`）：`WithTx` 进入/退出时在当前 goroutine 打作用域标记（goroutine id 经 `runtime.Stack` 解析；嵌套 `WithTx` 计数累加；panic 路径经 defer 平衡；进程内无活动 WithTx 时快路径仅一次原子读）；Mapper 代理（`executeMethod`/`executeStream`/`executePage`）检测「语句 ctx 未携带事务且处于 WithTx 作用域内」→ `log.Warnf`（每 namespace.id 一次），提示该语句走独立连接、不随 WithTx 提交/回滚
-  - **C2 开关**：`orm.SetTxScopeWarn(on)` / `TxScopeWarn()` + 配置 `mybatis.configuration.tx-scope-warn`（默认开）
-  - **测试**：新增 `orm/tx_scope_test.go`（作用域 goroutine 隔离/嵌套、告警幂等/带 tx ctx 不告警/开关关闭、端到端「无 ctx 方法在 WithTx 回滚后仍留存」行为记录、配置解析）；全量 `go vet` / `go test ./...` 零回归
-
-- **v0.3.20（分页与行数上限 B1-B4 修复，2026-10-22）**：修复分页 COUNT/分页注入正则误剥子查询内层子句（B1/B2）两处「total 错/内层 LIMIT 被删」级缺陷，行数上限增加严格模式（B3），PageParam 与手写 LIMIT 共存增加告警（B4）—
-  - **顶层 SQL 子句扫描器**（新增 `orm/dialector/sql_scan.go`）：`TopLevelClausePos`/`TopLevelKeywordEnd`/`StripTopLevelTailClauses`/`HasTopLevelClause`/`IsSQLSpace` —— 括号深度 + 引号（`'`/`"`/`` ` ``）+ 注释（`--` 与 `/* */`）感知的扫描器，只识别**顶层**（深度 0）关键字；关键字小写短语、词边界判断、短语内空格匹配任意空白（`ORDER\t\n BY`/`FOR\n UPDATE` 均可命中）；多关键字取最左命中
-  - **B1 `buildCountSQL` 深度感知重写**（`orm/sql_rewrite.go`）：派生 COUNT 前只剥离顶层尾部子句（`order by`/`limit`/`offset`/`returning`/`for update`/`for share`/`for no key update`/`for key share`）；SELECT→COUNT(*) 替换边界按顶层 SELECT/FROM 定位 —— 子查询内层 `ORDER BY`/`LIMIT`（`ROW_NUMBER() OVER (ORDER BY ...)`、标量子查询 `(SELECT ... LIMIT 1)`）原样保留；新支持 WITH/CTE 前缀语句；旧正则（`reLimit`/`reOrderBy`/`reSelectFrom` 等）全部移除；既有用例输出逐字节不变
-  - **B2 `ApplyPagination` 只替换顶层 LIMIT/OFFSET**（`orm/dialector/base.go` + oracle/mssql/db2/clickhouse 方言）：`StripTopLevelTailClauses(q, "limit", "offset")` 替代原全局正则删除 —— 标量子查询 `... (SELECT ... LIMIT 1) AS x` 启用 `PageParam` 后内层 LIMIT 不再被删
-  - **B3 严格行数上限**（`orm/sql_execute.go`/`scan_rows.go`/`row_stream.go`）：新增 `ErrRowLimitExceeded` + `SetRowLimitStrict`/`RowLimitStrict`（atomic.Bool）；Query/QueryTo/RowStream 三条扫描路径达到上限时，严格模式返回 wrapped `ErrRowLimitExceeded`（`errors.Is` 可判），非严格保持静默截断 + Warn；`fetchRows` 改返回 `([]map[string]interface{}, error)`（唯一调用方 queryRows 适配）；RowStream 上限与严格开关在 `QueryStream` 打开时快照；`mybatis.max-rows` 死字段接入（`InitializeFromSettings` 套用 `SetDefaultRowLimit`，0=未设置、负数不限）+ 新配置 `mybatis.configuration.row-limit-strict`
-  - **B4 PageParam/手写 LIMIT 共存告警**（`orm/base_mapper.go`）：`executePage` 派生 COUNT 前检测「语句含顶层 LIMIT/OFFSET 且方法声明 `*PageParam`」→ `log.Warnf`（`sync.Map` 每语句仅告警一次）；选运行时而非注册期因 SQL 动态渲染
-  - **测试**：新增 `orm/dialector/sql_scan_test.go`（深度/引号/注释/词边界/大小写/多空格/UNION/最左命中，4 组 32 用例）+ `orm/row_limit_strict_test.go`（strict Query/QueryTo/RowStream + max-rows 配置解析）；`orm/sql_rewrite_test.go` 扩展子查询/CTE/窗口函数用例；全量 `go vet` / `go test ./...` 零回归
-
-- **v0.3.19（动态 SQL 引擎 A1/A2 修复 + A3 可观测性，2026-10-21）**：修复 `<foreach>` 循环体不支持嵌套标签（A1）与 `<include>` 静态文本丢失（A2）两处「静默生成错误 SQL」级缺陷 —
-  - **A1 `<foreach>` 嵌套标签**（`types/sqlfragment/foreach.go`）：`sqlForLoop.Sql` 由 `*simpleSql` 改为 `[]Node`，循环体经 `ParseFragments` 统一解析，支持嵌套 `<if>`/`<choose>`/嵌套 `<foreach>`；此前循环体首个元素为子标签时 `elems[0].Val.(string)` 直接 panic、混排时子标签被静默丢弃，均消除；`Children()` 返回循环体节点，占位符收集不受影响
-  - **A2 `<include>` 静态文本丢失**（双根因修复）：
-    - `types/sqlfragment/xml.go`：`ParseXmlNode` 解析前经新增 `stripXmlComments` 剥离 XML 注释（CDATA 感知：注释替换为单空格保住 `a<!-- c -->b` 无空格场景，CDATA 内 `<!--` 保留，未闭合注释原样保留）——修复注释把 CharData 切成多段、逐段 TrimSpace 拼接后空格丢失（`SELECT a<!-- c -->FROM t` → `SELECT aFROM t`）
-    - `types/sqlfragment/element.go`：`ParseSqlElementFromXmlNode` 在「静态文本 + 子标签」混排时按文档序把文本以 `simpleSql` 节点放入 `Fragments`——修复 `include.go` 有 Fragments 时丢弃 `Sql` 导致 `<sql>` 片段静态前后缀消失（`SELECT a, b FROM t <where>...</where>` 被 include 后只剩 `WHERE` 子句）
-  - **A3 未识别 `<if test>` 可观测性**（`types/sqlfragment/if.go`）：`parseIfConditionsFromText` 两处静默丢弃路径（`reSplit` 子条件未命中任何模式、未命中 else 分支）增加 `log.Warnf`（含原始表达式），恒真渲染行为暂不变（行为变更留待后续决策）
-  - **`<choose>` 重写**（`types/sqlfragment/choose.go`）：`Otherwise` 改为 `[]Node` 经 `ParseFragments` 解析，支持 `<otherwise>` 内嵌套动态标签；直接子文本安全跳过；新增 `prepareOtherwise`/`CollectIfTestFields`/`ContainsForEach` 递归辅助
-  - **回归测试**：新增 `types/sqlfragment/dynamic_fix_test.go`（foreach 嵌套 if / foreach 纯文本行为不变 / include 混排静态文本 / choose otherwise 嵌套 / stripXmlComments 单测）；全量 `go vet` / `go test ./...` 零回归
+  - **文档与运维（G1/G2/H1）**
+    - G1 使用问题文档（v0.1.7 时代）顶部加状态横幅 + 7 条目 `✅ Fixed in` 标注（过时结论不再误导）；README 新增「能力矩阵（按版本）」
+    - G2 生产推荐配置（新增 `orm/production_settings.go`）：`orm.RecommendedProductionSettings()` 一键生成推荐配置（safe-update=true / pool-stats-interval=60 / explain-slow-sql=true / slow-sql-threshold=3000）+ 启动期自动打印未开启的推荐项（Warn，每进程一次）
+    - H1 RETURNING 唯一推荐路径文档化（docs/features.md 新增「自增主键回填」章节），currval 回读变通正式废弃（lib/pq 连接池下不可靠）；lib/pq → pgx/v5 迁移保持暂缓（未来做 COPY 再评估）
+    - 测试：`orm/g2_production_test.go`
 
 - **v0.3.18（安可测评数据库适配 PG 兼容族 4 款，2026-10-13）**：TeleDB（天翼云，PG 协议兼容，端口为示例值）/ DWS（华为云，PG libpq 协议，须 MD5 认证账户）/ ADB-PG（阿里云，PG 协议，OLAP 场景）/ SeaboxSQL（东方金信，PG 血统，待真机验证）— 均内嵌 `PostgresDialector`（PG 兼容族），零成本适配，零新增依赖 — 各新增 `DatabaseType` 常量（`Family()` 映射 `FamilyPostgres`）；`ParseDatabaseType` 支持 `teledb`/`tele-db`、`dws`/`gaussdb-dws`、`adbpg`/`adb-pg`、`seaboxsql`/`seabox` 别名；`GetDriverName` + init 以各自名称注册 `lib/pq` 驱动别名；`NewForType` 支持；JDBC URL 支持 `jdbc:teledb://`、`jdbc:dws://`、`jdbc:adbpg://`、`jdbc:seaboxsql://`；各新增 `cmd/<db>demo` 示例 + properties 配置模板；schema2code `-type` 扩充；dialector + orm 单测覆盖（新增 `orm/dialector/pg_family_test.go`）
 

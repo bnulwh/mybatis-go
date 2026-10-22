@@ -161,7 +161,7 @@ import 本身只做模型/Mapper 注册，不触发绑定。
 
 ## 6. 已知边界（与运行时一致，非缺陷）
 
-- **跨 Mapper 嵌套 resultMap 引用**（如 `resultMap="SysRoleMapper.RoleResult"`）：限定名引用（短前缀 `Mapper短名.id` / 全限定 `namespace.id`）经全局索引静态解析为真实关联类型（E2，v0.3.24）；**裸 id** 跨 Mapper 引用不可解析（与 MyBatis 裸 id 仅本 Mapper 解析语义一致），字段退化为 `interface{}`/`*interface{}`；运行期仍按全局 resultMap 正常转换。
+- **跨 Mapper 嵌套 resultMap 引用**（如 `resultMap="SysRoleMapper.RoleResult"`）：限定名引用（短前缀 `Mapper短名.id` / 全限定 `namespace.id`）经全局索引静态解析为真实关联类型（E2，v0.3.19）；**裸 id** 跨 Mapper 引用不可解析（与 MyBatis 裸 id 仅本 Mapper 解析语义一致），字段退化为 `interface{}`/`*interface{}`；运行期仍按全局 resultMap 正常转换。
 - **`${}` 注入占位符**计入参数槽，生成具名 `interface{}` 参数；注意 SQL 注入风险由使用方承担。
 - **引用未生成模型的语句被跳过**（如 `parameterType` 指向无 resultMap 的 pojo）——保证产物恒可编译；`-v` 查看原因，需补 resultMap 后重跑。
 - `-p` 必须是**输出目录的导入路径**（不是 models 子目录的路径）；产物目录需在 Go module 内才能编译。

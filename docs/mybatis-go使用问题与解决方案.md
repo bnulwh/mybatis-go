@@ -253,9 +253,9 @@ type SysUserMapper struct {
 
 ---
 
-#### P14. `sql: Scan error` 导致整行被丢弃（静默）✅ v0.3.22 起可检测
+#### P14. `sql: Scan error` 导致整行被丢弃（静默）✅ v0.3.19 起可检测
 
-> **✅ 可检测（v0.3.22，D3）**：默认行为不变（部分数据 + 聚合 ERROR 日志），但
+> **✅ 可检测（v0.3.19，D3）**：默认行为不变（部分数据 + 聚合 ERROR 日志），但
 > `mybatis.configuration.strict-result=true` 后转换不完整返回 `ErrResultConvertIncomplete`
 > 而非部分数据；任意时刻可用 `orm.LastConvertReport(namespace, id)` 查询最近一次转换异常
 > 报告（行号/列名/消息）。「0 行但 SQL 能查到」排查不再只能翻日志。
@@ -319,9 +319,9 @@ type SysUserMapper struct {
 
 ---
 
-#### P20. MySQL 方言函数/语法在金仓（PG）不兼容 ✅ v0.3.26 起可自动翻译（F1）
+#### P20. MySQL 方言函数/语法在金仓（PG）不兼容 ✅ v0.3.19 起可自动翻译（F1）
 
-> **✅ 已修复（v0.3.26，F1）**：`mybatis.configuration.function-rewrite=true`（或
+> **✅ 已修复（v0.3.19，F1）**：`mybatis.configuration.function-rewrite=true`（或
 > `orm.SetFunctionRewrite(true)`）后，执行前自动翻译——反引号 → 双引号标识符、
 > `ifnull` → `coalesce`、`find_in_set` → `position(...)`、`date_format` → `to_char`
 > （25 个格式符映射），**「仅 Go XML 副本修正」的手改流程不再必要，Java 原始 XML 可直接跑**。
@@ -338,9 +338,9 @@ type SysUserMapper struct {
 
 ---
 
-#### P21. `find_in_set` 参数类型重载 ✅ v0.3.26 起可免（F1 翻译）
+#### P21. `find_in_set` 参数类型重载 ✅ v0.3.19 起可免（F1 翻译）
 
-> **✅ 已修复（v0.3.26，F1）**：开启 `function-rewrite` 后 `find_in_set(x, csv)` 直接翻译为
+> **✅ 已修复（v0.3.19，F1）**：开启 `function-rewrite` 后 `find_in_set(x, csv)` 直接翻译为
 > PG 原生 `position(','||x||',' in ','||csv||',')`，**不再依赖数据库侧 find_in_set 函数，
 > int/varchar 重载问题随之消失**。未开启翻译时下方补重载方案仍适用。
 
@@ -362,7 +362,7 @@ type SysUserMapper struct {
 
 > **✅ 已修复（v0.3.0，M-07）**：`orm.PageParam` / `orm.Page` 提供 PageHelper 等价能力——
 > Mapper 方法声明 `*orm.PageParam` 参数即自动派生 COUNT + 注入 LIMIT/OFFSET，返回
-> `*orm.Page`（Total/Records）。**内存分页变通不再需要**。v0.3.20 又修复了 COUNT 派生与
+> `*orm.Page`（Total/Records）。**内存分页变通不再需要**。v0.3.19 又修复了 COUNT 派生与
 > 分页注入误剥子查询内层子句的缺陷（B1/B2）。下方 v0.1.7 时代的内存分页仅作历史记录。
 
 - **现象**：RuoYi 用 PageHelper 自动给 SQL 加 limit；mybatis-go 无此能力，XML 的 selectList 无 limit。
