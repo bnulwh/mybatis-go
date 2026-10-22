@@ -280,6 +280,39 @@ orm.SetPortabilityCheck(true) // 运行时开关
 
 仅诊断告警，不改写 SQL；默认关闭。
 
+## 生产推荐配置（Production Settings）
+
+`safe-update`、`pool-stats-interval`、`explain-slow-sql` 等防护/观测开关默认全关，
+上线时容易遗漏。`orm.RecommendedProductionSettings()` 一键生成推荐配置，合并进
+配置 map 即可启用：
+
+```go
+cm := map[string]string{
+    "spring.datasource.url":      "jdbc:kingbase8://127.0.0.1:5432/gzwsk",
+    "spring.datasource.username": "postgres",
+    "spring.datasource.password": "root123",
+    "mybatis.mapper-locations":   "mappers",
+}
+// 合并推荐配置（不覆盖已有显式配置）
+for k, v := range orm.RecommendedProductionSettings() {
+    if _, ok := cm[k]; !ok {
+        cm[k] = v
+    }
+}
+orm.InitializeFromSettings(cm)
+```
+
+| 推荐项 | 值 | 作用 |
+|---|---|---|
+| `mybatis.configuration.safe-update` | `true` | UPDATE/DELETE 无 WHERE 子句时阻止执行 |
+| `mybatis.configuration.pool-stats-interval` | `60` | 连接池状态每 60 秒输出一次 |
+| `mybatis.configuration.explain-slow-sql` | `true` | 慢 SELECT 自动 EXPLAIN 并输出执行计划 |
+| `mybatis.configuration.slow-sql-threshold` | `3000` | 慢 SQL 阈值（毫秒） |
+
+未全部启用时，`InitializeFromSettings` 启动日志会打印「未开启的推荐配置项」清单
+（Warn 级，每进程一次），可据此补齐。`cache-enabled` 未纳入推荐——二级缓存正确性
+依赖 DML flush 语义理解，请按业务显式开启。
+
 ## SQL 格式化输出（Pretty SQL）
 
 开启后日志中的 SQL 将自动格式化：参数值替换占位符 + 关键字换行缩进，便于开发调试。**仅用于日志展示，不影响实际执行。**

@@ -436,6 +436,8 @@ mybatis.mapper-locations= resources/mapper
 
 > **MySQL DATETIME 列**：框架自动在 MySQL DSN 追加 `?parseTime=true&loc=Local`（与 SQLite 的 `_loc=auto` 同理），DATETIME/TIMESTAMP 列直接扫描为 `time.Time`；否则 go-sql-driver 返回原始 `[]byte`，时间字段无法赋值。
 
+> **生产推荐配置**：`safe-update` / `pool-stats-interval` / `explain-slow-sql` 等防护观测项默认全关，`orm.RecommendedProductionSettings()` 一键生成推荐配置合并启用，未开启时启动日志会打印提示清单（见[功能文档](features.md)「生产推荐配置」）。
+
 > **预编译语句缓存**：默认开启。参数化 SQL（Mapper 的 `#{}` 或 `Execute/Query` 带参调用）会按 SQL 文本缓存预编译语句，避免数据库重复解析与生成执行计划；无参数 SQL（DDL、静态查询）直接执行，不进入缓存。PostgreSQL/KingbaseES 的占位符会自动从 `?` 转为 `$1、$2…`（lib/pq 不支持 `?`）。
 
 支持环境变量覆盖：配置值形如 `${ENV_NAME}` 或 `${ENV_NAME:default}` 时会自动替换。

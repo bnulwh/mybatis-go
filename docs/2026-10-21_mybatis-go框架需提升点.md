@@ -29,7 +29,7 @@
 | F1 | 缺 MySQL→PG 族函数/语法翻译层（`ifnull`/`find_in_set`/`date_format`/反引号/`col = 0`） | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高（✅ v0.3.26 已修复：RewriteMySqlCompat 翻译引擎 + function-rewrite 开关；`col = 0` 类型推断保守跳过） |
 | F2 | `||` 跨模式语义差异无检测 | 方言能力 | 共享 XML 换 database_mode 语义全变 | 中（✅ v0.3.27 已修复：portability-check 开关 + 执行收口点告警） |
 | G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本）（✅ v0.3.28 已修复：文档状态横幅 + 7 条目 Fixed in 标注 + README 能力矩阵） |
-| G2 | 生产级开关（safe-update/explain-slow/pool-stats/cache）默认全关，无推荐预设 | 运维 | 上线默认无防护、无观测 | 中 |
+| G2 | 生产级开关（safe-update/explain-slow/pool-stats/cache）默认全关，无推荐预设 | 运维 | 上线默认无防护、无观测 | 中（✅ v0.3.29 已修复：RecommendedProductionSettings + 启动期未开启项提示） |
 
 ---
 
@@ -373,11 +373,13 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 
 > **✅ 修复说明（v0.3.28）**：① 使用问题文档顶部加「文档状态」横幅（历史记录定位 + 指引新版能力）；7 个过时条目加 `✅ Fixed in` 标注（P4→v0.1.12 RETURNING、P8 坑1→v0.1.8 M-01、P10→v0.1.8 M-02 + v0.3.12、P14→v0.3.22 D3 可检测、P20/P21→v0.3.26 F1 自动翻译、P22→v0.3.0 M-07 分页），原文保留作历史记录；② README 顶部新增「能力矩阵（按版本）」表（9 项能力 × 最早版本 × 入口）；③ `backend-go` 使用方代码注释不属本仓库，待使用方自行按标注更新（currval 回读应在升级后删除，RETURNING 已是推荐路径）。未按建议做「按版本小节全量重构」（成本高且历史记录本身有价值，横幅 + 逐条标注已消除误导）。
 
-### G2【中】生产级开关默认全关，无推荐预设
+### G2【中】生产级开关默认全关，无推荐预设 ✅（v0.3.29 已修复）
 
 `safe-update`、`explain-slow-sql`、`pool-stats-interval`、`cache-enabled`、`pretty-sql` 默认全部关闭或 0（`docs/configuration.md`），而它们是"上线就该开"的防护/观测项。使用方往往不知道存在，直到出事。
 
 **建议**：`orm.RecommendedProductionSettings() map[string]string` 一键生成推荐配置（safe-update=true、pool-stats-interval=60、explain-slow-sql=true + threshold），并在启动日志打印"当前未开启的推荐项"清单。
+
+> **✅ 修复说明（v0.3.29）**：新增 `orm/production_settings.go`——① `orm.RecommendedProductionSettings()` 一键生成推荐配置（safe-update=true / pool-stats-interval=60 / explain-slow-sql=true / slow-sql-threshold=3000），使用方合并进配置 map 即可；② 启动期（`InitializeFromSettings`）自动打印"未开启的推荐配置项"清单（Warn 级，每进程一次，`UnrecommendedSettingItems` 纯函数可测）；③ 使用文档见 docs/features.md「生产推荐配置」。未把 `cache-enabled` 纳入推荐（缓存正确性依赖 DML flush 语义理解，保守由使用方显式开启）；默认值保持不变（存量行为零变化）。
 
 ---
 

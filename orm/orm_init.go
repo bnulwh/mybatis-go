@@ -68,6 +68,8 @@ func InitializeFromSettings(cm map[string]string) error {
 	SetFunctionRewrite(cfg.Setting.FunctionRewrite)
 	// F2：|| 跨模式语义差异检测（MySQL 族/金仓执行 SQL 含 || 时告警）
 	SetPortabilityCheck(cfg.Setting.PortabilityCheck)
+	// G2：启动期提示未开启的生产推荐配置项（每进程一次）
+	warnUnrecommendedSettings(cfg.Setting)
 	return combineErrors(err1, err2)
 }
 

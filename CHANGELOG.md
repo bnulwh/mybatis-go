@@ -1,5 +1,11 @@
 # 更新日志
 
+- **v0.3.29（生产推荐配置预设 G2，2026-10-22）**：防护/观测开关默认全关易遗漏，提供一键推荐配置与启动期提示 — 新增 API，默认值不变，存量行为零变化 —
+  - **`orm.RecommendedProductionSettings()`**（新增 `orm/production_settings.go`）：一键生成推荐配置（`safe-update=true` / `pool-stats-interval=60` / `explain-slow-sql=true` / `slow-sql-threshold=3000`），使用方合并进配置 map（不覆盖显式配置）后 `InitializeFromSettings` 即启用
+  - **启动期未开启项提示**：`InitializeFromSettings` 完成套用后自动打印「未开启的推荐配置项」清单（Warn 级，每进程一次 `sync.Once`）；`orm.UnrecommendedSettingItems(setting)` 纯函数返回缺失项描述（已排序，供测试断言）
+  - **边界**：`cache-enabled` 未纳入推荐（二级缓存正确性依赖 DML flush 语义理解，保守由使用方显式开启）；所有默认值保持不变
+  - **测试**：新增 `orm/g2_production_test.go`（推荐项齐全性 / 默认 3 项缺失·全开为空·部分缺失 / 推荐配置合并端到端解析套用复检）；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.28（使用文档过时结论标注 G1，2026-10-22）**：v0.1.7 时代使用问题文档的过时结论不再误导 — 纯文档变更，零代码改动 —
   - **使用问题文档状态横幅**（`docs/mybatis-go使用问题与解决方案.md`）：顶部声明「写于 v0.1.7、保留作历史记录」，过时条目以 `✅ Fixed in` 标注区分；7 个已修复条目逐个标注——P4（v0.1.12 M-03 RETURNING 回填，currval 变通废弃）、P8 坑1（v0.1.8 M-01 nil 指针不再 panic）、P10（v0.1.8 M-02 数值比较 + v0.3.12 字符串等值，零值剔除规避不再必要）、P14（v0.3.22 D3 strict-result 可检测）、P20/P21（v0.3.26 F1 function-rewrite 自动翻译，手改 XML 副本/数据库侧 find_in_set 重载不再必要，`status = 0` varchar 类型差异仍需手改）、P22（v0.3.0 M-07 PageParam/Page，内存分页规避废弃）
   - **README 能力矩阵（按版本）**：顶部新增 9 行能力表（能力 × 最早版本 × 入口），早期文档记录为「不支持」的能力一表可查
