@@ -148,6 +148,56 @@ err := orm.RegisterMapperSources(
 - **无参 SQL 生成缓存**：无参 SQL 的拼接结果静态不变，首次生成后缓存复用
 - **大结果集流式读取**：`QueryStream` / Mapper 流式 select 逐行消费（内存 O(1)），配合全局行数上限（P4-3，默认 10000 行）兜底截断，避免大结果集 OOM / 拖垮连接
 
+## 类型安全取用与注册表自省
+
+`NewMapper(name)` 返回 `interface{}` 且未注册即 panic，调用方只能裸类型断言。除保留该 API 外，
+框架提供类型安全 / error / 泛型版本：
+
+```go
+// 类型安全 + error（T 为 Mapper 结构体值类型，也可为指针/接口形态）
+mp, err := orm.Mapper[mapper.SysUserMapper]("SysUserMapper")
+
+// 失败 panic（显式命名，适合 init 期快速失败）
+mp := orm.MustMapper[mapper.SysUserMapper]("SysUserMapper")
+
+// interface{} + error（不做类型断言，仅需 error 语义时）
+v, err := orm.NewMapperE("SysUserMapper")
+```
+
+三者均把「未注册 / XML 绑定失败 / 类型不匹配」转为返回 error（bindMapper 内部的绑定 panic
+同样转为 error，不再击穿调用栈）。
+
+注册表自省（跨包 `init()` 注册的数量可自证，无需硬编码常量）：
+
+```go
+orm.RegisteredMapperNames()            // 已注册 Mapper 结构体名（去重、排序）
+cnt, err := orm.MapperFuncCount("SysUserMapper") // 指定 Mapper 的函数字段数
+```
+
+## 严格结果模式（Strict Result）
+
+默认情况下，结果集转换存在行级丢弃或列级类型失败时，框架输出聚合 ERROR 日志并**返回已
+转换的部分数据**（`err == nil`）。开启严格模式后，转换不完整的查询返回
+`ErrResultConvertIncomplete`（`errors.Is` 可判）而非部分数据：
+
+```properties
+mybatis.configuration.strict-result=true
+```
+
+```go
+orm.SetStrictResult(true) // 运行时开关
+_, err := mp.SelectUserList(ctx)
+if errors.Is(err, orm.ErrResultConvertIncomplete) { ... }
+```
+
+无论开关状态，异常语句的最近一次转换报告均可查询：
+
+```go
+report := orm.LastConvertReport("SysUserMapper", "selectUserList") // 无记录返回 nil
+// report.Total / report.Converted / report.Skipped / report.Errors（行号/列名/消息）
+```
+
+
 ## SQL 格式化输出（Pretty SQL）
 
 开启后日志中的 SQL 将自动格式化：参数值替换占位符 + 关键字换行缩进，便于开发调试。**仅用于日志展示，不影响实际执行。**

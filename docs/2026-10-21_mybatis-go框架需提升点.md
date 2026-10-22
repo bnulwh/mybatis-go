@@ -20,9 +20,9 @@
 | B4 | `PageParam` 与 XML 手写 `LIMIT` 共存无诊断 | 分页缺陷 | 双重分页静默错数据 | 低（✅ v0.3.20 已修复：运行时告警） |
 | C1 | `orm.Begin()` 全局单事务槽仍在且无 Deprecated 引导（`WithTx` 已可用） | 并发/事务 | 误用即串行或事务互相劫持 | 高（✅ v0.3.21 已修复：Deprecated + 运行时迁移告警，行为不变） |
 | C2 | `WithTx` 与「Mapper 方法未声明 ctx」组合静默走非事务连接 | 事务 | 事务语义失效且无提示 | 中（✅ v0.3.21 已修复：WithTx 作用域检测 + 运行时告警） |
-| D1 | `NewMapper(name) interface{}` 找不到即 panic，无 error 版本、无泛型取用 | API 设计 | 调用方只能裸类型断言 | 中高 |
-| D2 | 无 Mapper 注册表自省 API | 可观测 | 使用方只能硬编码计数 | 中 |
-| D3 | 行级 scan/convert 失败只打 ERROR 日志仍返回部分数据，无 strict 选项 | 正确性 | "少了行"无法被调用方感知 | 中高 |
+| D1 | `NewMapper(name) interface{}` 找不到即 panic，无 error 版本、无泛型取用 | API 设计 | 调用方只能裸类型断言 | 中高（✅ v0.3.22 已修复：Mapper[T]/MustMapper[T]/NewMapperE） |
+| D2 | 无 Mapper 注册表自省 API | 可观测 | 使用方只能硬编码计数 | 中（✅ v0.3.22 已修复：RegisteredMapperNames/MapperFuncCount） |
+| D3 | 行级 scan/convert 失败只打 ERROR 日志仍返回部分数据，无 strict 选项 | 正确性 | "少了行"无法被调用方感知 | 中高（✅ v0.3.22 已修复：SetStrictResult + ErrResultConvertIncomplete + LastConvertReport） |
 | E1 | `CollectSqlSlots` 不采集 `<if>/<foreach>` 体内占位符 → xml2go 生成签名丢动态参数 | 代码生成 | 动态 SQL Mapper 无法用生成层，只能手写 | 高 |
 | F1 | 缺 MySQL→PG 族函数/语法翻译层（`ifnull`/`find_in_set`/`date_format`/反引号/`col = 0`） | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高 |
 | G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本） |
@@ -234,6 +234,8 @@ v0.3.6 已提供正确解 `orm.WithTx(ctx, fn)`（`:88-120`，`beginDetachedTx` 
 
 ### D1【中高】`NewMapper` 返回 `interface{}`，找不到即 panic，无 error 版本/泛型版本
 
+> ✅ **已于 v0.3.22 修复**：新增 `orm/mapper_generic.go` —— `orm.Mapper[T](name) (T, error)`（类型安全 + error，T 支持值/指针/接口形态）、`orm.MustMapper[T](name) T`（显式 panic 命名）、`orm.NewMapperE(name) (interface{}, error)`；bindMapper 绑定 panic 一并转为 error（不再击穿调用栈）。`NewMapper` 原样保留（存量兼容）。
+
 **框架证据**：`orm/orm_cache.go:104-111`
 ```go
 func NewMapper(name string) interface{} {
@@ -255,11 +257,15 @@ func MustMapper[T any](name string) T           // 失败 panic（显式命名�
 
 ### D2【中】无 Mapper / Model 注册表自省 API
 
+> ✅ **已于 v0.3.22 修复**：新增 `orm.RegisteredMapperNames() []string`（去重排序的规范结构体名，跨包 init() 注册数量可自证）与 `orm.MapperFuncCount(name) (int, error)`（函数字段数，别名/大小写均可查）；见 `orm/orm_cache.go`。
+
 找不到 `RegisteredMappers()` / `MapperNames()` / `MapperStats()` 之类接口。本项目只能把生成层 Mapper 数**硬编码**成常量（`backend-go/mybatis/init.go:34` `const genMapperCount = 11`，注释里已因增删手改两次：13 → 11），跨包 `init()` 注册的数量无法自证。
 
 **建议**：`orm.RegisteredMapperNames() []string` / `orm.MapperFuncCount(name) int`；xml2go 的 `init()` 里维护包级计数并提供 `genmapper.Count()`（生成器层面也可解决）。
 
 ### D3【中高】行级转换失败只记日志，仍返回部分数据
+
+> ✅ **已于 v0.3.22 修复**：新增 `orm.SetStrictResult(on)` / `orm.StrictResult()` + 配置 `mybatis.configuration.strict-result`（默认关）—— 开启后结果集转换不完整（Skipped>0 或 Errors 非空）的查询返回 `ErrResultConvertIncomplete`（`%w` wrap，`errors.Is` 可判）而非部分数据，且不进二级缓存；默认关闭保持旧行为，但新增 `orm.LastConvertReport(namespace, id)` 查询最近一次转换异常报告（仅异常语句记录）。见 `orm/result_convert.go` + `orm/base_mapper.go` executeMethod。
 
 **框架证据**：`orm/base_mapper.go:395-400`
 ```go

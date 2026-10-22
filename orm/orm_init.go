@@ -60,6 +60,10 @@ func InitializeFromSettings(cm map[string]string) error {
 	}
 	// C2：WithTx 作用域诊断开关（默认开）
 	SetTxScopeWarn(cfg.Setting.TxScopeWarn)
+	// D3：严格结果模式（转换不完整返回错误而非部分数据）
+	if cfg.Setting.StrictResult {
+		SetStrictResult(true)
+	}
 	return combineErrors(err1, err2)
 }
 

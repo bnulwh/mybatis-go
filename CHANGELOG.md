@@ -1,5 +1,11 @@
 # 更新日志
 
+- **v0.3.22（API 类型安全与可观测性 D1-D3 修复，2026-10-22）**：Mapper 取用增加泛型/error 版本（D1）、注册表自省 API（D2）、结果集转换严格模式与报告查询（D3）—— 均为新增 API，存量行为不变 —
+  - **D1 泛型/error 取用**（新增 `orm/mapper_generic.go`）：`orm.Mapper[T](name) (T, error)`（类型安全 + error，T 支持值/指针/接口形态）、`orm.MustMapper[T](name) T`（显式 panic 命名，适合 init 期快速失败）、`orm.NewMapperE(name) (interface{}, error)`；bindMapper 绑定 panic 一并转为 error，不再击穿调用栈；`NewMapper`/`NewMapperPtr` 原样保留（存量兼容）
+  - **D2 注册表自省**（`orm/orm_cache.go`）：`orm.RegisteredMapperNames() []string`（去重、排序的规范结构体名——同一 Mapper 的多别名键只返回一次，跨包 init() 注册数量可自证）+ `orm.MapperFuncCount(name) (int, error)`（函数字段数，大小写/别名均可查）
+  - **D3 严格结果模式**（`orm/result_convert.go` + `orm/base_mapper.go`）：`orm.SetStrictResult(on)` / `orm.StrictResult()` + 配置 `mybatis.configuration.strict-result`（默认关）—— 开启后结果集转换不完整（Skipped>0 或 Errors 非空）的查询返回 `ErrResultConvertIncomplete`（`%w` wrap，`errors.Is` 可判）而非部分数据，且不进二级缓存；默认关闭保持旧行为（聚合 ERROR 日志 + 部分数据），但新增 `orm.LastConvertReport(namespace, id)` 查询最近一次转换异常报告（行号/列名/消息，仅异常语句记录）
+  - **测试**：新增 `orm/d_api_test.go`（Mapper[T] 值/指针/类型不匹配/未注册、MustMapper panic、NewMapperE、自省 API、strict 端到端含 chan 列强制转换失败、配置解析）；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.21（事务 C1/C2 修复，2026-10-22）**：TCC 全局单事务槽 API 标记 Deprecated 引导迁移 `WithTx`（C1）；`WithTx` 内调用未加入事务的 Mapper 方法增加运行时告警（C2）—— 均为行为不变的可观测性增强，存量代码零破坏 —
   - **C1 Deprecated + 迁移告警**（`orm/transaction.go`）：`orm.Begin`/`orm.BeginTx`（含 `DB.Begin`/`DB.BeginTx` 多数据源变体）标记 `Deprecated: 请使用 WithTx(ctx, fn)`（goroutine 安全、嵌套复用、不占全局槽）；首次使用时 `log.Warnf` 迁移提示（`sync.Once` 每进程一次）；docs/features.md 事务章节重写为 WithTx 优先 + 旧 API 迁移指引
   - **C2 WithTx 作用域诊断**（新增 `orm/tx_scope.go`）：`WithTx` 进入/退出时在当前 goroutine 打作用域标记（goroutine id 经 `runtime.Stack` 解析；嵌套 `WithTx` 计数累加；panic 路径经 defer 平衡；进程内无活动 WithTx 时快路径仅一次原子读）；Mapper 代理（`executeMethod`/`executeStream`/`executePage`）检测「语句 ctx 未携带事务且处于 WithTx 作用域内」→ `log.Warnf`（每 namespace.id 一次），提示该语句走独立连接、不随 WithTx 提交/回滚

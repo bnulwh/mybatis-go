@@ -57,6 +57,10 @@ type MyBatisSetting struct {
 	// TxScopeWarn WithTx 作用域内执行未加入事务的 Mapper 方法时告警（C2，
 	// mybatis.configuration.tx-scope-warn，默认开）。
 	TxScopeWarn bool
+	// StrictResult 严格结果模式（mybatis.configuration.strict-result，D3）：
+	// 结果集转换不完整（行级丢弃/列级失败）时返回 ErrResultConvertIncomplete
+	// 而非部分数据。
+	StrictResult bool
 }
 
 type Config struct {
@@ -197,6 +201,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			MaxRows:           parseInt64(m, "mybatis.max-rows", 0),
 			RowLimitStrict:    parseBool(m, "mybatis.configuration.row-limit-strict", false),
 			TxScopeWarn:       parseBool(m, "mybatis.configuration.tx-scope-warn", true),
+			StrictResult:      parseBool(m, "mybatis.configuration.strict-result", false),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,

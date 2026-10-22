@@ -424,6 +424,14 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		if report.Skipped > 0 || len(report.Errors) > 0 {
 			log.Errorf("result convert report [%v.%v]: total=%d converted=%d skipped=%d errors=%v",
 				in.Namespace, sqlFunc.Id, report.Total, report.Converted, report.Skipped, types.ToJson(report.Errors))
+			// D3：记录最近一次转换异常报告，供 LastConvertReport 查询
+			storeLastConvertReport(in.Namespace, sqlFunc.Id, report)
+			// D3：严格结果模式——转换不完整返回错误而非部分数据（不进二级缓存）
+			if StrictResult() {
+				return reflect.Value{}, fmt.Errorf("%w: %s.%s total=%d converted=%d skipped=%d errors=%v",
+					ErrResultConvertIncomplete, in.Namespace, sqlFunc.Id,
+					report.Total, report.Converted, report.Skipped, types.ToJson(report.Errors))
+			}
 		}
 		if log.IsDebugEnabled() {
 			log.Debugf("results: %v", types.ToJson(reflect.Indirect(results).Interface()))

@@ -2,13 +2,54 @@ package orm
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/types"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"unicode"
 )
+
+// ErrResultConvertIncomplete 严格结果模式（SetStrictResult(true)，D3）下，
+// 结果集转换存在行级丢弃或列级失败时由查询返回；%w wrap，errors.Is 可判。
+var ErrResultConvertIncomplete = errors.New("mybatis-go: result conversion incomplete (orm.SetStrictResult(false) to return partial data)")
+
+// strictResultEnabled 严格结果模式开关（D3，默认关：保持返回部分数据 + 聚合日志）。
+var strictResultEnabled atomic.Bool
+
+// lastConvertReports 各语句最近一次「转换异常」报告（"namespace.id" → report，D3）。
+var lastConvertReports sync.Map
+
+// SetStrictResult 设置严格结果模式（D3）：true 时结果集转换存在行级丢弃
+// （Skipped>0）或列级失败（Errors 非空）的查询返回 ErrResultConvertIncomplete
+// 而非部分数据；默认 false（保持现状：聚合 ERROR 日志 + 返回已转换部分）。
+func SetStrictResult(on bool) {
+	strictResultEnabled.Store(on)
+	log.Infof("set strict result: %v", on)
+}
+
+// StrictResult 返回严格结果模式当前值（D3）。
+func StrictResult() bool {
+	return strictResultEnabled.Load()
+}
+
+// LastConvertReport 返回指定语句最近一次「转换异常」报告（D3）；
+// 仅在该语句出现过 Skipped>0 或 Errors 非空时记录，无记录返回 nil。
+func LastConvertReport(namespace, id string) *ResultConvertReport {
+	v, ok := lastConvertReports.Load(namespace + "." + id)
+	if !ok {
+		return nil
+	}
+	return v.(*ResultConvertReport)
+}
+
+// storeLastConvertReport 记录语句的转换异常报告（D3，内部）。
+func storeLastConvertReport(namespace, id string, report *ResultConvertReport) {
+	lastConvertReports.Store(namespace+"."+id, report)
+}
 
 // ResultConvertReport 汇总结果集转换期间的错误明细（M-05）。
 // 修复前：转换失败的行仅 Warn 日志后静默丢弃，出现「0 行但 SQL 有数据」时难以排查；

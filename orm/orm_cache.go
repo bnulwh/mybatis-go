@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"reflect"
+	"sort"
 	"strings"
 	"sync/atomic"
 
@@ -119,6 +120,36 @@ func NewMapperPtr(name string) interface{} {
 	}
 	bindMapper(name, mp)
 	return mp.Interface()
+}
+
+// RegisteredMapperNames 返回已注册 Mapper 结构体名列表（D2：去重、排序）。
+// 同一 Mapper 以多别名键注册（结构体名/小写/短名/小写短名/全限定名），
+// 此处只返回规范名（结构体类型名），跨包 init() 注册的数量可自证。
+func RegisteredMapperNames() []string {
+	gCache.mappers.mu.RLock()
+	defer gCache.mappers.mu.RUnlock()
+	seen := make(map[string]bool, len(gCache.mappers.Mappers))
+	names := make([]string, 0, len(gCache.mappers.Mappers)/5)
+	for _, info := range gCache.mappers.Mappers {
+		if info == nil || seen[info.Name] {
+			continue
+		}
+		seen[info.Name] = true
+		names = append(names, info.Name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// MapperFuncCount 返回已注册 Mapper 的函数字段数量（D2）；未注册返回错误。
+func MapperFuncCount(name string) (int, error) {
+	gCache.mappers.mu.RLock()
+	defer gCache.mappers.mu.RUnlock()
+	info, ok := gCache.mappers.Mappers[strings.ToLower(strings.TrimSpace(name))]
+	if !ok || info == nil {
+		return 0, fmt.Errorf("mapper %s not registered", name)
+	}
+	return len(info.Functions), nil
 }
 
 func bindMapper(name string, mapper reflect.Value) {
