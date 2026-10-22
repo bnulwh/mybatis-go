@@ -23,7 +23,7 @@
 | D1 | `NewMapper(name) interface{}` 找不到即 panic，无 error 版本、无泛型取用 | API 设计 | 调用方只能裸类型断言 | 中高（✅ v0.3.22 已修复：Mapper[T]/MustMapper[T]/NewMapperE） |
 | D2 | 无 Mapper 注册表自省 API | 可观测 | 使用方只能硬编码计数 | 中（✅ v0.3.22 已修复：RegisteredMapperNames/MapperFuncCount） |
 | D3 | 行级 scan/convert 失败只打 ERROR 日志仍返回部分数据，无 strict 选项 | 正确性 | "少了行"无法被调用方感知 | 中高（✅ v0.3.22 已修复：SetStrictResult + ErrResultConvertIncomplete + LastConvertReport） |
-| E1 | `CollectSqlSlots` 不采集 `<if>/<foreach>` 体内占位符 → xml2go 生成签名丢动态参数 | 代码生成 | 动态 SQL Mapper 无法用生成层，只能手写 | 高 |
+| E1 | `CollectSqlSlots` 不采集 `<if>/<foreach>` 体内占位符 → xml2go 生成签名丢动态参数 | 代码生成 | 动态 SQL Mapper 无法用生成层，只能手写 | 高（✅ v0.3.23 已修复：CollectAllSqlSlots/AllSlots → 动态体占位符退化为 map 参数） |
 | F1 | 缺 MySQL→PG 族函数/语法翻译层（`ifnull`/`find_in_set`/`date_format`/反引号/`col = 0`） | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高 |
 | G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本） |
 | G2 | 生产级开关（safe-update/explain-slow/pool-stats/cache）默认全关，无推荐预设 | 运维 | 上线默认无防护、无观测 | 中 |
@@ -284,6 +284,8 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 ## E. 代码生成（xml2go / sqlc）
 
 ### E1【高】`CollectSqlSlots` 不采集 `<if>/<choose>/<foreach>` 体内占位符 → 生成签名丢动态参数
+
+> ✅ **已于 v0.3.23 修复**：新增 `sqlfragment.CollectAllSqlSlots`（递归收集片段树全部占位符，含动态体）与 `SqlParam.AllSlots`；xml2go 签名推导不再仅依赖无条件位置 Slots——AutoDerive 语句存在「动态体专属占位符」（AllSlots ⊃ Slots，含占位符全在 `<if>/<choose>` 体内的语句）时退化为 `param map[string]interface{}` 按名取数（与 foreach 惯例一致），动态参数不再丢失；纯无条件占位符语句保持具名参数、纯无占位符语句保持无参不变。运行期 `Need` 推导与按位绑定（Slots）行为不变。
 
 **框架证据**：`types/sqlfragment/node.go:250-269`（设计注释明说"条件体由运行时求值，不视为必参"）
 ```go

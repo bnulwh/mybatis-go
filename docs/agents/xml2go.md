@@ -129,7 +129,8 @@ import 本身只做模型/Mapper 注册，不触发绑定。
 | `parameterType` 为业务模型（有 resultMap 支撑） | `model *models.X`（指针：ID 回填/自动填充要求可寻址） |
 | `parameterType="map"` | `param map[string]interface{}` |
 | `<foreach>` 且 parameterType 为模型/list | `items []interface{}`；MP insertBatch → `models []*models.X` |
-| 无 `parameterType`（AutoDerive），无 foreach | 按占位符逐个生成具名 `interface{}` 参数（与运行期按位绑定 1.2 对齐） |
+| 无 `parameterType`（AutoDerive），无 foreach，占位符全在无条件位置 | 按占位符逐个生成具名 `interface{}` 参数（与运行期按位绑定 1.2 对齐） |
+| 无 `parameterType`（AutoDerive），存在动态体（`<if>/<choose>/<foreach>`）内专属占位符（E1：AllSlots ⊃ Slots） | `param map[string]interface{}`（单 map 按名取数，动态参数不丢；含「占位符全在 if 体内」语句） |
 | 无 `parameterType` + foreach | `param map[string]interface{}`（map 键名解析 foreach + 槽位） |
 | `parameterType` 为基础类型 + foreach | `ids []T` |
 | `parameterType` 为基础类型（无 foreach） | 具名标量参数 `T` |
@@ -151,7 +152,7 @@ import 本身只做模型/Mapper 注册，不触发绑定。
 ## 5. 验证步骤（agent 改动 xml2go 后必做）
 
 1. `go build ./...` + `go vet ./...`
-2. `go test ./types/... -run "Xml2Go" -v`（4 个用例：Basic / SkipMP / SkipUnknownModel / Samples 真实回归）
+2. `go test ./types/... -run "Xml2Go" -v`（5 个用例：Basic / DynamicSlots / SkipMP / SkipUnknownModel / Samples 真实回归）
 3. `go test ./types/... -run "MyBatisConfig|ExpandMapperLocations" -v`（8 个用例：properties / yaml 块列表+`**` / mybatis-config.xml resource+file url / Spring XML list / config-location 链 / 错误分支 / 父目录回退）
 4. 全量回归：各包测试二进制编译到 `D:\Develop\bin\<pkg>.test.exe` 后运行（经 `cmd /c` 执行，`-test.run` 用 `=` 形式；types 用例 workdir 必须是 `types/`，orm 用例 workdir 必须是 `orm/`）
 5. 端到端类型检查：把生成产物放进临时模块（go.mod + `replace github.com/bnulwh/mybatis-go => <repo>`），`go build ./...` 须 exit=0；

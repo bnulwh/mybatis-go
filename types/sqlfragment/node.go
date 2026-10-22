@@ -269,6 +269,34 @@ func CollectSqlSlots(items []Node) []string {
 	return out
 }
 
+// CollectAllSqlSlots 递归收集片段树中全部占位符名（#{} / ${}，含 <if>/<choose>/
+// <foreach>/<where>/<set>/<include> 体内，去重、按首现序）。
+// 与 CollectSqlSlots（仅无条件位置）互补：前者服务运行期 Need 推导与按位绑定（1.1/1.2）；
+// 本函数服务 xml2go 签名推导（E1）——动态体内占位符同样是调用方需要提供的参数，
+// 存在「仅在动态体内出现的占位符」（len(AllSlots) > len(Slots)）时签名应退化为单 map 按名取数。
+func CollectAllSqlSlots(items []Node) []string {
+	seen := map[string]bool{}
+	var out []string
+	var walk func(nodes []Node)
+	walk = func(nodes []Node) {
+		for _, it := range nodes {
+			if it == nil {
+				continue
+			}
+			for _, name := range it.CollectSlots() {
+				k := buildKey(name)
+				if k != "" && !seen[k] {
+					seen[k] = true
+					out = append(out, name)
+				}
+			}
+			walk(it.Children())
+		}
+	}
+	walk(items)
+	return out
+}
+
 // CollectIfTestFieldNames 从片段树递归提取所有 <if test> 条件引用的字段名（4.3）。
 // 条件字段名去除 .length 后缀、跳过 params. 前缀（通用 map 参数，无法静态校验），
 // 全局去重后返回。<include> 引用片段内条件不下钻（保持原行为）。

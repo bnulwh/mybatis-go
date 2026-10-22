@@ -350,6 +350,7 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		param.Need = len(slots) > 0 || sqlfragment.ContainsForEach(items)
 	}
 	param.Slots = slots
+	param.AllSlots = sqlfragment.CollectAllSqlSlots(items)
 	return &SqlFunction{
 		Id:               node.Id,
 		Owner:            owner,

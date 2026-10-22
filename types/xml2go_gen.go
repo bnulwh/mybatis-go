@@ -332,11 +332,16 @@ func xml2GoSignature(fn *SqlFunction, primary string, shared *xml2GoShared) (str
 		// MP insertBatch：单切片参数 → 运行期 Slice 路径渲染 foreach（P1-4）
 		params = append(params, "models []*models."+primary)
 	case !fn.Param.Need:
-		// 无参语句
+		// 无参语句；但占位符全在 <if>/<choose> 动态体内时（E1），无参签名会丢失全部参数
+		// → 退化为单 map 参数按名取数（调用方传 map，条件体运行时求值）
+		if len(fn.Param.AllSlots) > 0 {
+			params = append(params, "param map[string]interface{}")
+		}
 	case fn.Param.AutoDerive:
-		// 无显式 parameterType：foreach 场景单 map 按名取数最稳；
+		// 无显式 parameterType：foreach 场景单 map 按名取数最稳（P1-4）；
+		// 存在动态体专属占位符（AllSlots ⊃ Slots，E1）时具名按位绑定无法覆盖 → 同样退化为 map；
 		// 其余按占位符逐个生成具名 interface{} 参数（与 1.2 按位绑定一致）
-		if sqlfragment.ContainsForEach(fn.Items) {
+		if sqlfragment.ContainsForEach(fn.Items) || len(fn.Param.AllSlots) > len(fn.Param.Slots) {
 			params = append(params, "param map[string]interface{}")
 		} else {
 			for _, slot := range fn.Param.Slots {

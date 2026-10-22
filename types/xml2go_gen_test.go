@@ -145,6 +145,94 @@ func Test_GenerateXml2GoFiles_Basic(t *testing.T) {
 	}
 }
 
+// Test_GenerateXml2GoFiles_DynamicSlots E1：动态体（<if>/<choose>/<foreach>）内占位符
+// 不再被签名丢弃——全在 if 体内、无参语句含动态占位符、混合（无条件+条件）三种语句
+// 均退化为单 map 参数按名取数；纯无条件占位符语句保持具名参数不变。
+func Test_GenerateXml2GoFiles_DynamicSlots(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	xml := `<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.demo.mapper.DynMapper">
+  <resultMap id="dynResult" type="com.demo.domain.DynUser">
+    <id column="id" jdbcType="BIGINT" property="id" />
+    <result column="status" jdbcType="INTEGER" property="status" />
+  </resultMap>
+  <select id="selectAll" resultMap="dynResult">
+    select id, status from dyn_user
+  </select>
+  <select id="selectByIf" resultMap="dynResult">
+    select id, status from dyn_user
+    <where>
+      <if test="status != null">and status = #{status}</if>
+    </where>
+  </select>
+  <select id="selectMixed" resultMap="dynResult">
+    select id, status from dyn_user where id &gt; #{minId}
+    <if test="status != null">and status = #{status}</if>
+  </select>
+  <select id="selectByChoose" resultMap="dynResult">
+    select id, status from dyn_user
+    <choose>
+      <when test="status != null">where status = #{status}</when>
+      <otherwise>where status = 0</otherwise>
+    </choose>
+  </select>
+  <select id="selectPlain" resultMap="dynResult">
+    select id, status from dyn_user where status = #{status}
+  </select>
+</mapper>`
+	if err := os.WriteFile(filepath.Join(dir, "DynMapper.xml"), []byte(xml), 0644); err != nil {
+		t.Fatal(err)
+	}
+	mps := NewSqlMappers(dir)
+	if len(mps.Mappers) == 0 {
+		t.Error("load DynMapper failed")
+		return
+	}
+	out := t.TempDir()
+	result, err := mps.GenerateXml2GoFiles(&Xml2GoOptions{OutputDir: out, ModulePrefix: "example.com/demo"})
+	if err != nil {
+		t.Error("GenerateXml2GoFiles failed:", err)
+		return
+	}
+	var mapperFile string
+	for _, s := range result.Stats {
+		if GetShortName(s.Mapper) == "DynMapper" {
+			mapperFile = s.MapperFile
+		}
+	}
+	if mapperFile == "" {
+		t.Error("DynMapper file not found")
+		return
+	}
+	if err := ParseQuerierFileSyntax(mapperFile); err != nil {
+		t.Error("mapper file syntax invalid:", err)
+		return
+	}
+	mc, err := os.ReadFile(mapperFile)
+	if err != nil {
+		t.Error("read mapper file failed:", err)
+		return
+	}
+	src := collapseSpace(string(mc))
+	for _, want := range []string{
+		// E1：占位符全在 if/choose 体内 → map 参数（此前生成无参签名，动态参数全丢）
+		"SelectByIf func(param map[string]interface{}) ([]models.DynUser, error)",
+		"SelectByChoose func(param map[string]interface{}) ([]models.DynUser, error)",
+		// E1：无条件 + 条件混合 → map 参数（此前仅生成 minId，status 丢失）
+		"SelectMixed func(param map[string]interface{}) ([]models.DynUser, error)",
+		// 回归：纯无条件占位符 → 具名参数不变；纯无占位符 → 无参不变
+		"SelectPlain func(status interface{}) ([]models.DynUser, error)",
+		"SelectAll func() ([]models.DynUser, error)",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("mapper file missing %q, got:\n%v", want, src)
+		}
+	}
+}
+
 // Test_GenerateXml2GoFiles_SkipMP skip-mp：MP 内置字段全部剔除，手写语句保留。
 func Test_GenerateXml2GoFiles_SkipMP(t *testing.T) {
 	src := t.TempDir()

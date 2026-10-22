@@ -1,5 +1,11 @@
 # 更新日志
 
+- **v0.3.23（xml2go 动态参数签名修复 E1，2026-10-22）**：生成签名不再丢 `<if>/<choose>/<foreach>` 体内占位符 —
+  - **根因**：xml2go 复用运行期 `CollectSqlSlots`（仅无条件位置）推导签名 → 动态体占位符（lastPersonId/period/status 等）从生成的函数签名中消失，动态 SQL Mapper 被迫手写
+  - **修复**（`types/sqlfragment/node.go` + `types/sql_param.go` + `types/sql_function.go`）：新增 `sqlfragment.CollectAllSqlSlots`（递归收集片段树全部占位符：if/choose/foreach/where/set/include 体内，去重、按首现序）与 `SqlParam.AllSlots`（仅签名推导用，不参与运行期按位绑定）
+  - **签名规则**（`types/xml2go_gen.go`）：AutoDerive 语句存在动态体专属占位符（AllSlots ⊃ Slots，含占位符全在 if 体内）→ 退化为 `param map[string]interface{}` 单 map 按名取数（与 foreach 惯例一致）；纯无条件占位符语句保持具名参数、纯无占位符语句保持无参不变；运行期 `Need` 推导与 Slots 按位绑定行为不变
+  - **测试**：sqlfragment `Test_CollectAllSqlSlots`（6 类节点递归/去重/首现序）、types `Test_GenerateXml2GoFiles_DynamicSlots`（全动态/混合/choose/纯无条件/纯无参 5 种签名断言）、orm `Test_E1DynamicSlotMapParam`（sqlite 端到端：新签名注册 + if 条件求值 + map 按名取数全链路）；全量零回归
+
 - **v0.3.22（API 类型安全与可观测性 D1-D3 修复，2026-10-22）**：Mapper 取用增加泛型/error 版本（D1）、注册表自省 API（D2）、结果集转换严格模式与报告查询（D3）—— 均为新增 API，存量行为不变 —
   - **D1 泛型/error 取用**（新增 `orm/mapper_generic.go`）：`orm.Mapper[T](name) (T, error)`（类型安全 + error，T 支持值/指针/接口形态）、`orm.MustMapper[T](name) T`（显式 panic 命名，适合 init 期快速失败）、`orm.NewMapperE(name) (interface{}, error)`；bindMapper 绑定 panic 一并转为 error，不再击穿调用栈；`NewMapper`/`NewMapperPtr` 原样保留（存量兼容）
   - **D2 注册表自省**（`orm/orm_cache.go`）：`orm.RegisteredMapperNames() []string`（去重、排序的规范结构体名——同一 Mapper 的多别名键只返回一次，跨包 init() 注册数量可自证）+ `orm.MapperFuncCount(name) (int, error)`（函数字段数，大小写/别名均可查）

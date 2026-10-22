@@ -24,6 +24,10 @@ type SqlParam struct {
 	// Slots 语句中出现过的占位符名（#{} / ${}，去重、按首现序）；
 	// 无 parameterType 时用于注册期与运行期按名/按位绑定多参数（1.1/1.2）。
 	Slots []string
+	// AllSlots 语句中全部占位符名（含 <if>/<choose>/<foreach> 体内，去重、按首现序）；
+	// 仅用于 xml2go 签名推导（E1）：AllSlots ⊃ Slots 时说明存在动态体专属占位符，
+	// 生成签名退化为单 map 参数按名取数，避免丢动态参数。不参与运行期按位绑定。
+	AllSlots []string
 	// AutoDerive 未声明 parameterType，Need 由语句占位符推导（1.1）。
 	AutoDerive bool
 }

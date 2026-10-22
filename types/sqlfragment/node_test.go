@@ -35,6 +35,61 @@ func Test_ContainsForEach(t *testing.T) {
 	}
 }
 
+// Test_CollectAllSqlSlots 全量占位符收集（E1）：含 <if>/<choose>/<foreach>/
+// <where>/<set>/<include> 体内，去重、按首现序；与 CollectSqlSlots（仅无条件位置）互补。
+func Test_CollectAllSqlSlots(t *testing.T) {
+	slotsEq := func(got []string, want ...string) bool {
+		if len(got) != len(want) {
+			return false
+		}
+		for i := range got {
+			if buildKey(got[i]) != buildKey(want[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	if got := CollectAllSqlSlots(nil); len(got) != 0 {
+		t.Error("nil items should collect nothing, got", got)
+	}
+	// ① 纯文本：与 CollectSqlSlots 一致
+	plain := []Node{parseSimpleSqlFromText("a = #{a}")}
+	if !slotsEq(CollectSqlSlots(plain), "a") || !slotsEq(CollectAllSqlSlots(plain), "a") {
+		t.Error("plain slot mismatch:", CollectSqlSlots(plain), CollectAllSqlSlots(plain))
+	}
+	// ② if 体内：CollectSqlSlots 不统计，CollectAllSqlSlots 统计
+	ifBody := []Node{&sqlIfTest{Sql: []Node{parseSimpleSqlFromText("b = #{b}")}}}
+	if !slotsEq(CollectSqlSlots(ifBody)) || !slotsEq(CollectAllSqlSlots(ifBody), "b") {
+		t.Error("if body slot mismatch:", CollectSqlSlots(ifBody), CollectAllSqlSlots(ifBody))
+	}
+	// ③ 无条件 + if 体内同名/异名：去重、按首现序
+	mixed := []Node{
+		parseSimpleSqlFromText("a = #{a}"),
+		&sqlIfTest{Sql: []Node{parseSimpleSqlFromText("a = #{a} and b = #{b}")}},
+	}
+	if !slotsEq(CollectSqlSlots(mixed), "a") || !slotsEq(CollectAllSqlSlots(mixed), "a", "b") {
+		t.Error("mixed slot mismatch:", CollectSqlSlots(mixed), CollectAllSqlSlots(mixed))
+	}
+	// ④ foreach 体内
+	loop := []Node{&sqlForLoop{Sql: []Node{parseSimpleSqlFromText("#{item.id}")}}}
+	if !slotsEq(CollectSqlSlots(loop)) || !slotsEq(CollectAllSqlSlots(loop), "item.id") {
+		t.Error("foreach slot mismatch:", CollectSqlSlots(loop), CollectAllSqlSlots(loop))
+	}
+	// ⑤ choose when/otherwise 体内
+	ch := []Node{&sqlChoose{
+		When:      []*sqlIfTest{{Sql: []Node{parseSimpleSqlFromText("x = #{x}")}}},
+		Otherwise: []Node{parseSimpleSqlFromText("y = #{y}")},
+	}}
+	if !slotsEq(CollectSqlSlots(ch)) || !slotsEq(CollectAllSqlSlots(ch), "x", "y") {
+		t.Error("choose slot mismatch:", CollectSqlSlots(ch), CollectAllSqlSlots(ch))
+	}
+	// ⑥ where 嵌套 if
+	wh := []Node{&sqlWhere{Sql: []Node{&sqlIfTest{Sql: []Node{parseSimpleSqlFromText("c = #{c}")}}}}}
+	if !slotsEq(CollectSqlSlots(wh)) || !slotsEq(CollectAllSqlSlots(wh), "c") {
+		t.Error("where slot mismatch:", CollectSqlSlots(wh), CollectAllSqlSlots(wh))
+	}
+}
+
 // Test_RegisterNodeParser 注册表：buildKey 归一化（大小写/空白不敏感）注册与查询、
 // 未注册标签经 ParseFragments 报错跳过。
 func Test_RegisterNodeParser(t *testing.T) {
