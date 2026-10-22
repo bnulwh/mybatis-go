@@ -64,6 +64,8 @@ func InitializeFromSettings(cm map[string]string) error {
 	if cfg.Setting.StrictResult {
 		SetStrictResult(true)
 	}
+	// F1：MySQL→PG 族函数翻译开关（共享 Java XML 无需手改副本即可跑 PG/金仓 PG 模式）
+	SetFunctionRewrite(cfg.Setting.FunctionRewrite)
 	return combineErrors(err1, err2)
 }
 

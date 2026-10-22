@@ -1,5 +1,12 @@
 # 更新日志
 
+- **v0.3.26（MySQL→PG 族函数翻译层 F1，2026-10-22）**：共享 Java XML 中的 MySQL 方言函数在 PG 族数据源上自动翻译，无需手改 XML 副本 — 新增功能、默认关闭，存量行为不变 —
+  - **翻译引擎**（新增 `orm/dialector/mysql_compat.go`）：`RewriteMySqlCompat` —— 引号（`'`/`"`，含 `''`/`\"` 转义）与注释（`--`、`/* */`）保护下的词级扫描改写；支持 `ifnull(a,b)→coalesce(a,b)`、`find_in_set(x,csv)→position(','||x||',' in ','||csv||',')`、`date_format(d,'fmt')→to_char(d,'fmt')`（25 个 MySQL 格式符映射，`%T`/`%r` 复合展开，第二参数须字符串字面量否则跳过并告警）、`` `col`→"col" ``（反引号标识符，`` ` `` 转义保留）；函数参数递归改写（嵌套 `find_in_set(ifnull(a,b), csv)` 可用）；错参个数原样保留；可重入
+  - **挂载收口**（`orm/database_connection.go`）：`DB.ExecContext`/`QueryContext`/`QueryRowContext` 三个执行收口点在表前缀改写后统一应用（COUNT 派生/分页注入/RowStream/流式查询全部路径覆盖）
+  - **开关与配置**（新增 `orm/function_rewrite.go`）：`orm.SetFunctionRewrite(on)` / `orm.FunctionRewrite()`（atomic.Bool 默认关）+ 配置 `mybatis.configuration.function-rewrite`（默认 false）；仅 PG 族数据源（PostgreSQL/KingbaseES PG 模式/openGauss/GaussDB/HighGo/Vastbase 等 `FamilyPostgres`）生效，MySQL 族原生语法不动；`needsMySqlCompatRewrite` 快速预检（无命中关键字直接返回，零开销）
+  - **已知边界**（文档明示）：`find_in_set` 返回值 ≠ MySQL 1 基序号，适用 `> 0` 存在性判断；`col = 0`（varchar）与 `col = '0'` 类型差异不做推断改写
+  - **测试**：新增 `orm/dialector/mysql_compat_test.go`（5 组 40+ 用例：标识符/引号/注释/词边界/ifnull/find_in_set/date_format/组合/嵌套/幂等）+ `orm/f1_rewrite_test.go`（PG 族生效/开关关闭原样/非 PG 族不动/配置解析端到端）；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.25（namespace 冲突诊断与前缀/别名机制 E3，2026-10-22）**：共享 XML 与本地 Mapper 同名冲突可诊断、可隔离 —— 均为可观测性/新增 API，覆盖行为不变，存量代码零破坏 —
   - **重复 namespace 检测**（`types/sql_mappers.go`）：加载期「同 namespace 多文件」覆盖时 `log.Warnf` 列出全部文件（后者覆盖前者行为不变），并记入新增 `SqlMappers.NamespaceConflicts`（`NamespaceConflict{Namespace, Files}`，按 namespace 排序）；orm 侧新增 `orm.NamespaceConflicts()` 查询
   - **`MapperSource.NamespacePrefix`**（`types/sql_mappers.go` + `types/sql_mapper.go`）：该来源所有 namespace 加 `prefix.` 前缀（`mapperInfo.nsPrefix` 在解析期统一注入，函数 Owner / MP 内置 CRUD 等 namespace 消费点一致；两端空白与点号自动规整）；绑定键改「前缀 + 短名」且**不注册裸短名键** —— 带前缀来源与无前缀同名 Mapper 并存互不覆盖，Go 结构体命名 前缀+短名（如 `QualityPlatformDisplayMapper`）即可绑定

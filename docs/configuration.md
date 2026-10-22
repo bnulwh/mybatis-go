@@ -420,6 +420,7 @@ mybatis.mapper-locations= resources/mapper
 | `mybatis.mapper-locations` | XML Mapper 文件目录（也支持 `go:embed` 内嵌，见下文） | - |
 | `mybatis.table-prefix` | 数据表名前缀（如 `test_`），SQL 执行时自动拼接到表名前，XML Mapper 语句无需改动 | - |
 | `mybatis.configuration.safe-update` | UPDATE/DELETE 无 WHERE 子句时阻止执行 | false |
+| `mybatis.configuration.function-rewrite` | MySQL 方言函数翻译（`ifnull`/`find_in_set`/`date_format`/反引号 → PG 等价形式），仅 PG 族数据源生效，详见[功能文档](features.md) | false |
 | `mybatis.configuration.pretty-sql` | 日志中 SQL 格式化输出（参数绑定替换 + 关键字换行缩进，仅用于调试） | false |
 | `mybatis.configuration.explain-slow-sql` | 慢 SELECT 自动执行 EXPLAIN 并输出执行计划 | false |
 | `mybatis.configuration.slow-sql-threshold` | 慢 SQL 阈值（毫秒），超过此值触发 EXPLAIN 分析 | 3000 |

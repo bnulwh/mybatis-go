@@ -26,7 +26,7 @@
 | E1 | `CollectSqlSlots` 不采集 `<if>/<foreach>` 体内占位符 → xml2go 生成签名丢动态参数 | 代码生成 | 动态 SQL Mapper 无法用生成层，只能手写 | 高（✅ v0.3.23 已修复：CollectAllSqlSlots/AllSlots → 动态体占位符退化为 map 参数） |
 | E2 | 跨 Mapper resultMap 限定名引用退化为 `interface{}` | 代码生成 | 共享 Java XML 多 Mapper 复用时关联字段类型丢失 | 中（✅ v0.3.24 已修复：resultMap 全局索引静态解析） |
 | E3 | namespace 冲突无诊断/别名机制 | 代码生成 | 共享 XML 被迫改名抬进仓库 | 中（✅ v0.3.25 已修复：重复 namespace 检测 + NamespacePrefix + RegisterNamespaceAlias） |
-| F1 | 缺 MySQL→PG 族函数/语法翻译层（`ifnull`/`find_in_set`/`date_format`/反引号/`col = 0`） | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高 |
+| F1 | ✅ v0.3.26 已修复：`RewriteMySqlCompat` 翻译引擎 + `mybatis.configuration.function-rewrite` 开关（默认关），PG 族执行收口点全路径覆盖 | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高 |
 | F2 | `||` 跨模式语义差异无检测 | 方言能力 | 共享 XML 换 database_mode 语义全变 | 中 |
 | G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本） |
 | G2 | 生产级开关（safe-update/explain-slow/pool-stats/cache）默认全关，无推荐预设 | 运维 | 上线默认无防护、无观测 | 中 |
@@ -328,7 +328,7 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 
 ## F. 方言层
 
-### F1【中高】缺 MySQL→PG 族函数/语法翻译
+### F1【中高】缺 MySQL→PG 族函数/语法翻译 ✅（v0.3.26 已修复）
 
 框架在 `orm/`、`types/` 内**没有任何** MySQL 函数翻译（grep `ifnull|find_in_set|date_format|str_to_date` 零命中）。而共享 Java XML 里这些函数是常态，PG/金仓 PG 模式不认。
 
@@ -342,6 +342,8 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 | `date_format(d, fmt)` | `to_char(d, fmt)`（fmt 需转换表） |
 | `` `col` `` | `"col"` 或裸名 |
 | `col = 0`（varchar 列） | `col = '0'`（需类型推断，可保守跳过） |
+
+> **✅ 修复说明（v0.3.26）**：新增 `orm/dialector/mysql_compat.go` 翻译引擎（`RewriteMySqlCompat`，未按建议的简单 `map[string]string` 实现——`find_in_set`/`date_format` 需参数级重写，简单名称映射不够）+ `orm/function_rewrite.go` 开关（`orm.SetFunctionRewrite` / 配置 `mybatis.configuration.function-rewrite`，默认关）+ `DB.ExecContext/QueryContext/QueryRowContext` 三执行收口点挂载（全路径覆盖）。上表前 4 项已实现；`col = 0` 类型推断按建议保守跳过（文档明示边界，同 `find_in_set` 返回值序号差异）。仅 PG 族数据源生效，MySQL 族原生语法不动。详见 docs/features.md「MySQL 方言函数翻译」与 CHANGELOG v0.3.26。
 
 ### F2【中】`||` 跨模式语义差异无检测
 

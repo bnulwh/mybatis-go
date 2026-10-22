@@ -126,6 +126,7 @@ func (db *DB) clearCurTx(t *Transaction) {
 func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	start := time.Now()
 	query = db.applyTablePrefix(query)
+	query = db.applyFunctionRewrite(query)
 	query = db.formatSQL(query, args)
 	if isDDLStatement(query) {
 		defer db.invalidateTableNames()
@@ -156,6 +157,7 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	start := time.Now()
 	query = db.applyTablePrefix(query)
+	query = db.applyFunctionRewrite(query)
 	query = db.formatSQL(query, args)
 	// G0：context 携带的事务（WithTx）优先于 TCC 全局事务槽
 	if t := TxFromContext(ctx); t != nil {
@@ -182,6 +184,7 @@ func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{
 func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	start := time.Now()
 	query = db.applyTablePrefix(query)
+	query = db.applyFunctionRewrite(query)
 	query = db.formatSQL(query, args)
 	// G0：context 携带的事务（WithTx）优先于 TCC 全局事务槽
 	if t := TxFromContext(ctx); t != nil {

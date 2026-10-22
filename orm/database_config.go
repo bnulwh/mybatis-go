@@ -61,6 +61,9 @@ type MyBatisSetting struct {
 	// 结果集转换不完整（行级丢弃/列级失败）时返回 ErrResultConvertIncomplete
 	// 而非部分数据。
 	StrictResult bool
+	// FunctionRewrite MySQL→PG 族函数翻译开关（mybatis.configuration.function-rewrite，F1，
+	// 默认关）：开启后对 PG 族数据源的执行 SQL 翻译 ifnull/find_in_set/date_format/反引号。
+	FunctionRewrite bool
 }
 
 type Config struct {
@@ -76,10 +79,10 @@ type Config struct {
 	cacheStore *sync.Map
 }
 
-func (c *Config) GetDSN() string                      { return c.DSN }
-func (c *Config) GetConnPool() dialector.ConnPool      { return c.ConnPool }
-func (c *Config) GetMaxTimeout() int                   { return c.MaxTimeout }
-func (c *Config) GetMaxOpen() int                      { return c.MaxOpen }
+func (c *Config) GetDSN() string                  { return c.DSN }
+func (c *Config) GetConnPool() dialector.ConnPool { return c.ConnPool }
+func (c *Config) GetMaxTimeout() int              { return c.MaxTimeout }
+func (c *Config) GetMaxOpen() int                 { return c.MaxOpen }
 func (c *Config) GetConnectParams() dialector.ConnectParams {
 	return dialector.ConnectParams{
 		Host:     c.Setting.Host,
@@ -183,25 +186,26 @@ func parseDatabaseConfig(m map[string]string) *Config {
 				Schema:   parseSchema(m),
 				Type:     dt,
 			},
-			TablePrefix:       parseTablePrefix(m),
-			TablePrefixMap:    parseTablePrefixMap(m),
-			TablePrefixSetTTL: parseTablePrefixSetTTL(m),
-			TableStructureTTL: parseTableStructureTTL(m),
-			SafeUpdate:        parseBool(m, "mybatis.configuration.safe-update", false),
-			IdType:            strings.TrimSpace(m["mybatis.configuration.id-type"]),
-			SnowflakeWorkerID: parseInt64(m, "mybatis.configuration.snowflake-worker-id", 1),
-			CacheEnabled:      parseBool(m, "mybatis.configuration.cache-enabled", false),
-			LocalCacheSize:    parseInt(m, "mybatis.configuration.local-cache-size", 1024),
-			LocalCacheTTL:     parseDuration(m, "mybatis.configuration.local-cache-ttl", 3600),
-			PrettySQL:         parseBool(m, "mybatis.configuration.pretty-sql", false),
-			ExplainSlowSQL:    parseBool(m, "mybatis.configuration.explain-slow-sql", false),
-			SlowSQLThreshold:  parseDuration(m, "mybatis.configuration.slow-sql-threshold", 3000),
-			PoolStatsInterval: parseDuration(m, "mybatis.configuration.pool-stats-interval", 0),
+			TablePrefix:        parseTablePrefix(m),
+			TablePrefixMap:     parseTablePrefixMap(m),
+			TablePrefixSetTTL:  parseTablePrefixSetTTL(m),
+			TableStructureTTL:  parseTableStructureTTL(m),
+			SafeUpdate:         parseBool(m, "mybatis.configuration.safe-update", false),
+			IdType:             strings.TrimSpace(m["mybatis.configuration.id-type"]),
+			SnowflakeWorkerID:  parseInt64(m, "mybatis.configuration.snowflake-worker-id", 1),
+			CacheEnabled:       parseBool(m, "mybatis.configuration.cache-enabled", false),
+			LocalCacheSize:     parseInt(m, "mybatis.configuration.local-cache-size", 1024),
+			LocalCacheTTL:      parseDuration(m, "mybatis.configuration.local-cache-ttl", 3600),
+			PrettySQL:          parseBool(m, "mybatis.configuration.pretty-sql", false),
+			ExplainSlowSQL:     parseBool(m, "mybatis.configuration.explain-slow-sql", false),
+			SlowSQLThreshold:   parseDuration(m, "mybatis.configuration.slow-sql-threshold", 3000),
+			PoolStatsInterval:  parseDuration(m, "mybatis.configuration.pool-stats-interval", 0),
 			ReadWriteSplitting: parseBool(m, "mybatis.configuration.read-write-splitting", false),
-			MaxRows:           parseInt64(m, "mybatis.max-rows", 0),
-			RowLimitStrict:    parseBool(m, "mybatis.configuration.row-limit-strict", false),
-			TxScopeWarn:       parseBool(m, "mybatis.configuration.tx-scope-warn", true),
-			StrictResult:      parseBool(m, "mybatis.configuration.strict-result", false),
+			MaxRows:            parseInt64(m, "mybatis.max-rows", 0),
+			RowLimitStrict:     parseBool(m, "mybatis.configuration.row-limit-strict", false),
+			TxScopeWarn:        parseBool(m, "mybatis.configuration.tx-scope-warn", true),
+			StrictResult:       parseBool(m, "mybatis.configuration.strict-result", false),
+			FunctionRewrite:    parseBool(m, "mybatis.configuration.function-rewrite", false),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,

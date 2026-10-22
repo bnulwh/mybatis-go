@@ -228,6 +228,36 @@ report := orm.LastConvertReport("SysUserMapper", "selectUserList") // 无记录�
 ```
 
 
+## MySQL 方言函数翻译（Function Rewrite）
+
+共享 Java XML 中常见的 MySQL 方言函数/语法，在 PG 族数据源（PostgreSQL/KingbaseES PG 模式/
+openGauss 等）上无法执行。开启翻译后，框架在 SQL 执行前自动改写为 PG 等价形式，
+**共享 XML 无需手改副本**：
+
+```properties
+mybatis.configuration.function-rewrite=true
+```
+
+```go
+orm.SetFunctionRewrite(true) // 运行时开关
+```
+
+| MySQL | PG / 金仓 PG 模式 |
+|---|---|
+| `ifnull(a, b)` | `coalesce(a, b)` |
+| `find_in_set(x, csv)` | `position(','||x||',' in ','||csv||',')` |
+| `date_format(d, 'fmt')` | `to_char(d, 'fmt')`（`%Y/%m/%d/%H/%i/%s/%T/%r` 等 25 个格式符映射） |
+| `` `col` `` | `"col"`（反引号标识符 → PG 双引号标识符） |
+
+特性与边界：
+
+- 仅 PG 族数据源生效（MySQL 族原生支持上述语法，无需翻译）；开关默认关闭，存量行为不变。
+- 引号（`'`/`"`，含转义）与注释（`--`、`/* */`）内不改写；函数名要求独立词边界，大小写不敏感。
+- 改写可重入；嵌套参数先递归改写（如 `find_in_set(ifnull(a,b), csv)`）。
+- `find_in_set` 返回值不等于 MySQL 的 1 基序号，适用于 `> 0` 存在性判断（共享 XML 的常见用法）。
+- `date_format` 第二参数须为字符串字面量（绑定参数/列名跳过并告警）；`col = 0`（varchar 列）
+  与 `col = '0'` 的类型差异不做推断改写。
+
 ## SQL 格式化输出（Pretty SQL）
 
 开启后日志中的 SQL 将自动格式化：参数值替换占位符 + 关键字换行缩进，便于开发调试。**仅用于日志展示，不影响实际执行。**
