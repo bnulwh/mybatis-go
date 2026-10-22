@@ -15,8 +15,9 @@
 | A1 | `<foreach>` 循环体只支持纯文本，嵌套标签被丢弃（甚至 panic） | 动态 SQL 缺陷 | 共享 Java XML 里 `<foreach>` 内套 `<if>` 的语句全部不可用 | 高（✅ v0.3.19 已修复） |
 | A2 | `<include>` 的 `<sql>` 片段「静态文本 + 动态标签混排」时丢静态文本 | 动态 SQL 缺陷 | 拼出的 SQL 缺片段，直接语法错误 | **最高**（静默生成错误 SQL）（✅ v0.3.19 已修复） |
 | A3 | 未识别的 `<if test>` 表达式被静默丢弃 → 条件恒真 → 条件体恒渲染 | 动态 SQL 缺陷 | 与 v0.3.11「字符串等值恒不渲染」同源，仍未根治 | **最高**（静默错数据）（⚠️ v0.3.19 部分修复：已加解析期告警，行为未变） |
-| B1/B2 | `buildCountSQL` / `ApplyPagination` 用正则剥 `ORDER BY`/`LIMIT`，会误剥子查询内层 | 分页缺陷 | 启用 `PageParam` 后 total 错、内层 LIMIT 被删 | 高 |
-| B3 | 全局行数上限 10000 静默截断，无按语句覆盖，`MaxRows` 是死字段 | 正确性 | 大结果集静默丢行 | 高 |
+| B1/B2 | `buildCountSQL` / `ApplyPagination` 用正则剥 `ORDER BY`/`LIMIT`，会误剥子查询内层 | 分页缺陷 | 启用 `PageParam` 后 total 错、内层 LIMIT 被删 | 高（✅ v0.3.20 已修复：深度感知扫描器替代正则） |
+| B3 | 全局行数上限 10000 静默截断，无按语句覆盖，`MaxRows` 是死字段 | 正确性 | 大结果集静默丢行 | 高（⚠️ v0.3.20 部分修复：严格模式 ErrRowLimitExceeded + max-rows 配置接入；语句级覆盖未做） |
+| B4 | `PageParam` 与 XML 手写 `LIMIT` 共存无诊断 | 分页缺陷 | 双重分页静默错数据 | 低（✅ v0.3.20 已修复：运行时告警） |
 | C1 | `orm.Begin()` 全局单事务槽仍在且无 Deprecated 引导（`WithTx` 已可用） | 并发/事务 | 误用即串行或事务互相劫持 | 高 |
 | D1 | `NewMapper(name) interface{}` 找不到即 panic，无 error 版本、无泛型取用 | API 设计 | 调用方只能裸类型断言 | 中高 |
 | D2 | 无 Mapper 注册表自省 API | 可观测 | 使用方只能硬编码计数 | 中 |
@@ -141,6 +142,8 @@ func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 
 ### B1【高】`buildCountSQL` 正则剥子句，会误剥子查询内层
 
+> ✅ **已于 v0.3.20 修复**：`buildCountSQL`（`orm/sql_rewrite.go`）改为先经 `dialector.StripTopLevelTailClauses` 只剥离**括号深度 0** 的尾部子句（ORDER BY/LIMIT/OFFSET/RETURNING/FOR UPDATE 族），SELECT...FROM 替换边界同样按顶层深度定位（`TopLevelKeywordEnd`/`TopLevelClausePos`）；子查询内层 `ORDER BY`/`LIMIT`（含 `ROW_NUMBER() OVER (ORDER BY ...)`、标量子查询 `(SELECT ... LIMIT 1)`）原样保留，并新支持 WITH/CTE 前缀。扫描器见 `orm/dialector/sql_scan.go`（引号/注释/词边界感知），测试见 `orm/dialector/sql_scan_test.go` + `orm/sql_rewrite_test.go`。
+
 **框架证据**：`orm/sql_rewrite.go:23-38`
 ```go
 reLimit     = regexp.MustCompile(`(?is)\s+LIMIT\s+\S+`)
@@ -157,6 +160,8 @@ func buildCountSQL(query string) string {
 
 ### B2【高】`ApplyPagination` 同样剥全部 `LIMIT`
 
+> ✅ **已于 v0.3.20 修复**：`dialector.ApplyPagination`（`orm/dialector/base.go`）及 Oracle/MSSQL/DB2/ClickHouse 方言的 ApplyPagination 均改用 `StripTopLevelTailClauses(q, "limit", "offset")` —— 只替换**顶层** LIMIT/OFFSET 再拼接新分页，标量子查询 `(SELECT ... LIMIT 1)` 原样保留。测试见 `orm/sql_rewrite_test.go` `Test_applyPagination` 子查询用例。
+
 **框架证据**：`orm/dialector/base.go:159-170`
 ```go
 q = limitRe.ReplaceAllString(q, "")   // 删掉 SQL 里所有 LIMIT
@@ -166,6 +171,12 @@ return fmt.Sprintf("%s LIMIT %d OFFSET %d", q, limit, offset)
 本项目 `mybatis/mappers/RecordsMapper.xml:150` 有标量子查询 `... (SELECT ... LIMIT 1) AS orgName`。若对该语句启用 `*orm.PageParam`，**子查询的 `LIMIT 1` 会被删掉**，语义从"取一行"变成"取全部（多行即报错）"。
 
 ### B3【高】行数上限：全局、静默、无按语句覆盖
+
+> ✅ **已于 v0.3.20 部分修复（第 1/3 条 + 第 3 条）**：
+> ① **严格模式**：`orm.SetRowLimitStrict(true)`（或配置 `mybatis.configuration.row-limit-strict=true`）后，Query/QueryTo/RowStream 达到上限返回 `ErrRowLimitExceeded`（`%w` wrap，`errors.Is` 可判），不再静默截断；RowStream 的上限与严格开关在打开时快照；
+> ② **`MaxRows` 死字段接入**：`mybatis.max-rows` 配置经 `InitializeFromSettings` 套用到 `SetDefaultRowLimit`（0=未设置保持默认 10000，负数不限）；
+> ③ 语句级覆盖（`<select maxRows>`）与 `Truncated` 可观测返回**未做**（涉及签名变更，留待后续）。
+> 测试见 `orm/row_limit_strict_test.go`。
 
 **框架证据**：
 - 上限常量与开关：`orm/sql_execute.go:20`（`defaultRowLimit = 10000`）、`:47-52`（`SetDefaultRowLimit`）；
@@ -183,6 +194,8 @@ return fmt.Sprintf("%s LIMIT %d OFFSET %d", q, limit, offset)
 3. 至少把 Warn 提升为可配置的 error（`mybatis.configuration.row-limit-strict=true` 时返回 `ErrRowLimitExceeded`）。
 
 ### B4【低】`PageParam` 与 XML 手写 `LIMIT` 共存无诊断
+
+> ✅ **已于 v0.3.20 修复（运行时告警）**：`executePage`（`orm/base_mapper.go`）在派生 COUNT 前调用 `warnPageParamLimitConflict` —— 检测语句含**顶层** LIMIT/OFFSET 且方法声明 `*PageParam` 时 `log.Warnf`（每 namespace.id 仅告警一次）。选运行时而非注册期：SQL 是动态的（LIMIT 可能条件渲染），运行时检测准确。
 
 XML 已写 `LIMIT #{limit} OFFSET #{offset}`（本项目 130 处）又声明 `*PageParam` 时，框架会再注入一次分页（B2 的正则先删再拼），过程中**不告警**。建议注册期检测「方法含 PageParam 且语句自带 LIMIT」→ Warn。
 

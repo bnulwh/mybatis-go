@@ -1,5 +1,13 @@
 # 更新日志
 
+- **v0.3.20（分页与行数上限 B1-B4 修复，2026-10-22）**：修复分页 COUNT/分页注入正则误剥子查询内层子句（B1/B2）两处「total 错/内层 LIMIT 被删」级缺陷，行数上限增加严格模式（B3），PageParam 与手写 LIMIT 共存增加告警（B4）—
+  - **顶层 SQL 子句扫描器**（新增 `orm/dialector/sql_scan.go`）：`TopLevelClausePos`/`TopLevelKeywordEnd`/`StripTopLevelTailClauses`/`HasTopLevelClause`/`IsSQLSpace` —— 括号深度 + 引号（`'`/`"`/`` ` ``）+ 注释（`--` 与 `/* */`）感知的扫描器，只识别**顶层**（深度 0）关键字；关键字小写短语、词边界判断、短语内空格匹配任意空白（`ORDER\t\n BY`/`FOR\n UPDATE` 均可命中）；多关键字取最左命中
+  - **B1 `buildCountSQL` 深度感知重写**（`orm/sql_rewrite.go`）：派生 COUNT 前只剥离顶层尾部子句（`order by`/`limit`/`offset`/`returning`/`for update`/`for share`/`for no key update`/`for key share`）；SELECT→COUNT(*) 替换边界按顶层 SELECT/FROM 定位 —— 子查询内层 `ORDER BY`/`LIMIT`（`ROW_NUMBER() OVER (ORDER BY ...)`、标量子查询 `(SELECT ... LIMIT 1)`）原样保留；新支持 WITH/CTE 前缀语句；旧正则（`reLimit`/`reOrderBy`/`reSelectFrom` 等）全部移除；既有用例输出逐字节不变
+  - **B2 `ApplyPagination` 只替换顶层 LIMIT/OFFSET**（`orm/dialector/base.go` + oracle/mssql/db2/clickhouse 方言）：`StripTopLevelTailClauses(q, "limit", "offset")` 替代原全局正则删除 —— 标量子查询 `... (SELECT ... LIMIT 1) AS x` 启用 `PageParam` 后内层 LIMIT 不再被删
+  - **B3 严格行数上限**（`orm/sql_execute.go`/`scan_rows.go`/`row_stream.go`）：新增 `ErrRowLimitExceeded` + `SetRowLimitStrict`/`RowLimitStrict`（atomic.Bool）；Query/QueryTo/RowStream 三条扫描路径达到上限时，严格模式返回 wrapped `ErrRowLimitExceeded`（`errors.Is` 可判），非严格保持静默截断 + Warn；`fetchRows` 改返回 `([]map[string]interface{}, error)`（唯一调用方 queryRows 适配）；RowStream 上限与严格开关在 `QueryStream` 打开时快照；`mybatis.max-rows` 死字段接入（`InitializeFromSettings` 套用 `SetDefaultRowLimit`，0=未设置、负数不限）+ 新配置 `mybatis.configuration.row-limit-strict`
+  - **B4 PageParam/手写 LIMIT 共存告警**（`orm/base_mapper.go`）：`executePage` 派生 COUNT 前检测「语句含顶层 LIMIT/OFFSET 且方法声明 `*PageParam`」→ `log.Warnf`（`sync.Map` 每语句仅告警一次）；选运行时而非注册期因 SQL 动态渲染
+  - **测试**：新增 `orm/dialector/sql_scan_test.go`（深度/引号/注释/词边界/大小写/多空格/UNION/最左命中，4 组 32 用例）+ `orm/row_limit_strict_test.go`（strict Query/QueryTo/RowStream + max-rows 配置解析）；`orm/sql_rewrite_test.go` 扩展子查询/CTE/窗口函数用例；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.19（动态 SQL 引擎 A1/A2 修复 + A3 可观测性，2026-10-21）**：修复 `<foreach>` 循环体不支持嵌套标签（A1）与 `<include>` 静态文本丢失（A2）两处「静默生成错误 SQL」级缺陷 —
   - **A1 `<foreach>` 嵌套标签**（`types/sqlfragment/foreach.go`）：`sqlForLoop.Sql` 由 `*simpleSql` 改为 `[]Node`，循环体经 `ParseFragments` 统一解析，支持嵌套 `<if>`/`<choose>`/嵌套 `<foreach>`；此前循环体首个元素为子标签时 `elems[0].Val.(string)` 直接 panic、混排时子标签被静默丢弃，均消除；`Children()` 返回循环体节点，占位符收集不受影响
   - **A2 `<include>` 静态文本丢失**（双根因修复）：

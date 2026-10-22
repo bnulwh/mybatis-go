@@ -21,6 +21,12 @@ func Test_applyPagination(t *testing.T) {
 		{"with_where", "SELECT * FROM t WHERE id = ?", 10, 0, "SELECT * FROM t WHERE id = ? LIMIT 10"},
 		{"with_order", "SELECT * FROM t ORDER BY id", 10, 5, "SELECT * FROM t ORDER BY id LIMIT 10 OFFSET 5"},
 		{"trailing_semicolon", "SELECT * FROM t;", 10, 0, "SELECT * FROM t LIMIT 10"},
+		{"subquery_limit_preserved", "SELECT a, (SELECT b FROM c LIMIT 1) AS x FROM t", 10, 0,
+			"SELECT a, (SELECT b FROM c LIMIT 1) AS x FROM t LIMIT 10"},
+		{"subquery_limit_not_replaced", "SELECT a, (SELECT b FROM c LIMIT 1) AS x FROM t", 10, 5,
+			"SELECT a, (SELECT b FROM c LIMIT 1) AS x FROM t LIMIT 10 OFFSET 5"},
+		{"window_order_by_preserved", "SELECT ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t", 10, 0,
+			"SELECT ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t LIMIT 10"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -51,6 +57,16 @@ func Test_buildCountSQL(t *testing.T) {
 		{"with_join", "SELECT a.id, b.name FROM a JOIN b ON a.id = b.id WHERE a.status = 1",
 			"SELECT COUNT(*) FROM a JOIN b ON a.id = b.id WHERE a.status = 1"},
 		{"multiline", "SELECT id\nFROM t\nWHERE id > 0", "SELECT COUNT(*)\nFROM t\nWHERE id > 0"},
+		{"subquery_in_select_list", "SELECT a, (SELECT b FROM c LIMIT 1) AS x FROM t WHERE a.id > 0",
+			"SELECT COUNT(*) FROM t WHERE a.id > 0"},
+		{"scalar_subquery_from", "SELECT (SELECT COUNT(*) FROM c) AS n FROM t", "SELECT COUNT(*) FROM t"},
+		{"window_order_by_only", "SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t", "SELECT COUNT(*) FROM t"},
+		{"window_order_by_with_top_limit", "SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t LIMIT 5",
+			"SELECT COUNT(*) FROM t"},
+		{"with_cte", "WITH x AS (SELECT id FROM c) SELECT id FROM x WHERE id > 0",
+			"WITH x AS (SELECT id FROM c) SELECT COUNT(*) FROM x WHERE id > 0"},
+		{"subquery_from_ignored", "SELECT a FROM (SELECT b FROM c ORDER BY b LIMIT 1) t WHERE a > 0",
+			"SELECT COUNT(*) FROM (SELECT b FROM c ORDER BY b LIMIT 1) t WHERE a > 0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -3,14 +3,8 @@ package dialector
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
-)
-
-var (
-	limitRe  = regexp.MustCompile(`(?is)\s+LIMIT\s+\S+`)
-	offsetRe = regexp.MustCompile(`(?is)\s+OFFSET\s+\S+`)
 )
 
 const (
@@ -156,13 +150,15 @@ func formatAtPPlaceholders(src string) string {
 	return strings.Join(res, "")
 }
 
+// ApplyPagination 把分页子句拼到 query 尾部（B2 修复）：
+// 只剥离「顶层」（括号深度 0）已存在的 LIMIT/OFFSET 再拼接，
+// 子查询里的 LIMIT/OFFSET（如 `... (SELECT ... LIMIT 1) AS x`）原样保留。
 func ApplyPagination(query string, limit, offset int) string {
 	if limit <= 0 {
 		return query
 	}
 	q := strings.TrimRight(query, " \t\n\r;")
-	q = limitRe.ReplaceAllString(q, "")
-	q = offsetRe.ReplaceAllString(q, "")
+	q = StripTopLevelTailClauses(q, "limit", "offset")
 	if offset > 0 {
 		return fmt.Sprintf("%s LIMIT %d OFFSET %d", q, limit, offset)
 	}

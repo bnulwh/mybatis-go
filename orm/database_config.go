@@ -33,7 +33,6 @@ type MyBatisSetting struct {
 	DatabaseSetting
 	MapperLocations    string
 	TypeAliasPackage   string
-	MaxRows            int64
 	TablePrefix        string
 	TablePrefixMap     map[string]string
 	TablePrefixSetTTL  time.Duration
@@ -49,6 +48,12 @@ type MyBatisSetting struct {
 	SlowSQLThreshold   time.Duration
 	PoolStatsInterval  time.Duration
 	ReadWriteSplitting bool
+	// MaxRows 查询返回行数上限（mybatis.max-rows，B3）：0 表示未设置（保持全局
+	// 默认 10000），负数不限制；InitializeFromSettings 时套用到 SetDefaultRowLimit。
+	MaxRows int64
+	// RowLimitStrict 严格行数上限模式（mybatis.configuration.row-limit-strict，B3）：
+	// 达到上限返回 ErrRowLimitExceeded 而非静默截断。
+	RowLimitStrict bool
 }
 
 type Config struct {
@@ -186,6 +191,8 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			SlowSQLThreshold:  parseDuration(m, "mybatis.configuration.slow-sql-threshold", 3000),
 			PoolStatsInterval: parseDuration(m, "mybatis.configuration.pool-stats-interval", 0),
 			ReadWriteSplitting: parseBool(m, "mybatis.configuration.read-write-splitting", false),
+			MaxRows:           parseInt64(m, "mybatis.max-rows", 0),
+			RowLimitStrict:    parseBool(m, "mybatis.configuration.row-limit-strict", false),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,

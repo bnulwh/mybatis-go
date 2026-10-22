@@ -50,6 +50,14 @@ func InitializeFromSettings(cm map[string]string) error {
 		SetReadWriteSplitting(true)
 		initReplicaDatasources(cm)
 	}
+	// B3：行数上限配置生效——mybatis.max-rows（0=未设置保持默认 10000，负数不限）
+	// 与 mybatis.configuration.row-limit-strict（超限返回 ErrRowLimitExceeded）。
+	if cfg.Setting.MaxRows != 0 {
+		SetDefaultRowLimit(int(cfg.Setting.MaxRows))
+	}
+	if cfg.Setting.RowLimitStrict {
+		SetRowLimitStrict(true)
+	}
 	return combineErrors(err1, err2)
 }
 

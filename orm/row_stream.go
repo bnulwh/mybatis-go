@@ -34,7 +34,8 @@ var rowStreamType = reflect.TypeOf((*RowStream)(nil))
 // 约束：
 //   - 无论是否读完，都必须调用 Close() 释放连接（幂等，可 defer）；
 //   - 行数上限遵循全局 DefaultRowLimit（P4-3）：达到上限停止读取并 Warn 提示，
-//     负数不限制（返回全部）；上限在 QueryStream 打开时快照；
+//     负数不限制（返回全部）；严格模式（SetRowLimitStrict，B3）下 Err() 返回
+//     ErrRowLimitExceeded；上限与严格开关均在 QueryStream 打开时快照；
 //   - ctx 无 deadline 时叠加全局默认超时（P4-1）。
 type RowStream struct {
 	rows        *sql.Rows
@@ -43,6 +44,7 @@ type RowStream struct {
 	converters  []convertFn
 	schemaHints map[string]*columnSchemaHint
 	limit       int
+	strict      bool
 	count       int
 	row         map[string]interface{}
 	err         error
@@ -74,6 +76,7 @@ func QueryStream(ctx context.Context, sqlStr string, args ...interface{}) (*RowS
 		rows:        rows,
 		colTypes:    colTypes,
 		limit:       DefaultRowLimit(),
+		strict:      RowLimitStrict(),
 		cancel:      cancel,
 		schemaHints: schemaHints,
 	}, nil
@@ -87,6 +90,10 @@ func (s *RowStream) Next() bool {
 	}
 	// 全局行数上限（P4-3）：达到上限即停止读取（连接仍由调用方 Close 释放）
 	if s.limit >= 0 && s.count >= s.limit {
+		if s.strict {
+			s.err = fmt.Errorf("row limit reached: %d rows: %w", s.limit, ErrRowLimitExceeded)
+			return false
+		}
 		if !s.warned {
 			s.warned = true
 			log.Warnf("row limit reached: %d, truncate result set (SetDefaultRowLimit(-1) to return all)", s.limit)
@@ -126,7 +133,8 @@ func (s *RowStream) Count() int {
 	return s.count
 }
 
-// Err 返回遍历期间的错误（游标错误 / 扫描失败）；正常结束返回 nil。
+// Err 返回遍历期间的错误（游标错误 / 扫描失败 / 严格模式行数上限
+// ErrRowLimitExceeded）；正常结束返回 nil。
 func (s *RowStream) Err() error {
 	return s.err
 }

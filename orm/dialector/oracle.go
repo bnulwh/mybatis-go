@@ -2,7 +2,6 @@ package dialector
 
 import (
 	"fmt"
-	"strings"
 
 	_ "github.com/sijms/go-ora/v2"
 )
@@ -76,9 +75,7 @@ func (d *OracleDialector) ApplyPagination(query string, limit, offset int) strin
 	if limit <= 0 {
 		return query
 	}
-	q := limitRe.ReplaceAllString(query, " ")
-	q = offsetRe.ReplaceAllString(q, " ")
-	q = strings.TrimRight(q, " \t\n\r;")
+	q := StripTopLevelTailClauses(query, "limit", "offset")
 	if offset > 0 {
 		return fmt.Sprintf("%s OFFSET %d ROWS FETCH NEXT %d ROWS ONLY", q, offset, limit)
 	}

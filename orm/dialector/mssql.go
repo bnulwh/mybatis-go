@@ -2,7 +2,6 @@ package dialector
 
 import (
 	"fmt"
-	"strings"
 
 	_ "github.com/microsoft/go-mssqldb"
 )
@@ -83,9 +82,7 @@ func (d *MssqlDialector) ApplyPagination(query string, limit, offset int) string
 	if limit <= 0 {
 		return query
 	}
-	q := limitRe.ReplaceAllString(query, " ")
-	q = offsetRe.ReplaceAllString(q, " ")
-	q = strings.TrimRight(q, " \t\n\r;")
+	q := StripTopLevelTailClauses(query, "limit", "offset")
 	if offset > 0 {
 		return fmt.Sprintf("%s OFFSET %d ROWS FETCH NEXT %d ROWS ONLY", q, offset, limit)
 	}

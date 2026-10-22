@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/bnulwh/mybatis-go/log"
+	"github.com/bnulwh/mybatis-go/orm/dialector"
 	"github.com/bnulwh/mybatis-go/types"
 	"github.com/bnulwh/mybatis-go/utils"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -203,6 +205,23 @@ func backfillGeneratedKeyFromRows(arg ProxyArg, keyProperty string, rows *sql.Ro
 	field.Set(reflect.ValueOf(rval))
 }
 
+// pageParamLimitWarned 已告警的「PageParam 与顶层 LIMIT/OFFSET 共存」语句集合（B4）。
+var pageParamLimitWarned sync.Map
+
+// warnPageParamLimitConflict B4：方法声明 *PageParam 且生成的 SQL 顶层已含
+// LIMIT/OFFSET（XML 手写分页）时告警一次——框架会用 PageParam 分页改写语句，
+// 手写的顶层 LIMIT/OFFSET 被覆盖；子查询内层 LIMIT 不受影响、不告警。
+func warnPageParamLimitConflict(namespace, id, sqlStr string) {
+	if !dialector.HasTopLevelClause(sqlStr, "limit", "offset") {
+		return
+	}
+	key := namespace + "." + id
+	if _, loaded := pageParamLimitWarned.LoadOrStore(key, struct{}{}); loaded {
+		return
+	}
+	log.Warnf("page statement %s: SQL already contains top-level LIMIT/OFFSET, PageParam pagination overrides it (consider removing the handwritten LIMIT/OFFSET)", key)
+}
+
 // toInt64 将转换函数返回的接口值转为 int64（RETURNING 列为整数类型时）。
 func toInt64(v interface{}) (int64, bool) {
 	switch n := v.(type) {
@@ -264,6 +283,8 @@ func (in *BaseMapper) executePage(sqlFunc *types.SqlFunction, arg ProxyArg) (val
 	defer func() {
 		runAfterHooks(arg.Ctx, in.Namespace, sqlFunc.Id, string(sqlFunc.Type), sqlStr, sqlargs, err, time.Since(start))
 	}()
+	// B4：PageParam 与语句自带顶层 LIMIT/OFFSET 共存诊断（每语句仅告警一次）
+	warnPageParamLimitConflict(in.Namespace, sqlFunc.Id, sqlStr)
 	countSQL := normalizeSQL(buildCountSQL(sqlStr))
 	log.Debugf("page count sql: %v", formatSQLForLog(countSQL, sqlargs))
 	var total int64

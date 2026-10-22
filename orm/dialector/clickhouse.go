@@ -3,7 +3,6 @@ package dialector
 import (
 	"fmt"
 	"net/url"
-	"strings"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 )
@@ -81,9 +80,7 @@ func (d *ClickHouseDialector) ApplyPagination(query string, limit, offset int) s
 	if limit <= 0 {
 		return query
 	}
-	q := limitRe.ReplaceAllString(query, " ")
-	q = offsetRe.ReplaceAllString(q, " ")
-	q = strings.TrimRight(q, " \t\n\r;")
+	q := StripTopLevelTailClauses(query, "limit", "offset")
 	if offset > 0 {
 		return fmt.Sprintf("%s LIMIT %d OFFSET %d", q, limit, offset)
 	}

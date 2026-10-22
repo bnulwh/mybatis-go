@@ -3,11 +3,19 @@ package orm
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/bnulwh/mybatis-go/log"
 	"github.com/bnulwh/mybatis-go/types"
-	"sync"
-	"time"
 )
+
+// ErrRowLimitExceeded 严格行数上限模式（SetRowLimitStrict(true)）下，
+// 结果集达到 DefaultRowLimit 上限时由查询返回，替代静默截断（B3）。
+var ErrRowLimitExceeded = errors.New("mybatis-go: row limit exceeded (strict mode; SetDefaultRowLimit(-1) for all rows or SetRowLimitStrict(false) to truncate)")
 
 var (
 	// 默认执行超时（P4-1）：防止慢 SQL 无限挂起占住连接。
@@ -51,6 +59,20 @@ func SetDefaultRowLimit(n int) {
 	defer rowLimitMu.Unlock()
 	defaultRowLimit = n
 	log.Infof("set default row limit: %d", n)
+}
+
+var rowLimitStrict atomic.Bool
+
+// SetRowLimitStrict 开启严格行数上限模式（B3）：达到上限时查询返回
+// ErrRowLimitExceeded 而非静默截断；关闭时保持旧行为（Warn + 截断）。
+func SetRowLimitStrict(on bool) {
+	rowLimitStrict.Store(on)
+	log.Infof("set row limit strict: %v", on)
+}
+
+// RowLimitStrict 返回严格行数上限模式是否开启。
+func RowLimitStrict() bool {
+	return rowLimitStrict.Load()
 }
 
 // withExecTimeout 为 ctx 附加全局默认超时作为安全网（P4-1）：
@@ -136,7 +158,11 @@ func queryRows(ctx context.Context, sqlStr string, args ...interface{}) ([]map[s
 		return nil, err
 	}
 	schemaHints := buildSchemaHints(sqlStr, colTypes)
-	results := fetchRows(rows, colTypes, schemaHints)
+	results, err := fetchRows(rows, colTypes, schemaHints)
+	if err != nil {
+		log.Errorf("fill sql %v result failed: %v", sqlStr, err)
+		return nil, err
+	}
 	return results, nil
 }
 
@@ -166,13 +192,19 @@ func buildSchemaHints(sqlStr string, colTypes []*sql.ColumnType) map[string]*col
 	return hints
 }
 
-func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint) []map[string]interface{} {
+// fetchRows 全量读取结果集为行 map 列表，遵循全局行数上限（B3）：
+// 默认达到上限 Warn 并截断；严格模式（SetRowLimitStrict）返回 ErrRowLimitExceeded。
+func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint) ([]map[string]interface{}, error) {
 	var results []map[string]interface{}
 	var tempItems []interface{}
 	var converters []convertFn
 	limit := DefaultRowLimit()
+	strict := RowLimitStrict()
 	for rows.Next() {
 		if limit >= 0 && len(results) >= limit {
+			if strict {
+				return nil, fmt.Errorf("row limit reached: %d rows: %w", limit, ErrRowLimitExceeded)
+			}
 			log.Warnf("row limit reached: %d, truncate result set (SetDefaultRowLimit(-1) to return all)", limit)
 			break
 		}
@@ -191,5 +223,5 @@ func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[strin
 	if log.IsDebugEnabled() {
 		log.Debugf("results: %v", types.ToJson(results))
 	}
-	return results
+	return results, nil
 }

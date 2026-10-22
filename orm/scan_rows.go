@@ -227,11 +227,15 @@ func scanRowsToStructSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHin
 	bindings := buildScanBindings(structType, colTypes, schemaHints, buildTagColumnIndex(structType))
 	bufs := scanBuffers(bindings)
 	limit := DefaultRowLimit()
+	strict := RowLimitStrict()
 	out := reflect.MakeSlice(sliceType, 0, 16)
 	count := 0
 	warned := false
 	for rows.Next() {
 		if limit >= 0 && count >= limit {
+			if strict {
+				return fmt.Errorf("row limit reached: %d rows: %w", limit, ErrRowLimitExceeded)
+			}
 			if !warned {
 				warned = true
 				log.Warnf("row limit reached: %d, truncate result set (SetDefaultRowLimit(-1) to return all)", limit)
@@ -265,11 +269,15 @@ func scanRowsToMapSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints 
 	bufs := prepareColumns(colTypes)
 	converters := buildConverters(colTypes, schemaHints)
 	limit := DefaultRowLimit()
+	strict := RowLimitStrict()
 	out := reflect.MakeSlice(sliceType, 0, 16)
 	count := 0
 	warned := false
 	for rows.Next() {
 		if limit >= 0 && count >= limit {
+			if strict {
+				return fmt.Errorf("row limit reached: %d rows: %w", limit, ErrRowLimitExceeded)
+			}
 			if !warned {
 				warned = true
 				log.Warnf("row limit reached: %d, truncate result set (SetDefaultRowLimit(-1) to return all)", limit)
@@ -299,11 +307,15 @@ func scanRowsToScalarSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHin
 	bufs := prepareColumns(colTypes)
 	converters := buildConverters(colTypes, schemaHints)
 	limit := DefaultRowLimit()
+	strict := RowLimitStrict()
 	out := reflect.MakeSlice(sliceType, 0, 16)
 	count := 0
 	warned := false
 	for rows.Next() {
 		if limit >= 0 && count >= limit {
+			if strict {
+				return fmt.Errorf("row limit reached: %d rows: %w", limit, ErrRowLimitExceeded)
+			}
 			if !warned {
 				warned = true
 				log.Warnf("row limit reached: %d, truncate result set (SetDefaultRowLimit(-1) to return all)", limit)
