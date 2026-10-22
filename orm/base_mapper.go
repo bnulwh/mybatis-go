@@ -42,6 +42,8 @@ func (in *BaseMapper) executeStream(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	}
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
+	// B3：语句级行数上限（<select maxRows>）经 ctx 下发（stream 打开时快照生效上限）
+	arg.Ctx = withStatementRowLimit(arg.Ctx, in.Namespace+"."+sqlFunc.Id, sqlFunc.MaxRows)
 	// C2：WithTx 作用域内未加入事务的语句告警一次
 	warnNonCtxInTxScope(arg.Ctx, in.Namespace, sqlFunc.Id)
 	args := arg.buildArgs()
@@ -262,6 +264,8 @@ func (in *BaseMapper) executePage(sqlFunc *types.SqlFunction, arg ProxyArg) (val
 	}
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
+	// B3：语句级行数上限（<select maxRows>）经 ctx 下发；截断记录可观测（LastQueryTruncated）
+	arg.Ctx = withStatementRowLimit(arg.Ctx, in.Namespace+"."+sqlFunc.Id, sqlFunc.MaxRows)
 	// C2：WithTx 作用域内未加入事务的语句告警一次
 	warnNonCtxInTxScope(arg.Ctx, in.Namespace, sqlFunc.Id)
 	args := arg.buildArgs()
@@ -323,6 +327,8 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	//defer in.lock.Unlock()
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
+	// B3：语句级行数上限（<select maxRows>）经 ctx 下发
+	arg.Ctx = withStatementRowLimit(arg.Ctx, in.Namespace+"."+sqlFunc.Id, sqlFunc.MaxRows)
 	// C2：WithTx 作用域内未加入事务的语句告警一次
 	warnNonCtxInTxScope(arg.Ctx, in.Namespace, sqlFunc.Id)
 	log.Debugf("func: %v ,state : %v", sqlFunc, gDbConn.Statement)

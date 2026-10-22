@@ -48,7 +48,7 @@ for st.Next() {
 }
 ```
 
-> 说明：流式方法的结果类型与 XML `resultType` / `resultMap` 解耦，逐行 `Row()` / `Scan()` 由调用方决定；行数上限仍遵循全局 `orm.SetDefaultRowLimit`（默认 10000，负数不限制返回全部）。
+> 说明：流式方法的结果类型与 XML `resultType` / `resultMap` 解耦，逐行 `Row()` / `Scan()` 由调用方决定；行数上限遵循语句级 `<select maxRows>` 覆盖，未设置沿用全局 `orm.SetDefaultRowLimit`（默认 10000，负数不限制返回全部），打开流时快照。
 
 ## 事务
 
@@ -227,6 +227,26 @@ report := orm.LastConvertReport("SysUserMapper", "selectUserList") // 无记录�
 // report.Total / report.Converted / report.Skipped / report.Errors（行号/列名/消息）
 ```
 
+
+## 行数上限（Row Limit）
+
+查询返回行数上限防止大结果集 OOM，四层能力（B3）：
+
+1. **全局默认**：`orm.SetDefaultRowLimit(n)`（默认 10000，负数不限制）或配置
+   `mybatis.max-rows`；
+2. **语句级覆盖**：XML `<select maxRows="N">` 属性——`0`/缺省沿用全局，`-1` 不限制，
+   `>0` 语句级上限（优先于全局），非法值告警后回退全局；覆盖 Mapper 代理全路径
+   （含流式 `RowStream`，打开时快照）；
+3. **严格模式**：`mybatis.configuration.row-limit-strict=true` 或 `orm.SetRowLimitStrict(true)`
+   ——达到上限返回 `ErrRowLimitExceeded`（`errors.Is` 可判）而非静默截断；
+4. **截断可观测**：`orm.LastQueryTruncated() *QueryTruncation` 返回最近一次触发行数
+   上限的记录（`Statement` 语句标识 / `Limit` / `Time`），静默截断与严格拦截均记录。
+
+```xml
+<select id="selectLatestScores" maxRows="-1">
+  select * from person_score
+</select>
+```
 
 ## 未识别 `<if test>` 严格模式（Strict If Test）
 

@@ -158,7 +158,7 @@ func queryRows(ctx context.Context, sqlStr string, args ...interface{}) ([]map[s
 		return nil, err
 	}
 	schemaHints := buildSchemaHints(sqlStr, colTypes)
-	results, err := fetchRows(rows, colTypes, schemaHints)
+	results, err := fetchRows(ctx, rows, colTypes, schemaHints)
 	if err != nil {
 		log.Errorf("fill sql %v result failed: %v", sqlStr, err)
 		return nil, err
@@ -192,16 +192,19 @@ func buildSchemaHints(sqlStr string, colTypes []*sql.ColumnType) map[string]*col
 	return hints
 }
 
-// fetchRows 全量读取结果集为行 map 列表，遵循全局行数上限（B3）：
-// 默认达到上限 Warn 并截断；严格模式（SetRowLimitStrict）返回 ErrRowLimitExceeded。
-func fetchRows(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint) ([]map[string]interface{}, error) {
+// fetchRows 全量读取结果集为行 map 列表，遵循行数上限（B3）：
+// 生效上限经 effectiveRowLimit 解析（语句级 <select maxRows> 覆盖 > 全局 DefaultRowLimit）；
+// 默认达到上限 Warn 并截断（记录 LastQueryTruncated），严格模式（SetRowLimitStrict）
+// 返回 ErrRowLimitExceeded。
+func fetchRows(ctx context.Context, rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint) ([]map[string]interface{}, error) {
 	var results []map[string]interface{}
 	var tempItems []interface{}
 	var converters []convertFn
-	limit := DefaultRowLimit()
+	limit, statement := effectiveRowLimit(ctx)
 	strict := RowLimitStrict()
 	for rows.Next() {
 		if limit >= 0 && len(results) >= limit {
+			recordQueryTruncation(statement, limit)
 			if strict {
 				return nil, fmt.Errorf("row limit reached: %d rows: %w", limit, ErrRowLimitExceeded)
 			}

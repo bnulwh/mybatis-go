@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"github.com/bnulwh/mybatis-go/log"
 	"reflect"
 	"strings"
@@ -24,6 +25,9 @@ type SqlFunction struct {
 	// UnsupportedIfTests 语句内所有 <if>/<when test> 中未识别的子表达式（A3，
 	// 去重后按首现序）：注册期汇总告警/严格模式报错的依据。空表示全部识别。
 	UnsupportedIfTests []string
+	// MaxRows 语句级行数上限覆盖（<select maxRows="N">，B3）：
+	// 0=未设置（沿用全局 DefaultRowLimit），-1=不限制，>0=语句级上限。
+	MaxRows int64
 	UseGeneratedKeys   bool   // <insert useGeneratedKeys="true">：自增主键回填开关（S-11）
 	KeyProperty        string // 回填目标属性名（如 jobId）
 	KeyColumn          string // 回填目标列名（如 job_id，可选）
@@ -363,6 +367,7 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		Items:              items,
 		IfTestFields:       sqlfragment.CollectIfTestFieldNames(items),
 		UnsupportedIfTests: sqlfragment.CollectUnsupportedIfTests(items),
+		MaxRows:            parseMaxRowsAttr(node.Attrs["maxRows"], owner, node.Id),
 		UseGeneratedKeys:   strings.EqualFold(node.Attrs["useGeneratedKeys"], "true"),
 		KeyProperty:        node.Attrs["keyProperty"],
 		KeyColumn:          node.Attrs["keyColumn"],
@@ -374,6 +379,21 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		GenerateDuration:   0,
 		GenerateCount:      0,
 	}
+}
+
+// parseMaxRowsAttr 解析 <select maxRows="N"> 语句级行数上限属性（B3）：
+// 0/缺省=未设置（沿用全局），-1=不限制，>0=语句级上限；非法值告警后按未设置处理。
+func parseMaxRowsAttr(v, owner, id string) int64 {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		log.Warnf("invalid maxRows %q on %v.%v, ignored: %v", v, owner, id, err)
+		return 0
+	}
+	return n
 }
 
 // parsesqlFragmentsFromXmlElements 已迁移至 sqlfragment.ParseFragments（log-and-continue 容错保持不变）。

@@ -1,5 +1,12 @@
 # 更新日志
 
+- **v0.3.32（语句级行数上限与截断可观测 B3 完成，2026-10-22）**：`<select maxRows>` 语句级覆盖 + `orm.LastQueryTruncated()` 截断记录 —— 收口 B3 剩余第 ③ 条，默认行为不变 —
+  - **语句级覆盖**（`types/sql_function.go` + `orm/row_limit_ctx.go`）：`<select maxRows="N">` 属性解析到 `SqlFunction.MaxRows`（0=未设置沿用全局 `DefaultRowLimit`，-1=不限制，>0=语句级上限；非法值 `parseMaxRowsAttr` 告警后按未设置回退）；生效上限经 context 下发（`withStatementRowLimit`/`effectiveRowLimit`，**不改公共 API 签名**）——Mapper 代理全路径（`executeMethod`/`executeStream`/`executePage`）与原生查询（`Query`/`QueryTo`/`QueryStream`）统一解析；`RowStream` 打开时快照（语义保持 v0.3.20）
+  - **截断可观测**：新增 `orm.LastQueryTruncated() *QueryTruncation`（`Statement`=namespace.id / `Limit` / `Time`）——静默截断与严格模式拦截均记录（原子指针，并发安全，总是最近一次）；`orm.ResetQueryTruncation()` 清空（测试用）；截断点全覆盖：`fetchRows` / `scanRowsToStructSlice` / `scanRowsToMapSlice` / `scanRowsToScalarSlice` / `RowStream.Next`
+  - **签名调整（内部）**：`fetchRows`/`scanRowsInto`/`scanRowsToSlice`（及三个 slice 填充函数）增加 ctx 参数（包内调用链适配，无外部 API 变化）
+  - **测试**：新增 `orm/b3_stmt_maxrows_test.go`（语句级覆盖端到端：全局回退/语句上限/‑1 不限/非法值回退/流式快照 + 截断记录断言；严格模式叠加：语句级超限 `ErrRowLimitExceeded`、`maxRows=-1` 严格下不报错）；全量 `go vet` / `go test ./...` 零回归
+  - **文档**：docs/features.md 新增「行数上限」章节（全局/语句级/严格模式/可观测四层说明）；docs/configuration.md 补 `mybatis.max-rows` / `mybatis.configuration.row-limit-strict` 配置行（v0.3.20 遗漏）
+
 - **v0.3.31（未识别 `<if test>` 表达式根治 A3，2026-10-22）**：未命中已知模式（null 检查/空串/字符串比较/数值比较/裸标识符）的 test 子表达式不再只靠日志告警——记录、汇总、严格模式三段式根治 — 默认行为不变（恒真兼容存量），默认关闭 —
   - **解析期记录**（`types/sqlfragment/if.go`）：`parseIfTestConditions` 收集未识别子表达式到 `sqlIfTest.Unsupported`；新增树级聚合 `sqlfragment.CollectUnsupportedIfTests`（经 `Children()` 遍历覆盖 if/choose-when/where/set 嵌套，去重按首现序）
   - **语句级汇总**（`types/sql_function.go`）：`SqlFunction.UnsupportedIfTests` 字段（注册期告警/严格报错依据）；orm 侧注册链（`mapperInfo.bindSql`）按语句汇总告警 `[if-test] mapper.func: unsupported expressions ...`

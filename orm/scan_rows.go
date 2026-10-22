@@ -61,11 +61,11 @@ func (db *DB) QueryToContext(ctx context.Context, dst interface{}, sqlStr string
 		return err
 	}
 	schemaHints := buildSchemaHints(sqlStr, colTypes)
-	return scanRowsInto(rows, colTypes, schemaHints, dst)
+	return scanRowsInto(ctx, rows, colTypes, schemaHints, dst)
 }
 
 // scanRowsInto 按 dst 形态分派扫描策略（G0）。
-func scanRowsInto(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, dst interface{}) error {
+func scanRowsInto(ctx context.Context, rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, dst interface{}) error {
 	rv := reflect.ValueOf(dst)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("QueryTo: dst must be a non-nil pointer, got %T", dst)
@@ -77,7 +77,7 @@ func scanRowsInto(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[st
 	case ev.Kind() == reflect.Struct:
 		return scanRowsToStruct(rows, colTypes, schemaHints, ev)
 	case ev.Kind() == reflect.Slice:
-		return scanRowsToSlice(rows, colTypes, schemaHints, ev)
+		return scanRowsToSlice(ctx, rows, colTypes, schemaHints, ev)
 	case ev.Kind() == reflect.Map && ev.Type().Key().Kind() == reflect.String:
 		return scanRowsToMapRow(rows, colTypes, schemaHints, ev)
 	default:
@@ -203,8 +203,8 @@ func scanRowsToStruct(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints ma
 
 // scanRowsToSlice 全部行填充到切片（G0；S1 扩展标量/map 元素）：
 // 元素为 struct / *struct → 逐行反射填充；元素为 map[string]interface{} → 逐行转 map；
-// 元素为标量（单列结果）→ 逐列扫描转换。遵循全局行数上限（DefaultRowLimit）。
-func scanRowsToSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, ev reflect.Value) error {
+// 元素为标量（单列结果）→ 逐列扫描转换。遵循行数上限（语句级 maxRows 覆盖 > 全局 DefaultRowLimit，B3）。
+func scanRowsToSlice(ctx context.Context, rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, ev reflect.Value) error {
 	sliceType := ev.Type()
 	elemType := sliceType.Elem()
 	structType := elemType
@@ -213,26 +213,27 @@ func scanRowsToSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map
 	}
 	switch {
 	case structType.Kind() == reflect.Struct:
-		return scanRowsToStructSlice(rows, colTypes, schemaHints, ev, sliceType, elemType, structType)
+		return scanRowsToStructSlice(ctx, rows, colTypes, schemaHints, ev, sliceType, elemType, structType)
 	case elemType == reflect.TypeOf(map[string]interface{}{}):
-		return scanRowsToMapSlice(rows, colTypes, schemaHints, ev)
+		return scanRowsToMapSlice(ctx, rows, colTypes, schemaHints, ev)
 	default:
-		return scanRowsToScalarSlice(rows, colTypes, schemaHints, ev)
+		return scanRowsToScalarSlice(ctx, rows, colTypes, schemaHints, ev)
 	}
 }
 
 // scanRowsToStructSlice struct / *struct 元素切片填充（G0 原路径）。
-func scanRowsToStructSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, ev reflect.Value, sliceType, elemType, structType reflect.Type) error {
+func scanRowsToStructSlice(ctx context.Context, rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, ev reflect.Value, sliceType, elemType, structType reflect.Type) error {
 	isPtrElem := elemType.Kind() == reflect.Ptr
 	bindings := buildScanBindings(structType, colTypes, schemaHints, buildTagColumnIndex(structType))
 	bufs := scanBuffers(bindings)
-	limit := DefaultRowLimit()
+	limit, statement := effectiveRowLimit(ctx)
 	strict := RowLimitStrict()
 	out := reflect.MakeSlice(sliceType, 0, 16)
 	count := 0
 	warned := false
 	for rows.Next() {
 		if limit >= 0 && count >= limit {
+			recordQueryTruncation(statement, limit)
 			if strict {
 				return fmt.Errorf("row limit reached: %d rows: %w", limit, ErrRowLimitExceeded)
 			}
@@ -264,17 +265,18 @@ func scanRowsToStructSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHin
 }
 
 // scanRowsToMapSlice map[string]interface{} 元素切片填充（S1）：逐行转 map。
-func scanRowsToMapSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, ev reflect.Value) error {
+func scanRowsToMapSlice(ctx context.Context, rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, ev reflect.Value) error {
 	sliceType := ev.Type()
 	bufs := prepareColumns(colTypes)
 	converters := buildConverters(colTypes, schemaHints)
-	limit := DefaultRowLimit()
+	limit, statement := effectiveRowLimit(ctx)
 	strict := RowLimitStrict()
 	out := reflect.MakeSlice(sliceType, 0, 16)
 	count := 0
 	warned := false
 	for rows.Next() {
 		if limit >= 0 && count >= limit {
+			recordQueryTruncation(statement, limit)
 			if strict {
 				return fmt.Errorf("row limit reached: %d rows: %w", limit, ErrRowLimitExceeded)
 			}
@@ -298,7 +300,7 @@ func scanRowsToMapSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints 
 }
 
 // scanRowsToScalarSlice 标量元素切片填充（S1）：要求单列结果，逐行扫描转换。
-func scanRowsToScalarSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, ev reflect.Value) error {
+func scanRowsToScalarSlice(ctx context.Context, rows *sql.Rows, colTypes []*sql.ColumnType, schemaHints map[string]*columnSchemaHint, ev reflect.Value) error {
 	if len(colTypes) != 1 {
 		return fmt.Errorf("QueryTo: scalar slice dest requires exactly 1 column, got %d", len(colTypes))
 	}
@@ -306,13 +308,14 @@ func scanRowsToScalarSlice(rows *sql.Rows, colTypes []*sql.ColumnType, schemaHin
 	elemType := sliceType.Elem()
 	bufs := prepareColumns(colTypes)
 	converters := buildConverters(colTypes, schemaHints)
-	limit := DefaultRowLimit()
+	limit, statement := effectiveRowLimit(ctx)
 	strict := RowLimitStrict()
 	out := reflect.MakeSlice(sliceType, 0, 16)
 	count := 0
 	warned := false
 	for rows.Next() {
 		if limit >= 0 && count >= limit {
+			recordQueryTruncation(statement, limit)
 			if strict {
 				return fmt.Errorf("row limit reached: %d rows: %w", limit, ErrRowLimitExceeded)
 			}

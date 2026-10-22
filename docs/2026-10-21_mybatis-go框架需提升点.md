@@ -16,7 +16,7 @@
 | A2 | `<include>` 的 `<sql>` 片段「静态文本 + 动态标签混排」时丢静态文本 | 动态 SQL 缺陷 | 拼出的 SQL 缺片段，直接语法错误 | **最高**（静默生成错误 SQL）（✅ v0.3.19 已修复） |
 | A3 | 未识别的 `<if test>` 表达式被静默丢弃 → 条件恒真 → 条件体恒渲染 | 动态 SQL 缺陷 | 与 v0.3.11「字符串等值恒不渲染」同源，仍未根治 | **最高**（静默错数据）（✅ v0.3.31 已修复：UnsupportedIfTests 记录/汇总 + strict-if-test 严格模式，默认行为不变） |
 | B1/B2 | `buildCountSQL` / `ApplyPagination` 用正则剥 `ORDER BY`/`LIMIT`，会误剥子查询内层 | 分页缺陷 | 启用 `PageParam` 后 total 错、内层 LIMIT 被删 | 高（✅ v0.3.20 已修复：深度感知扫描器替代正则） |
-| B3 | 全局行数上限 10000 静默截断，无按语句覆盖，`MaxRows` 是死字段 | 正确性 | 大结果集静默丢行 | 高（⚠️ v0.3.20 部分修复：严格模式 ErrRowLimitExceeded + max-rows 配置接入；语句级覆盖未做） |
+| B3 | 全局行数上限 10000 静默截断，无按语句覆盖，`MaxRows` 是死字段 | 正确性 | 大结果集静默丢行 | 高（✅ v0.3.32 已修复：严格模式 + max-rows 配置（v0.3.20）+ 语句级 `<select maxRows>` 覆盖 + `LastQueryTruncated()` 可观测） |
 | B4 | `PageParam` 与 XML 手写 `LIMIT` 共存无诊断 | 分页缺陷 | 双重分页静默错数据 | 低（✅ v0.3.20 已修复：运行时告警） |
 | C1 | `orm.Begin()` 全局单事务槽仍在且无 Deprecated 引导（`WithTx` 已可用） | 并发/事务 | 误用即串行或事务互相劫持 | 高（✅ v0.3.21 已修复：Deprecated + 运行时迁移告警，行为不变） |
 | C2 | `WithTx` 与「Mapper 方法未声明 ctx」组合静默走非事务连接 | 事务 | 事务语义失效且无提示 | 中（✅ v0.3.21 已修复：WithTx 作用域检测 + 运行时告警） |
@@ -182,6 +182,11 @@ return fmt.Sprintf("%s LIMIT %d OFFSET %d", q, limit, offset)
 > ② **`MaxRows` 死字段接入**：`mybatis.max-rows` 配置经 `InitializeFromSettings` 套用到 `SetDefaultRowLimit`（0=未设置保持默认 10000，负数不限）；
 > ③ 语句级覆盖（`<select maxRows>`）与 `Truncated` 可观测返回**未做**（涉及签名变更，留待后续）。
 > 测试见 `orm/row_limit_strict_test.go`。
+>
+> ✅ **v0.3.32 完成 ③（语句级覆盖 + 截断可观测）**：
+> - **语句级覆盖**：`<select maxRows="N">` 属性解析到 `SqlFunction.MaxRows`（0=未设置沿用全局，-1 不限，>0 语句级上限，非法值告警回退全局）；经 context 下发（不改公共 API 签名），Mapper 代理全路径（executeMethod/executeStream/executePage）与原生查询（Query/QueryTo/QueryStream）统一经 `effectiveRowLimit` 解析生效上限；
+> - **截断可观测**：新增 `orm.LastQueryTruncated() *QueryTruncation`（Statement=namespace.id / Limit / Time），静默截断与严格拦截均记录（`orm/row_limit_ctx.go`）；另有 `orm.ResetQueryTruncation()`（测试用）。
+> 测试见 `orm/b3_stmt_maxrows_test.go`（语句级覆盖端到端 / -1 不限 / 非法值回退 / 流式快照 / 严格模式叠加 / 截断记录）。
 
 **框架证据**：
 - 上限常量与开关：`orm/sql_execute.go:20`（`defaultRowLimit = 10000`）、`:47-52`（`SetDefaultRowLimit`）；
