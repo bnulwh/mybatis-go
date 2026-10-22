@@ -84,6 +84,11 @@ func SetLogger(logger Logger) {
 	root = logger
 }
 
+// GetLogger 返回当前 Logger（测试或临时替换后恢复使用）。
+func GetLogger() Logger {
+	return root
+}
+
 // levelEnabler 可选接口：ConsoleLogger 通过它按级别报告开关状态。
 type levelEnabler interface {
 	isEnabled(level LogLevel) bool

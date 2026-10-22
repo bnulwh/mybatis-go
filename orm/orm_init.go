@@ -66,6 +66,8 @@ func InitializeFromSettings(cm map[string]string) error {
 	}
 	// F1：MySQL→PG 族函数翻译开关（共享 Java XML 无需手改副本即可跑 PG/金仓 PG 模式）
 	SetFunctionRewrite(cfg.Setting.FunctionRewrite)
+	// F2：|| 跨模式语义差异检测（MySQL 族/金仓执行 SQL 含 || 时告警）
+	SetPortabilityCheck(cfg.Setting.PortabilityCheck)
 	return combineErrors(err1, err2)
 }
 

@@ -26,8 +26,8 @@
 | E1 | `CollectSqlSlots` 不采集 `<if>/<foreach>` 体内占位符 → xml2go 生成签名丢动态参数 | 代码生成 | 动态 SQL Mapper 无法用生成层，只能手写 | 高（✅ v0.3.23 已修复：CollectAllSqlSlots/AllSlots → 动态体占位符退化为 map 参数） |
 | E2 | 跨 Mapper resultMap 限定名引用退化为 `interface{}` | 代码生成 | 共享 Java XML 多 Mapper 复用时关联字段类型丢失 | 中（✅ v0.3.24 已修复：resultMap 全局索引静态解析） |
 | E3 | namespace 冲突无诊断/别名机制 | 代码生成 | 共享 XML 被迫改名抬进仓库 | 中（✅ v0.3.25 已修复：重复 namespace 检测 + NamespacePrefix + RegisterNamespaceAlias） |
-| F1 | ✅ v0.3.26 已修复：`RewriteMySqlCompat` 翻译引擎 + `mybatis.configuration.function-rewrite` 开关（默认关），PG 族执行收口点全路径覆盖 | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高 |
-| F2 | `||` 跨模式语义差异无检测 | 方言能力 | 共享 XML 换 database_mode 语义全变 | 中 |
+| F1 | 缺 MySQL→PG 族函数/语法翻译层（`ifnull`/`find_in_set`/`date_format`/反引号/`col = 0`） | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高（✅ v0.3.26 已修复：RewriteMySqlCompat 翻译引擎 + function-rewrite 开关；`col = 0` 类型推断保守跳过） |
+| F2 | `||` 跨模式语义差异无检测 | 方言能力 | 共享 XML 换 database_mode 语义全变 | 中（✅ v0.3.27 已修复：portability-check 开关 + 执行收口点告警） |
 | G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本） |
 | G2 | 生产级开关（safe-update/explain-slow/pool-stats/cache）默认全关，无推荐预设 | 运维 | 上线默认无防护、无观测 | 中 |
 
@@ -345,11 +345,13 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 
 > **✅ 修复说明（v0.3.26）**：新增 `orm/dialector/mysql_compat.go` 翻译引擎（`RewriteMySqlCompat`，未按建议的简单 `map[string]string` 实现——`find_in_set`/`date_format` 需参数级重写，简单名称映射不够）+ `orm/function_rewrite.go` 开关（`orm.SetFunctionRewrite` / 配置 `mybatis.configuration.function-rewrite`，默认关）+ `DB.ExecContext/QueryContext/QueryRowContext` 三执行收口点挂载（全路径覆盖）。上表前 4 项已实现；`col = 0` 类型推断按建议保守跳过（文档明示边界，同 `find_in_set` 返回值序号差异）。仅 PG 族数据源生效，MySQL 族原生语法不动。详见 docs/features.md「MySQL 方言函数翻译」与 CHANGELOG v0.3.26。
 
-### F2【中】`||` 跨模式语义差异无检测
+### F2【中】`||` 跨模式语义差异无检测 ✅（v0.3.27 已修复）
 
 金仓 MySQL 兼容模式下 `||` 是**逻辑或**，Oracle/PG 模式才是**字符串拼接**（`AGENTS.sql-rules.md` 已记录）。框架 `sql_rewrite` 不做任何检测，共享 XML 一旦带 `||` 就是"换个 database_mode 语义全变"。
 
 **建议**：`mybatis.configuration.portability-check=true` 时扫描 `||` 并在非 Oracle/PG 模式下 Warn（或提供 `mybatis.sql-guards` 插件点，让使用方注册自定义守卫——本项目现有三个守卫脚本可迁进来）。
+
+> **✅ 修复说明（v0.3.27）**：新增 `orm/portability_check.go`（`orm.SetPortabilityCheck` / 配置 `mybatis.configuration.portability-check`，默认关）+ 引号/注释感知扫描器 `dialector.ContainsConcatOp`；三个执行收口点（`DB.ExecContext/QueryContext/QueryRowContext`）检测：MySQL 族执行 SQL 含 `||` → 告警「默认逻辑或（除非 PIPES_AS_CONCAT）」；KingbaseES（框架无法感知实际 database_mode）含 `||` → 告警「语义随兼容模式变化」；纯 PG/Oracle 不告警。每条 SQL 仅告警一次（sync.Map 去重）。仅诊断不改写。`mybatis.sql-guards` 插件点未实现（现有守卫脚本迁入属使用方工程化范畴，非框架缺陷）。详见 CHANGELOG v0.3.27。
 
 ---
 

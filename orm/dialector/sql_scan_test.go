@@ -86,3 +86,26 @@ func Test_TopLevelKeywordEnd(t *testing.T) {
 		t.Errorf("missing keyword should return -1, got %d", got)
 	}
 }
+
+func Test_ContainsConcatOp(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"plain concat", "SELECT a || b FROM t", true},
+		{"inside single quote", "SELECT 'a || b' FROM t", false},
+		{"escaped quote then concat", "SELECT 'it''s' || a FROM t", true},
+		{"line comment", "SELECT a FROM t -- x || y", false},
+		{"block comment", "SELECT /* x || y */ a FROM t", false},
+		{"after comment concat", "SELECT a -- c\n || b FROM t", true},
+		{"single pipe", "SELECT a | b FROM t", false},
+		{"no pipe", "SELECT a FROM t", false},
+		{"double quote ident", `SELECT "a||b" FROM t`, false},
+	}
+	for _, c := range cases {
+		if got := ContainsConcatOp(c.in); got != c.want {
+			t.Errorf("%s: ContainsConcatOp(%q) = %v, want %v", c.name, c.in, got, c.want)
+		}
+	}
+}

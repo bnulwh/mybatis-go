@@ -125,6 +125,7 @@ func (db *DB) clearCurTx(t *Transaction) {
 
 func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	start := time.Now()
+	db.checkPortability(query)
 	query = db.applyTablePrefix(query)
 	query = db.applyFunctionRewrite(query)
 	query = db.formatSQL(query, args)
@@ -156,6 +157,7 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 }
 func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	start := time.Now()
+	db.checkPortability(query)
 	query = db.applyTablePrefix(query)
 	query = db.applyFunctionRewrite(query)
 	query = db.formatSQL(query, args)
@@ -183,6 +185,7 @@ func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{
 }
 func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	start := time.Now()
+	db.checkPortability(query)
 	query = db.applyTablePrefix(query)
 	query = db.applyFunctionRewrite(query)
 	query = db.formatSQL(query, args)

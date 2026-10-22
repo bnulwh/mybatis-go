@@ -258,6 +258,28 @@ orm.SetFunctionRewrite(true) // 运行时开关
 - `date_format` 第二参数须为字符串字面量（绑定参数/列名跳过并告警）；`col = 0`（varchar 列）
   与 `col = '0'` 的类型差异不做推断改写。
 
+## `||` 跨模式语义检测（Portability Check）
+
+金仓 MySQL 兼容模式下 `||` 是**逻辑或**，PG/Oracle 模式才是**字符串拼接**——共享 XML
+一旦带 `||`，换个 database_mode 语义全变。开启检测后框架在执行前扫描（引号与注释内的
+`||` 不计），命中以下情形告警（每条 SQL 仅一次）：
+
+```properties
+mybatis.configuration.portability-check=true
+```
+
+```go
+orm.SetPortabilityCheck(true) // 运行时开关
+```
+
+| 数据源 | 行为 |
+|---|---|
+| MySQL 族 | `||` 默认为逻辑或（除非 `PIPES_AS_CONCAT`），与 PG/Oracle 拼接语义不同 → Warn |
+| KingbaseES | 框架无法感知实际 database_mode，`||` 语义随兼容模式变化 → Warn |
+| PostgreSQL / Oracle 等 | `||` 即拼接，语义无歧义 → 不告警 |
+
+仅诊断告警，不改写 SQL；默认关闭。
+
 ## SQL 格式化输出（Pretty SQL）
 
 开启后日志中的 SQL 将自动格式化：参数值替换占位符 + 关键字换行缩进，便于开发调试。**仅用于日志展示，不影响实际执行。**

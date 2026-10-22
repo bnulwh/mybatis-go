@@ -124,6 +124,50 @@ func HasTopLevelClause(sql string, keywords ...string) bool {
 	return TopLevelClausePos(sql, keywords...) >= 0
 }
 
+// ContainsConcatOp 报告 sql 在引号（'/"、含成对转义）与注释（--、/* */）之外
+// 是否包含 || 操作符（F2：跨模式语义差异检测）。
+func ContainsConcatOp(sql string) bool {
+	n := len(sql)
+	for i := 0; i < n; {
+		c := sql[i]
+		switch {
+		case c == '\'' || c == '"' || c == '`':
+			q := c
+			i++
+			for i < n {
+				if sql[i] == q {
+					if i+1 < n && sql[i+1] == q { // '' "" `` 转义
+						i += 2
+						continue
+					}
+					i++
+					break
+				}
+				i++
+			}
+		case c == '-' && i+1 < n && sql[i+1] == '-':
+			for i < n && sql[i] != '\n' {
+				i++
+			}
+		case c == '/' && i+1 < n && sql[i+1] == '*':
+			i += 2
+			for i+1 < n && !(sql[i] == '*' && sql[i+1] == '/') {
+				i++
+			}
+			if i+1 < n {
+				i += 2
+			} else {
+				i = n
+			}
+		case c == '|' && i+1 < n && sql[i+1] == '|':
+			return true
+		default:
+			i++
+		}
+	}
+	return false
+}
+
 // StripTopLevelTailClauses 从第一个顶层关键字处截断 sql（含其后全部内容），
 // 并去掉截断点前的尾部空白与分号。
 func StripTopLevelTailClauses(sql string, keywords ...string) string {

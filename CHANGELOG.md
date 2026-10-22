@@ -1,5 +1,11 @@
 # 更新日志
 
+- **v0.3.27（`||` 跨模式语义检测 F2，2026-10-22）**：共享 XML 带 `||` 时「换 database_mode 语义全变」的隐性风险可检测 — 新增诊断告警，默认关闭，不改写 SQL，存量行为不变 —
+  - **检测引擎**（新增 `orm/portability_check.go` + `orm/dialector/sql_scan.go` 增 `ContainsConcatOp`）：引号（`'`/`"`/`` ` ``，含成对转义）与注释（`--`、`/* */`）感知的 `||` 扫描；命中情形：MySQL 族（`||` 默认逻辑或，除非 `PIPES_AS_CONCAT`）→ 告警语义差异；KingbaseES（框架无法感知实际 database_mode，`||` 语义随兼容模式变化）→ 告警模式依赖；纯 PG/Oracle（`||` 即拼接）不告警
+  - **挂载收口**（`orm/database_connection.go`）：`DB.ExecContext`/`QueryContext`/`QueryRowContext` 三个执行收口点检测，每条 SQL 仅告警一次（`sync.Map` 去重）；`strings.Contains("||")` 快速预检零开销
+  - **开关与配置**：`orm.SetPortabilityCheck(on)` / `orm.PortabilityCheck()` + 配置 `mybatis.configuration.portability-check`（默认 false）；log 包补 `GetLogger()`（测试/临时替换后恢复）
+  - **测试**：新增 `orm/f2_portability_test.go`（MySQL 族告警+去重/引号注释不触发/开关关闭/金仓模式依赖告警/纯 PG 不告警/配置解析端到端）+ `orm/dialector/sql_scan_test.go` 增 `Test_ContainsConcatOp`（9 用例：转义引号/行注释/块注释/单管道/双引号标识符）；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.26（MySQL→PG 族函数翻译层 F1，2026-10-22）**：共享 Java XML 中的 MySQL 方言函数在 PG 族数据源上自动翻译，无需手改 XML 副本 — 新增功能、默认关闭，存量行为不变 —
   - **翻译引擎**（新增 `orm/dialector/mysql_compat.go`）：`RewriteMySqlCompat` —— 引号（`'`/`"`，含 `''`/`\"` 转义）与注释（`--`、`/* */`）保护下的词级扫描改写；支持 `ifnull(a,b)→coalesce(a,b)`、`find_in_set(x,csv)→position(','||x||',' in ','||csv||',')`、`date_format(d,'fmt')→to_char(d,'fmt')`（25 个 MySQL 格式符映射，`%T`/`%r` 复合展开，第二参数须字符串字面量否则跳过并告警）、`` `col`→"col" ``（反引号标识符，`` ` `` 转义保留）；函数参数递归改写（嵌套 `find_in_set(ifnull(a,b), csv)` 可用）；错参个数原样保留；可重入
   - **挂载收口**（`orm/database_connection.go`）：`DB.ExecContext`/`QueryContext`/`QueryRowContext` 三个执行收口点在表前缀改写后统一应用（COUNT 派生/分页注入/RowStream/流式查询全部路径覆盖）
