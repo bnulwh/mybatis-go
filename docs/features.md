@@ -52,30 +52,49 @@ for st.Next() {
 
 ## 事务
 
+推荐使用回调式事务 `orm.WithTx`（goroutine 安全、支持嵌套、不占全局槽）：
+
 ```go
-tx, err := orm.Begin()
-if err != nil {
-    log.Errorf("begin failed: %v", err)
-    return
-}
-defer tx.Rollback() // 未 Commit 时自动回滚（重复调用是安全 no-op）
-
-// 事务开启后，Mapper 方法 / orm.Execute / orm.Query 自动在事务内执行
-if _, err := mp.Insert(UserInfoModel{Username: "tx_user"}); err != nil {
-    return // defer 回滚
-}
-if _, err := mp.UpdateByPrimaryKey(...); err != nil {
-    return
-}
-
-if err := tx.Commit(); err != nil {
-    log.Errorf("commit failed: %v", err)
-}
+err := orm.WithTx(ctx, func(ctx context.Context) error {
+    // 声明了 context.Context 参数的 Mapper 方法传入 ctx 后自动加入事务
+    if _, err := mp.Insert(ctx, UserInfoModel{Username: "tx_user"}); err != nil {
+        return err // 返回 error → 自动回滚并原样返回
+    }
+    if _, err := mp.UpdateByPrimaryKey(ctx, ...); err != nil {
+        return err
+    }
+    return nil // 返回 nil → 自动提交
+})
 ```
 
-也可以直接使用 `tx.Exec` / `tx.Query` / `tx.QueryRow` 执行 SQL，或通过 `orm.BeginTx(ctx, opts)` 指定事务选项（如隔离级别）。
+要点：
 
-> 注意：事务绑定全局连接（单事务槽），多个 goroutine 之间不要交错开启事务。
+- **fn 返回 nil → Commit，返回 error → Rollback 并原样返回，panic → Rollback 后重新抛出**；
+- **嵌套复用**：`WithTx` 内再 `WithTx` 直接复用外层事务，事务边界由最外层决定；
+- **不占全局事务槽**，多个 goroutine 可各自 `WithTx` 互不冲突；
+- `orm.ExecuteContext` / `QueryContext` / `QueryToContext` 传入 ctx 同样加入事务；
+- **C2 诊断**：`WithTx` 内调用未声明 `context.Context` 参数的 Mapper 方法不会加入事务
+  （走独立连接、不随回滚），首次执行时框架 `Warn` 提示；可用
+  `orm.SetTxScopeWarn(false)` 或 `mybatis.configuration.tx-scope-warn=false` 关闭。
+
+旧版 TCC 三件套（`Begin`/`Commit`/`Rollback`）仍可用但**已标记 Deprecated**（占用全局
+单事务槽，多 goroutine 交错开启会互相劫持提交/回滚），首次使用时框架输出迁移告警：
+
+```go
+// 已废弃，仅存量代码兼容 —— 请迁移到 orm.WithTx
+tx, err := orm.Begin()
+defer tx.Rollback()
+if _, err := mp.Insert(UserInfoModel{Username: "tx_user"}); err != nil { // 自动在此事务内
+    return
+}
+err = tx.Commit()
+```
+
+也可以在 `WithTx` 内通过 `tx.Exec` / `tx.Query` / `tx.QueryRow` 直接执行 SQL
+（`orm.TxFromContext(ctx)` 取出事务对象）。
+
+> 注意：`Begin`/`BeginTx` 绑定全局连接（单事务槽），多个 goroutine 之间不要交错开启事务；
+> 新代码一律使用 `WithTx`。
 
 ## 内嵌 Mapper（go:embed）
 

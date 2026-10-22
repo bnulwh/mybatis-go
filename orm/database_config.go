@@ -54,6 +54,9 @@ type MyBatisSetting struct {
 	// RowLimitStrict 严格行数上限模式（mybatis.configuration.row-limit-strict，B3）：
 	// 达到上限返回 ErrRowLimitExceeded 而非静默截断。
 	RowLimitStrict bool
+	// TxScopeWarn WithTx 作用域内执行未加入事务的 Mapper 方法时告警（C2，
+	// mybatis.configuration.tx-scope-warn，默认开）。
+	TxScopeWarn bool
 }
 
 type Config struct {
@@ -193,6 +196,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			ReadWriteSplitting: parseBool(m, "mybatis.configuration.read-write-splitting", false),
 			MaxRows:           parseInt64(m, "mybatis.max-rows", 0),
 			RowLimitStrict:    parseBool(m, "mybatis.configuration.row-limit-strict", false),
+			TxScopeWarn:       parseBool(m, "mybatis.configuration.tx-scope-warn", true),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,

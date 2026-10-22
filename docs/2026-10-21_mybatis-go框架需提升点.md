@@ -18,7 +18,8 @@
 | B1/B2 | `buildCountSQL` / `ApplyPagination` 用正则剥 `ORDER BY`/`LIMIT`，会误剥子查询内层 | 分页缺陷 | 启用 `PageParam` 后 total 错、内层 LIMIT 被删 | 高（✅ v0.3.20 已修复：深度感知扫描器替代正则） |
 | B3 | 全局行数上限 10000 静默截断，无按语句覆盖，`MaxRows` 是死字段 | 正确性 | 大结果集静默丢行 | 高（⚠️ v0.3.20 部分修复：严格模式 ErrRowLimitExceeded + max-rows 配置接入；语句级覆盖未做） |
 | B4 | `PageParam` 与 XML 手写 `LIMIT` 共存无诊断 | 分页缺陷 | 双重分页静默错数据 | 低（✅ v0.3.20 已修复：运行时告警） |
-| C1 | `orm.Begin()` 全局单事务槽仍在且无 Deprecated 引导（`WithTx` 已可用） | 并发/事务 | 误用即串行或事务互相劫持 | 高 |
+| C1 | `orm.Begin()` 全局单事务槽仍在且无 Deprecated 引导（`WithTx` 已可用） | 并发/事务 | 误用即串行或事务互相劫持 | 高（✅ v0.3.21 已修复：Deprecated + 运行时迁移告警，行为不变） |
+| C2 | `WithTx` 与「Mapper 方法未声明 ctx」组合静默走非事务连接 | 事务 | 事务语义失效且无提示 | 中（✅ v0.3.21 已修复：WithTx 作用域检测 + 运行时告警） |
 | D1 | `NewMapper(name) interface{}` 找不到即 panic，无 error 版本、无泛型取用 | API 设计 | 调用方只能裸类型断言 | 中高 |
 | D2 | 无 Mapper 注册表自省 API | 可观测 | 使用方只能硬编码计数 | 中 |
 | D3 | 行级 scan/convert 失败只打 ERROR 日志仍返回部分数据，无 strict 选项 | 正确性 | "少了行"无法被调用方感知 | 中高 |
@@ -205,6 +206,8 @@ XML 已写 `LIMIT #{limit} OFFSET #{offset}`（本项目 130 处）又声明 `*P
 
 ### C1【高】`orm.Begin()` 全局单事务槽仍在，且没有 Deprecated 引导
 
+> ✅ **已于 v0.3.21 修复（Deprecated + 运行时迁移告警）**：`orm.Begin`/`orm.BeginTx`（含 `DB.Begin`/`DB.BeginTx` 多数据源变体，`orm/transaction.go`）全部标记 `Deprecated` 指向 `WithTx(ctx, fn)`；首次使用时 `log.Warnf` 迁移提示（每进程一次）；docs/features.md 事务章节重写为 WithTx 优先 + 迁移指引。行为不变（存量代码零破坏）。
+
 **框架证据**：`orm/transaction.go:15-40`
 ```go
 // Begin 在全局连接上开启事务。
@@ -218,6 +221,8 @@ v0.3.6 已提供正确解 `orm.WithTx(ctx, fn)`（`:88-120`，`beginDetachedTx` 
 **建议**：`Begin/Commit/Rollback` 标 `Deprecated: 请使用 WithTx`；`Begin()` 内部改为"检测到已有 ctx 事务则复用"，或用 `gDbConn.BeginTx(ctx)` 强制要求 ctx；文档置顶迁移指引。
 
 ### C2【中】`WithTx` 与「Mapper 方法未声明 ctx」的组合无告警
+
+> ✅ **已于 v0.3.21 修复（运行时告警）**：新增 `orm/tx_scope.go` —— `WithTx` 进入/退出时在当前 goroutine 打作用域标记（嵌套计数、panic 路径平衡）；Mapper 代理（executeMethod/executeStream/executePage）检测「语句 ctx 未携带事务且处于 WithTx 作用域内」→ `log.Warnf`（每 namespace.id 一次），提示该语句走独立连接、不随 WithTx 提交/回滚。开关：`orm.SetTxScopeWarn(false)` / `mybatis.configuration.tx-scope-warn=false`（默认开）。测试见 `orm/tx_scope_test.go`（含端到端：无 ctx 方法在 WithTx 回滚后仍留存的行为记录）。
 
 `WithTx` 只对 `ExecContext/QueryContext/QueryToContext` 与「Mapper 方法声明 `context.Context` 参数」的执行路径生效。若方法签名没带 ctx（本项目 **0/1203 条语句**带 ctx），`WithTx` 内调用会**静默走非事务连接**——语义上等于事务失效，但无任何提示。
 

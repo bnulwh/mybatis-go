@@ -18,8 +18,12 @@ type Transaction struct {
 	once sync.Once
 }
 
-// Begin 在全局连接上开启事务。
+// Begin 在全局连接上开启事务（TCC 全局事务槽）。
 // 注意：事务绑定全局连接（单事务槽），请勿在多个 goroutine 中交错开启事务。
+//
+// Deprecated: 单事务槽在多 goroutine 下会互相劫持提交/回滚。请迁移到
+// orm.WithTx(ctx, fn)（回调式，goroutine 安全、支持嵌套复用、不占全局槽）；
+// 方法签名加 context.Context 参数并传入 WithTx 的 ctx 即自动加入事务。
 func Begin() (*Transaction, error) {
 	if gDbConn == nil {
 		return nil, fmt.Errorf("connection not init.")
@@ -28,6 +32,9 @@ func Begin() (*Transaction, error) {
 }
 
 // BeginTx 与 Begin 相同，但支持传入 context 与事务选项。
+//
+// Deprecated: 与 Begin 同样占用 TCC 全局单事务槽。请迁移到 orm.WithTx(ctx, fn)；
+// 需要事务选项（隔离级别等）的场景可通过 TxFromContext 在 WithTx 内操作。
 func BeginTx(ctx context.Context, opts *sql.TxOptions) (*Transaction, error) {
 	if gDbConn == nil {
 		return nil, fmt.Errorf("connection not init.")
@@ -35,11 +42,26 @@ func BeginTx(ctx context.Context, opts *sql.TxOptions) (*Transaction, error) {
 	return gDbConn.BeginTx(ctx, opts)
 }
 
+// Begin 在指定 DB 上开启事务（TCC 全局事务槽）。
+//
+// Deprecated: 单事务槽在多 goroutine 下会互相劫持提交/回滚。请迁移到 db.WithTx(ctx, fn)。
 func (db *DB) Begin() (*Transaction, error) {
 	return db.BeginTx(context.Background(), nil)
 }
 
+// warnTccTxOnce TCC 全局槽事务首次使用时的迁移提示（C1，仅告警一次）。
+var warnTccTxOnce sync.Once
+
+func warnTccTxDeprecated() {
+	warnTccTxOnce.Do(func() {
+		log.Warnf("orm.Begin/BeginTx occupy the global single transaction slot and are NOT safe "+
+			"for concurrent transactions; consider migrating to orm.WithTx(ctx, fn) "+
+			"(goroutine-safe, nestable, does not use the global slot)")
+	})
+}
+
 func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Transaction, error) {
+	warnTccTxDeprecated()
 	sqldb, err := db.DB()
 	if err != nil {
 		return nil, err
@@ -91,7 +113,9 @@ func TxFromContext(ctx context.Context) *Transaction {
 //     （事务边界由最外层 WithTx 决定）；
 //   - 事务不占用 TCC 全局事务槽，多个 goroutine 可各自 WithTx 互不冲突；
 //   - fn 内通过 orm.ExecuteContext / QueryContext / QueryToContext，或声明
-//     context.Context 参数的 Mapper 方法自动加入本事务。
+//     context.Context 参数的 Mapper 方法自动加入本事务；
+//   - C2：fn 内调用未声明 ctx 的 Mapper 方法不会加入事务，首次执行时 Warn
+//     提示（SetTxScopeWarn(false) 可关闭）。
 func WithTx(ctx context.Context, fn func(ctx context.Context) error) error {
 	if gDbConn == nil {
 		return fmt.Errorf("connection not init.")
@@ -105,6 +129,9 @@ func (db *DB) WithTx(ctx context.Context, fn func(ctx context.Context) error) er
 		return fmt.Errorf("WithTx: fn cannot be nil")
 	}
 	if tx := TxFromContext(ctx); tx != nil {
+		// C2：嵌套复用外层事务，同样标记作用域（内层 fn 里的非 ctx 语句也要诊断）
+		enterTxScope()
+		defer leaveTxScope()
 		return fn(ctx)
 	}
 	tx, err := db.beginDetachedTx(ctx, nil)
@@ -117,6 +144,9 @@ func (db *DB) WithTx(ctx context.Context, fn func(ctx context.Context) error) er
 			panic(p)
 		}
 	}()
+	// C2：标记 WithTx 作用域（panic 路径经 defer 平衡）
+	enterTxScope()
+	defer leaveTxScope()
 	txCtx := context.WithValue(ctx, txContextKey{}, tx)
 	if err := fn(txCtx); err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {

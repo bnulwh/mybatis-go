@@ -58,6 +58,8 @@ func InitializeFromSettings(cm map[string]string) error {
 	if cfg.Setting.RowLimitStrict {
 		SetRowLimitStrict(true)
 	}
+	// C2：WithTx 作用域诊断开关（默认开）
+	SetTxScopeWarn(cfg.Setting.TxScopeWarn)
 	return combineErrors(err1, err2)
 }
 

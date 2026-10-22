@@ -1,5 +1,11 @@
 # 更新日志
 
+- **v0.3.21（事务 C1/C2 修复，2026-10-22）**：TCC 全局单事务槽 API 标记 Deprecated 引导迁移 `WithTx`（C1）；`WithTx` 内调用未加入事务的 Mapper 方法增加运行时告警（C2）—— 均为行为不变的可观测性增强，存量代码零破坏 —
+  - **C1 Deprecated + 迁移告警**（`orm/transaction.go`）：`orm.Begin`/`orm.BeginTx`（含 `DB.Begin`/`DB.BeginTx` 多数据源变体）标记 `Deprecated: 请使用 WithTx(ctx, fn)`（goroutine 安全、嵌套复用、不占全局槽）；首次使用时 `log.Warnf` 迁移提示（`sync.Once` 每进程一次）；docs/features.md 事务章节重写为 WithTx 优先 + 旧 API 迁移指引
+  - **C2 WithTx 作用域诊断**（新增 `orm/tx_scope.go`）：`WithTx` 进入/退出时在当前 goroutine 打作用域标记（goroutine id 经 `runtime.Stack` 解析；嵌套 `WithTx` 计数累加；panic 路径经 defer 平衡；进程内无活动 WithTx 时快路径仅一次原子读）；Mapper 代理（`executeMethod`/`executeStream`/`executePage`）检测「语句 ctx 未携带事务且处于 WithTx 作用域内」→ `log.Warnf`（每 namespace.id 一次），提示该语句走独立连接、不随 WithTx 提交/回滚
+  - **C2 开关**：`orm.SetTxScopeWarn(on)` / `TxScopeWarn()` + 配置 `mybatis.configuration.tx-scope-warn`（默认开）
+  - **测试**：新增 `orm/tx_scope_test.go`（作用域 goroutine 隔离/嵌套、告警幂等/带 tx ctx 不告警/开关关闭、端到端「无 ctx 方法在 WithTx 回滚后仍留存」行为记录、配置解析）；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.20（分页与行数上限 B1-B4 修复，2026-10-22）**：修复分页 COUNT/分页注入正则误剥子查询内层子句（B1/B2）两处「total 错/内层 LIMIT 被删」级缺陷，行数上限增加严格模式（B3），PageParam 与手写 LIMIT 共存增加告警（B4）—
   - **顶层 SQL 子句扫描器**（新增 `orm/dialector/sql_scan.go`）：`TopLevelClausePos`/`TopLevelKeywordEnd`/`StripTopLevelTailClauses`/`HasTopLevelClause`/`IsSQLSpace` —— 括号深度 + 引号（`'`/`"`/`` ` ``）+ 注释（`--` 与 `/* */`）感知的扫描器，只识别**顶层**（深度 0）关键字；关键字小写短语、词边界判断、短语内空格匹配任意空白（`ORDER\t\n BY`/`FOR\n UPDATE` 均可命中）；多关键字取最左命中
   - **B1 `buildCountSQL` 深度感知重写**（`orm/sql_rewrite.go`）：派生 COUNT 前只剥离顶层尾部子句（`order by`/`limit`/`offset`/`returning`/`for update`/`for share`/`for no key update`/`for key share`）；SELECT→COUNT(*) 替换边界按顶层 SELECT/FROM 定位 —— 子查询内层 `ORDER BY`/`LIMIT`（`ROW_NUMBER() OVER (ORDER BY ...)`、标量子查询 `(SELECT ... LIMIT 1)`）原样保留；新支持 WITH/CTE 前缀语句；旧正则（`reLimit`/`reOrderBy`/`reSelectFrom` 等）全部移除；既有用例输出逐字节不变

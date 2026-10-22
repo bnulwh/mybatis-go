@@ -42,6 +42,8 @@ func (in *BaseMapper) executeStream(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	}
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
+	// C2：WithTx 作用域内未加入事务的语句告警一次
+	warnNonCtxInTxScope(arg.Ctx, in.Namespace, sqlFunc.Id)
 	args := arg.buildArgs()
 	// P0-1：显式 ${ew} 占位模式，Wrapper 以 ew 键并入渲染参数（生成 SQL 前注入）
 	wrapperExplicit := arg.Wrapper != nil && hasNamedSlot(sqlFunc, "ew")
@@ -260,6 +262,8 @@ func (in *BaseMapper) executePage(sqlFunc *types.SqlFunction, arg ProxyArg) (val
 	}
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
+	// C2：WithTx 作用域内未加入事务的语句告警一次
+	warnNonCtxInTxScope(arg.Ctx, in.Namespace, sqlFunc.Id)
 	args := arg.buildArgs()
 	// P0-1：显式 ${ew} 占位模式，Wrapper 以 ew 键并入渲染参数（生成 SQL 前注入）
 	wrapperExplicit := arg.Wrapper != nil && hasNamedSlot(sqlFunc, "ew")
@@ -319,6 +323,8 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	//defer in.lock.Unlock()
 	start := time.Now()
 	defer sqlFunc.UpdateUsage(start, err == nil)
+	// C2：WithTx 作用域内未加入事务的语句告警一次
+	warnNonCtxInTxScope(arg.Ctx, in.Namespace, sqlFunc.Id)
 	log.Debugf("func: %v ,state : %v", sqlFunc, gDbConn.Statement)
 	args := arg.buildArgs()
 	if sqlFunc.Type == types.InsertFunction {
