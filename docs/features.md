@@ -137,6 +137,36 @@ err := orm.RegisterMapperSources(
 底层解析入口在 `types` 包，可脱离 orm 单独使用：`types.NewSqlMappersFrom(fsys, patterns...)`
 与 `types.NewSqlMappersFromSources(sources...)`。
 
+### namespace 冲突检测与前缀/别名（E3）
+
+- **同 namespace 多文件检测**：同一 `namespace` 被多个 XML 文件加载时（后者覆盖前者），
+  加载期 `log.Warnf` 列出全部文件，并记入 `types.SqlMappers.NamespaceConflicts`
+  （orm 侧 `orm.NamespaceConflicts()` 查询）。覆盖行为不变，仅提升可观测性——
+  「共享 Java XML 与本地 Mapper 同名互踩」「来源顺序写反」等问题加载期即暴露。
+- **`MapperSource.NamespacePrefix`**：该来源下所有 namespace 加 `prefix.` 前缀，
+  绑定键改为「前缀 + 短名」且不注册裸短名键，可与无前缀同名 Mapper 并存互不覆盖；
+  Go 结构体命名为 前缀+短名 即可绑定（prefix 应为合法 Go 标识符段，不含点）：
+
+```go
+// Go 端已有 PlatformDisplayMapper 时，共享 Java XML 无需改名即可并存：
+err := orm.RegisterMapperSources(
+    orm.MapperSource{Patterns: []string{"my/mapper"}},                                       // 本地
+    orm.MapperSource{FS: sharedXML, Patterns: []string{"java/mapper"}, NamespacePrefix: "Quality"}, // 共享，前缀隔离
+)
+orm.RegisterMapper(new(mapper.QualityPlatformDisplayMapper)) // 结构体名 = Quality + 短名
+```
+
+- **`orm.RegisterNamespaceAlias(alias, name)`**：为已加载 Mapper 注册别名
+  （alias 各查找键解析到与 name 相同的 SqlMapper），并自动重绑全部已注册结构体；
+  namespace 改名 / 加前缀后旧引用（旧名结构体、`NewMapper("OldName")`）不失效：
+
+```go
+// XML namespace 已由 PlatformDisplayMapper 改名为 QualityPlatformDisplayMapper：
+err := orm.RegisterNamespaceAlias("PlatformDisplayMapper", "QualityPlatformDisplayMapper")
+```
+
+alias 键覆盖既有不同 Mapper 时仅告警不报错（与加载期「后者覆盖前者」语义一致）。
+
 ## 性能优化
 
 框架在执行热路径上做了以下优化（详见 `TODO.md`）：

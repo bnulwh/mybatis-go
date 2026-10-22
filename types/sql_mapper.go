@@ -115,6 +115,11 @@ func loadMapperFrom(info mapperInfo) *SqlMapper {
 		log.Warnf("skip mapper xml file %v without namespace", filename)
 		return nil
 	}
+	// E3 NamespacePrefix：带前缀来源在此统一改写 namespace，下游 owner（函数缓存键）、
+	// MP 内置 CRUD 等 namespace 消费点保持一致。
+	if info.nsPrefix != "" {
+		namespace = info.nsPrefix + "." + namespace
+	}
 	mps := filterResultMap(node.Elements)
 	nms := makeNamedMap(mps)
 	sns := filterSqlElement(node.Elements)

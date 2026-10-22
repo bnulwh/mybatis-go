@@ -24,7 +24,10 @@
 | D2 | 无 Mapper 注册表自省 API | 可观测 | 使用方只能硬编码计数 | 中（✅ v0.3.22 已修复：RegisteredMapperNames/MapperFuncCount） |
 | D3 | 行级 scan/convert 失败只打 ERROR 日志仍返回部分数据，无 strict 选项 | 正确性 | "少了行"无法被调用方感知 | 中高（✅ v0.3.22 已修复：SetStrictResult + ErrResultConvertIncomplete + LastConvertReport） |
 | E1 | `CollectSqlSlots` 不采集 `<if>/<foreach>` 体内占位符 → xml2go 生成签名丢动态参数 | 代码生成 | 动态 SQL Mapper 无法用生成层，只能手写 | 高（✅ v0.3.23 已修复：CollectAllSqlSlots/AllSlots → 动态体占位符退化为 map 参数） |
+| E2 | 跨 Mapper resultMap 限定名引用退化为 `interface{}` | 代码生成 | 共享 Java XML 多 Mapper 复用时关联字段类型丢失 | 中（✅ v0.3.24 已修复：resultMap 全局索引静态解析） |
+| E3 | namespace 冲突无诊断/别名机制 | 代码生成 | 共享 XML 被迫改名抬进仓库 | 中（✅ v0.3.25 已修复：重复 namespace 检测 + NamespacePrefix + RegisterNamespaceAlias） |
 | F1 | 缺 MySQL→PG 族函数/语法翻译层（`ifnull`/`find_in_set`/`date_format`/反引号/`col = 0`） | 方言能力 | 共享 Java XML 必须手改副本才能跑 PG/金仓 PG 模式 | 中高 |
+| F2 | `||` 跨模式语义差异无检测 | 方言能力 | 共享 XML 换 database_mode 语义全变 | 中 |
 | G1 | `docs/mybatis-go使用问题与解决方案.md` 停留在 v0.1.7，多条结论已过时且无废弃标注 | 文档 | 使用方按旧文档做过时变通（本项目已中招） | 中高（低成本） |
 | G2 | 生产级开关（safe-update/explain-slow/pool-stats/cache）默认全关，无推荐预设 | 运维 | 上线默认无防护、无观测 | 中 |
 
@@ -308,6 +311,12 @@ if report.Skipped > 0 || len(report.Errors) > 0 {
 `docs/agents/xml2go.md` 已列为已知边界（`resultMap="OtherMapper.Xxx"` 静态不可解析 → 字段 `interface{}`）。对共享 Java XML 的多 Mapper 复用场景影响面不小。建议：支持 `-resultmap-index` 全局索引（先扫全量 XML 建 resultMap 表，再生成）。
 
 ### E3【中】namespace 冲突无诊断/别名机制
+
+> ✅ **已于 v0.3.25 修复**：
+> ① **重复 namespace 检测**：`NewSqlMappersFromSources` 加载期检测「同 namespace 多文件」，覆盖行为不变（后者覆盖前者）但 `log.Warnf` 列出全部文件，并记入 `SqlMappers.NamespaceConflicts`（orm 侧 `orm.NamespaceConflicts()` 查询）；
+> ② **`MapperSource.NamespacePrefix`**：该来源所有 namespace 加 `prefix.` 前缀（函数 Owner 等 namespace 消费点一致），绑定键改「前缀+短名」且不注册裸短名键 —— 共享 Java XML 与本地同名 Mapper 并存互不覆盖，Go 结构体命名 前缀+短名（如 QualityPlatformDisplayMapper）即可绑定；
+> ③ **`orm.RegisterNamespaceAlias(alias, name)`**（新增 `orm/namespace_alias.go`）：别名各查找键解析到与 name 相同的 `*SqlMapper` 并自动重绑全部结构体 —— namespace 改名/加前缀后旧引用不断；alias 覆盖既有不同 Mapper 仅告警。
+> 见 `types/sql_mappers.go` + `types/sql_mapper.go` + `orm/namespace_alias.go`；测试 `types/namespace_e3_test.go` + `orm/e3_namespace_test.go`（别名/前缀 sqlite 端到端）。
 
 `RegisterMapperFS` 是"替换全部 SQL 定义"语义（`orm/embed_fs.go:38-45`），同一 namespace 多来源仅"后者覆盖前者"（`:49`）。**没有**「同名 Mapper 结构体已存在」或「两文件同 namespace」的诊断。
 

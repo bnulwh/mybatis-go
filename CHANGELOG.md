@@ -1,5 +1,11 @@
 # 更新日志
 
+- **v0.3.25（namespace 冲突诊断与前缀/别名机制 E3，2026-10-22）**：共享 XML 与本地 Mapper 同名冲突可诊断、可隔离 —— 均为可观测性/新增 API，覆盖行为不变，存量代码零破坏 —
+  - **重复 namespace 检测**（`types/sql_mappers.go`）：加载期「同 namespace 多文件」覆盖时 `log.Warnf` 列出全部文件（后者覆盖前者行为不变），并记入新增 `SqlMappers.NamespaceConflicts`（`NamespaceConflict{Namespace, Files}`，按 namespace 排序）；orm 侧新增 `orm.NamespaceConflicts()` 查询
+  - **`MapperSource.NamespacePrefix`**（`types/sql_mappers.go` + `types/sql_mapper.go`）：该来源所有 namespace 加 `prefix.` 前缀（`mapperInfo.nsPrefix` 在解析期统一注入，函数 Owner / MP 内置 CRUD 等 namespace 消费点一致；两端空白与点号自动规整）；绑定键改「前缀 + 短名」且**不注册裸短名键** —— 带前缀来源与无前缀同名 Mapper 并存互不覆盖，Go 结构体命名 前缀+短名（如 `QualityPlatformDisplayMapper`）即可绑定
+  - **`orm.RegisterNamespaceAlias(alias, name)`**（新增 `orm/namespace_alias.go`）：别名各查找键（原名/小写/短名/小写短名）解析到与 name 相同的 `*types.SqlMapper`，注册后自动重绑全部已注册结构体 —— namespace 改名/加前缀后旧引用（旧名结构体、`NewMapper("OldName")`）不失效；alias 覆盖既有不同 Mapper 仅告警不报错
+  - **测试**：types `namespace_e3_test.go`（重复 namespace 记录/无冲突为空/前缀键隔离与 Owner 一致性/前缀规整）+ orm `e3_namespace_test.go`（别名 sqlite 端到端、失败路径、前缀绑定端到端、冲突查询）；全量 `go vet` / `go test ./...` 零回归
+
 - **v0.3.24（xml2go 跨 Mapper resultMap 限定名引用修复 E2，2026-10-22）**：共享 Java XML 多 Mapper 复用时关联字段不再退化 `interface{}` —
   - **修复**（`types/xml2go_gen.go` + `types/result_item.go`）：`GenerateXml2GoFiles` 先扫全量 XML 建 resultMap 全局索引（全限定 `namespace.id` + 短前缀 `Mapper短名.id` 两种键，同键先注册者生效）；嵌套 association/collection 的限定名引用经 `lookupNestedResultMap` 静态解析为真实关联类型（`*SysDept` / `[]SysRole`）
   - **边界保持**：裸 id 跨 Mapper 引用仍退化（与 MyBatis 裸 id 仅本 Mapper 解析语义一致，避免同名 id 歧义）；`golangType`/`nestedTypeName` 增加 globalResultMaps 参数（querier_gen/result_map 旧调用点传 nil，行为不变）
