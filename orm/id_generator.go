@@ -117,8 +117,10 @@ var snowflakeEpoch int64 = 1704067200000
 func snowflakeIdGenerator(ctx context.Context) interface{} {
 	snowflakeOnce.Do(func() {
 		workerID := int64(1)
-		if gDbConn != nil && gDbConn.Config != nil && gDbConn.Setting.SnowflakeWorkerID > 0 {
-			workerID = gDbConn.Setting.SnowflakeWorkerID
+		// P1-6：按语句实际数据源读取 worker-id（namespace 绑定的数据源可独立配置）
+		db := routedDB(ctx)
+		if db != nil && db.Config != nil && db.Setting.SnowflakeWorkerID > 0 {
+			workerID = db.Setting.SnowflakeWorkerID
 		}
 		snowflakeInst = &sfNode{workerID: workerID % 1024}
 	})

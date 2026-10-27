@@ -54,18 +54,19 @@ func explainSlowSQL(hc *HookContext) {
 	if hc.Duration < slowSQLThreshold {
 		return
 	}
-	if gDbConn == nil || gDbConn.ConnPool == nil {
+	db := routedDB(hc.Ctx)
+	if db == nil || db.ConnPool == nil {
 		return
 	}
 
-	family := getDBFamily()
+	family := dbFamilyOf(db)
 	prefix := explainSQLPrefix(family)
 	explainSQL := prefix + hc.SQL
 
 	ctx, cancel := context.WithTimeout(hc.Ctx, 10*time.Second)
 	defer cancel()
 
-	rows, err := gDbConn.QueryContext(ctx, explainSQL)
+	rows, err := db.QueryContext(ctx, explainSQL)
 	if err != nil {
 		log.Warnf("EXPLAIN failed for slow SQL (cost=%v): %v\n  SQL: %v", hc.Duration, err, hc.SQL)
 		return
@@ -99,8 +100,13 @@ func explainSlowSQL(hc *HookContext) {
 }
 
 func getDBFamily() dialector.DatabaseFamily {
-	if gDbConn != nil && gDbConn.Dialector != nil {
-		return gDbConn.Dialector.Family()
+	return dbFamilyOf(gDbConn)
+}
+
+// dbFamilyOf 返回指定数据源的方言族（P1-6：按语句实际数据源判定 EXPLAIN 语法）。
+func dbFamilyOf(db *DB) dialector.DatabaseFamily {
+	if db != nil && db.Dialector != nil {
+		return db.Dialector.Family()
 	}
 	return dialector.FamilyMySQL
 }

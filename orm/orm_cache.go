@@ -185,6 +185,8 @@ func bindMapper(name string, mapper reflect.Value) {
 		methodFieldCheck(&outTyp, &funcField, true)
 		//执行期
 		var proxyFunc = func(arg ProxyArg) []reflect.Value {
+			// P1-6：按语句所属 namespace 解析数据源并写入 ctx（不依赖全局 UseDataSource 切换）
+			arg.Ctx = routeNamespaceDB(arg.Ctx, bm.Namespace)
 			if returnType.ReturnOutType != nil && *returnType.ReturnOutType == rowStreamType {
 				rv, e := bm.executeStream(sqlFunc, arg)
 				return buildReturnValues(returnType, rv, e)

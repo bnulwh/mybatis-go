@@ -69,11 +69,24 @@ func routeReplica() *DB {
 	return db
 }
 
+// inTransaction 判断默认活跃数据源上是否存在 TCC 全局事务槽（兼容既有调用）。
 func inTransaction() bool {
 	if gDbConn == nil {
 		return false
 	}
 	if gDbConn.currentTx() != nil {
+		return true
+	}
+	return false
+}
+
+// inTransactionWith 判断 ctx 是否处于事务：ctx 事务优先，其次检查当前路由数据源
+// （namespace 绑定的数据源）与默认活跃数据源上的 TCC 全局事务槽（P1-6）。
+func inTransactionWith(ctx context.Context) bool {
+	if ctx != nil && TxFromContext(ctx) != nil {
+		return true
+	}
+	if db := routedDB(ctx); db != nil && db.currentTx() != nil {
 		return true
 	}
 	return false
@@ -99,10 +112,12 @@ func routeReadDB(ctx context.Context) context.Context {
 	if !ReadWriteSplittingEnabled() {
 		return ctx
 	}
-	if inTransaction() {
+	// P1-6：namespace 已绑定到非默认数据源时不参与全局副本路由——副本集合
+	// （mybatis.replicas）属于默认数据源，跨数据源路由会打到错误的库。
+	if base := routedDB(ctx); base != nil && base != gDbConn {
 		return ctx
 	}
-	if tx := TxFromContext(ctx); tx != nil {
+	if inTransactionWith(ctx) {
 		return ctx
 	}
 	replica := routeReplica()

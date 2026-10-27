@@ -37,10 +37,11 @@ func QueryTo(dst interface{}, sqlStr string, args ...interface{}) error {
 
 // QueryToContext 与 QueryTo 相同，但支持传入 context（超时控制 / WithTx 事务）。
 func QueryToContext(ctx context.Context, dst interface{}, sqlStr string, args ...interface{}) error {
-	if gDbConn == nil {
+	db := routedDB(ctx)
+	if db == nil {
 		return fmt.Errorf("connection not init.")
 	}
-	return gDbConn.QueryToContext(ctx, dst, sqlStr, args...)
+	return db.QueryToContext(ctx, dst, sqlStr, args...)
 }
 
 // QueryToContext 实例级扫描直通道（G1）：作用于指定 DB 实例（多数据源 / gormish 场景），
@@ -60,7 +61,7 @@ func (db *DB) QueryToContext(ctx context.Context, dst interface{}, sqlStr string
 		log.Errorf("fill sql %v result failed: %v", sqlStr, err)
 		return err
 	}
-	schemaHints := buildSchemaHints(sqlStr, colTypes)
+	schemaHints := buildSchemaHints(ctx, sqlStr, colTypes)
 	return scanRowsInto(ctx, rows, colTypes, schemaHints, dst)
 }
 

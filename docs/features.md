@@ -599,15 +599,45 @@ orm.RegisterReplica("replica2", "mysql", "replica2-host", 3306, "reader", "pwd",
 db, err := orm.PickReplica()
 ```
 
-### 路由规则
+## 按 namespace 绑定数据源（Namespace DataSource）
 
-| 场景 | 路由目标 |
-|------|---------|
-| SELECT（无事务） | 副本（轮询） |
-| INSERT / UPDATE / DELETE | 主库 |
-| 事务内（Begin / WithTx） | 主库 |
-| 读写分离关闭 | 主库 |
-| 无可用副本 | 降级到主库 |
+多数据源此前的唯一用法是 `orm.UseDataSource(name)` 切换**全局**活跃数据源——并发请求
+交错切换会互相劫持（A 请求的 SQL 打到 B 的数据源）。按 namespace 绑定把「数据源」与
+「Mapper namespace」静态关联，执行期按语句所属 namespace 解析数据源，不再依赖全局切换：
 
-- 基于 context 传递路由 DB，不修改全局 `gDbConn`，并发安全
-- `orm.Execute` / `orm.Query` 等顶层 API 不走读写分离（无 SQL 类型信息）；Mapper 方法自动路由
+```properties
+mybatis.datasources= orderdb,userdb
+
+# datasource → namespace 前缀（逗号分隔，支持多个；结尾 * 可省略）
+mybatis.datasource.bind.orderdb= com.demo.mapper.NsOrderMapper,com.demo.order
+mybatis.datasource.bind.userdb= com.demo.mapper.NsUserMapper
+```
+
+```go
+// 编程方式（等价）
+orm.BindNamespaceDataSource("com.demo.mapper.NsOrderMapper", "orderdb")
+orm.UnbindNamespaceDataSource("com.demo.mapper.NsOrderMapper")
+orm.NamespaceDataSourceBindings() // 查看现有绑定
+```
+
+### 匹配规则
+
+1. namespace 先**精确匹配**，再按**最长前缀**匹配（`com.demo.order*` 等价 `com.demo.order`）；
+2. 未命中任何绑定的语句沿用全局活跃数据源（`gDbConn`），**存量行为不变**；
+3. 绑定优先于 `UseDataSource` 的全局切换，二者可共存（未绑定语句仍受 `UseDataSource` 影响）。
+
+### 与事务/读写分离的关系
+
+- `orm.WithTx(ctx, fn)` / `db.WithTx`：事务内的语句以**事务所属数据源**为准（同一事务不跨库）；
+  若某 namespace 绑定到另一数据源，执行时会告警一次并提示改用
+  `orm.WithTxForNamespace(ctx, namespace, fn)`（按绑定数据源开启事务）；
+- Mapper 方法声明 `context.Context` 参数并传入事务 ctx 时同样生效；
+- 绑定的数据源**不参与**读写分离的副本路由（副本集合 `mybatis.replicas` 属于默认数据源，
+  跨数据源路由会打到错误的库）。
+
+### 边界
+
+- `orm.Execute / orm.Query` 等无 namespace 的顶层 API 仍走全局活跃数据源；
+- 表前缀、方言、预编译缓存、schema 缓存、`safe-update`、snowflake worker-id 等均取
+  **绑定数据源自身**的配置（每个 `*DB` 持有独立 `Config`），可与默认数据源不同；
+- 数据源在 `Initialize*` 时注册，绑定到未注册数据源会在初始化期报错（配置错误前移到启动期）。

@@ -73,7 +73,7 @@ func QueryStream(ctx context.Context, sqlStr string, args ...interface{}) (*RowS
 		log.Errorf("fill sql %v result failed: %v", sqlStr, err)
 		return nil, err
 	}
-	schemaHints := buildSchemaHints(sqlStr, colTypes)
+	schemaHints := buildSchemaHints(ctx, sqlStr, colTypes)
 	// B3：语句级 maxRows 覆盖 > 全局 DefaultRowLimit；打开时快照
 	limit, statement := effectiveRowLimit(ctx)
 	return &RowStream{

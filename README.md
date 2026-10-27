@@ -50,7 +50,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 - [x] SQLite 支持 — 已实现（纯 Go 驱动 modernc.org/sqlite，无需 CGO，`cmd/sqlitedemo` 示例）
 - [x] KingbaseES 支持 — 已实现（人大金仓，兼容 PostgreSQL 线协议，复用 `lib/pq` 驱动，`cmd/kingbasedemo` 示例）
 - [x] 事务支持 — 已实现（`orm.Begin()` / `Commit()` / `Rollback()`）
-- [x] 多数据源支持 — 已实现（`orm.InitializeDataSources` / `orm.UseDataSource`）
+- [x] 多数据源支持 — 已实现（`orm.InitializeDataSources` / `orm.UseDataSource`；按 namespace 静态绑定 `orm.BindNamespaceDataSource` / `mybatis.datasource.bind.<ds>`，并发安全）
 
 ### 国产数据库适配计划
 
@@ -293,7 +293,7 @@ func main() {
 |------|------|------|
 | 大结果集流式查询 | `QueryStream` / Mapper 流式 select，游标逐行消费、内存 O(1) | [docs/features.md](docs/features.md) |
 | 事务 | `orm.Begin/Commit/Rollback` + `orm.WithTx` 回调式事务 | [docs/features.md](docs/features.md) |
-| 多数据源 | 单配置文件声明多数据源，`orm.UseDataSource` 切换 | [docs/configuration.md](docs/configuration.md) |
+| 多数据源 | 单配置文件声明多数据源；按 namespace 静态绑定（并发安全）或 `orm.UseDataSource` 全局切换 | [docs/configuration.md](docs/configuration.md) |
 | 配置文件 | Spring Boot 风格 `.properties`，各数据库连接示例 + 配置项说明 + 编程式配置 | [docs/configuration.md](docs/configuration.md) |
 | 数据表名前缀 | 同一套 XML 多环境物理表名切换（前缀改写 / 前缀映射） | [docs/configuration.md](docs/configuration.md) |
 | 内嵌 Mapper（go:embed） | XML 随二进制分发，单文件部署，支持磁盘覆盖热修 | [docs/features.md](docs/features.md) |
@@ -400,6 +400,7 @@ go run ./cmd/seaboxsqldemo  # SeaboxSQL（东方金信，PG 兼容族，待真�
 ├── orm/                 # 核心 ORM 框架
 │   ├── transaction.go   # 事务支持（Begin/Commit/Rollback）
 │   ├── multi_datasource.go  # 多数据源注册表（InitializeDataSources / UseDataSource / AddDataSource）
+│   ├── namespace_datasource.go # 按 namespace 绑定数据源（BindNamespaceDataSource / WithTxForNamespace）
 │   ├── row_stream.go    # 大结果集流式读取（QueryStream / RowStream，Mapper 流式 select）
 │   ├── embed_fs.go      # go:embed 内嵌 Mapper 加载（RegisterMapperFS / RegisterMapperSources / ReloadMappers）
 │   ├── dialector/       # 数据库方言

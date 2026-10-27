@@ -77,13 +77,19 @@ func (in *BaseMapper) executeStream(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	return reflect.ValueOf(stream), nil
 }
 
-// needsReturning 判断当前数据库是否需要通过 RETURNING 子句获取自增主键。
-// PostgreSQL / KingbaseES 的 LastInsertId() 返回 error，需改用 INSERT ... RETURNING。
+// needsReturning 判断当前活跃数据库是否需要通过 RETURNING 子句获取自增主键。
 func needsReturning() bool {
-	if gDbConn == nil || gDbConn.Dialector == nil {
+	return needsReturningFor(gDbConn)
+}
+
+// needsReturningFor 判断指定数据源是否需要 RETURNING 取回自增主键（P1-6：
+// namespace 绑定的数据源可能与非默认数据源方言不同）。
+// PostgreSQL / KingbaseES 的 LastInsertId() 返回 error，需改用 INSERT ... RETURNING。
+func needsReturningFor(db *DB) bool {
+	if db == nil || db.Dialector == nil {
 		return false
 	}
-	return gDbConn.Dialector.NeedsReturning()
+	return db.Dialector.NeedsReturning()
 }
 
 // keyColumnToSnake 把 keyProperty 驼峰名转为下划线列名（id → id, jobId → job_id, CreateTime → create_time）。
@@ -331,7 +337,11 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	arg.Ctx = withStatementRowLimit(arg.Ctx, in.Namespace+"."+sqlFunc.Id, sqlFunc.MaxRows)
 	// C2：WithTx 作用域内未加入事务的语句告警一次
 	warnNonCtxInTxScope(arg.Ctx, in.Namespace, sqlFunc.Id)
-	log.Debugf("func: %v ,state : %v", sqlFunc, gDbConn.Statement)
+	execDB := routedDB(arg.Ctx)
+	if execDB == nil {
+		return reflect.Value{}, fmt.Errorf("connection not init.")
+	}
+	log.Debugf("func: %v ,state : %v", sqlFunc, execDB.Statement)
 	args := arg.buildArgs()
 	if sqlFunc.Type == types.InsertFunction {
 		fillIdIfZero(arg.Ctx, arg)
@@ -369,7 +379,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 	}()
 	switch sqlFunc.Type {
 	case types.InsertFunction, types.DeleteFunction, types.UpdateFunction:
-		if gDbConn != nil && gDbConn.Setting.SafeUpdate &&
+		if execDB.Setting.SafeUpdate &&
 			(sqlFunc.Type == types.UpdateFunction || sqlFunc.Type == types.DeleteFunction) &&
 			!hasWhereClause(sqlStr) {
 			return reflect.Value{}, ErrSafeUpdateBlocked
@@ -377,7 +387,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 		// M-03：PostgreSQL / KingbaseES 不支持 LastInsertId()，
 		// 通过 RETURNING 子句读取自增主键（INSERT ... RETURNING col → Query + Scan）。
 		// MySQL / SQLite 仍走 LastInsertId() 路径，行为不变。
-		if sqlFunc.Type == types.InsertFunction && sqlFunc.UseGeneratedKeys && sqlFunc.KeyProperty != "" && needsReturning() {
+		if sqlFunc.Type == types.InsertFunction && sqlFunc.UseGeneratedKeys && sqlFunc.KeyProperty != "" && needsReturningFor(execDB) {
 			keyCol := sqlFunc.KeyColumn
 			if keyCol == "" {
 				keyCol = keyColumnToSnake(sqlFunc.KeyProperty)
@@ -385,7 +395,7 @@ func (in *BaseMapper) executeMethod(sqlFunc *types.SqlFunction, arg ProxyArg) (v
 			returningSQL := sqlStr + " RETURNING " + keyCol
 			ctx, cancel := withExecTimeout(arg.Ctx)
 			defer cancel()
-			rows, qErr := gDbConn.QueryContext(ctx, returningSQL, sqlargs...)
+			rows, qErr := execDB.QueryContext(ctx, returningSQL, sqlargs...)
 			if qErr != nil {
 				log.Errorf("execute RETURNING query failed: %v", qErr)
 				return reflect.Value{}, qErr

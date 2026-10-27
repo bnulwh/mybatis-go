@@ -54,6 +54,26 @@ orm.UseDataSource("report")
 
 其他 API：`orm.GetDataSource(name)`、`orm.GetDataSourceNames()`、`orm.ReConnectDataSource(name)`。
 
+### 按 namespace 绑定数据源（推荐，P1-6）
+
+`UseDataSource` 是**全局**切换，并发下会互相劫持。多租户 / 按 Mapper 分库建议用静态绑定：
+
+```properties
+mybatis.datasources= orderdb
+spring.datasource.orderdb.url= jdbc:postgresql://localhost:5432/order
+
+# 数据源 → Mapper namespace（或其前缀），逗号分隔
+mybatis.datasource.bind.orderdb= com.demo.mapper.NsOrderMapper,com.demo.order
+```
+
+```go
+orm.BindNamespaceDataSource("com.demo.mapper.NsOrderMapper", "orderdb") // 编程方式
+orm.WithTxForNamespace(ctx, "com.demo.mapper.NsOrderMapper", func(ctx context.Context) error { ... })
+```
+
+未命中绑定的语句仍走全局活跃数据源（存量行为不变）；事务内语句以事务所属数据源为准。
+详见[功能文档](features.md)。
+
 > 注意：切换发生在全局层，请避免在并发 goroutine 中交错切换数据源；Mapper XML 定义对所有数据源共享。
 
 ## 配置文件
@@ -418,6 +438,7 @@ mybatis.mapper-locations= resources/mapper
 | `spring.datasource.max-timeout` | 连接最大存活时长（秒） | 300 |
 | `spring.datasource.prepared-stmt` | 是否启用预编译语句缓存（`false` 关闭，适合 PgBouncer 等不支持服务端预编译的代理场景） | true |
 | `mybatis.mapper-locations` | XML Mapper 文件目录（也支持 `go:embed` 内嵌，见下文） | - |
+| `mybatis.datasource.bind.<datasource>` | 按 namespace 绑定数据源（P1-6，替代全局 `UseDataSource` 切换）：值为 Mapper namespace 或其前缀（逗号分隔，`*` 结尾可省略），详见[多数据源](configuration.md#按-namespace-绑定数据源推荐p1-6)与[功能文档](features.md) | - |
 | `mybatis.table-prefix` | 数据表名前缀（如 `test_`），SQL 执行时自动拼接到表名前，XML Mapper 语句无需改动 | - |
 | `mybatis.configuration.safe-update` | UPDATE/DELETE 无 WHERE 子句时阻止执行 | false |
 | `mybatis.configuration.function-rewrite` | MySQL 方言函数翻译（`ifnull`/`find_in_set`/`date_format`/反引号 → PG 等价形式），仅 PG 族数据源生效，详见[功能文档](features.md) | false |

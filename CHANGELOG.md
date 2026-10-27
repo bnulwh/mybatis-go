@@ -1,11 +1,13 @@
 # 更新日志
 
-- **未发布（占位符改写正确性 + `<bind>` / 未注册标签诊断，2026-10-27）**：
+- **未发布（占位符改写正确性 + `<bind>` / 未注册标签诊断 + namespace 数据源绑定，2026-10-27）**：
 
   - **P0-1 占位符改写字面量/注释感知**（新增 `orm/dialector/placeholder.go`）：旧 `formatDollar/Colon/AtPPlaceholders` 用 `strings.Split(src, "?")` 顺序编号，会改写字符串字面量、引号标识符、行/块注释、`$$` 美元引用字符串内的 `?`，并把 jsonb 的 `?` / `?|` / `?&` 操作符当占位符——`SELECT * FROM t WHERE c = '?' AND id = ?` 曾产出 `c = '$1' … id = $2`（参数错位），`payload ? 'k'` 曾产出 `payload $1 'k'`（语法错）。新实现逐字符扫描，只有代码区 `?` 改写为 `$n` / `:n` / `@pn`，字面量与注释原样保留（行注释连同行尾换行保留，归一化后不再吞后续 SQL），补充 `E'...'` 反斜杠转义与 PG `#>` / `#>>` 操作符处理；代码区空白折叠行为保留（预编译缓存键稳定）。测试：`orm/dialector/placeholder_test.go`
   - **P0-3 `<bind>` 绑定变量（对标 Java MyBatis）**：新增 `types/sqlfragment/bind.go`（`RegisterNodeParser("bind")`）——加载期编译表达式子集（字符串/数字/`null`/`true`/`false`、点号引用、`+` / `||` 拼接与纯数字求和；方法调用/三元/`*` `/` `-` 加载期报错），求值期写入本次渲染的参数 map；`SqlFunction` 新增 `HasBind` / `BoundNames` / `BindRefs`，`<bind>` 语句强制 map 渲染（含无参语句），调用方 map 浅拷贝不产生副作用，绑定变量从 `Param.Slots` 剔除、表达式引用并入 Slots（按位绑定与 xml2go 签名一致）；`<if>` 子解析改走统一注册表入口（`parseFragmentFromXmlElement`），`<bind>`/新节点在 `<if>` 体内同样可用
   - **P0-3 未注册标签诊断**：未注册标签不再「error 日志后丢弃」，改为保留占位节点（不产出 SQL）+ 注册期按 `mapper.函数` 汇总 `[unknown-tag]` Warn；新增 `mybatis.configuration.strict-unknown-tag` / `orm.SetStrictUnknownTags`（默认关，开启后注册期报错）；`orm/param_type.go` 的需参判定改用 `SqlFunction.RequiresCallerArgs()`（绑定变量不要求函数声明参数）
   - 测试：`types/sqlfragment/bind_test.go`、`orm/bind_test.go`（SQLite 端到端、map 不污染、严格模式失败）、`orm/dialector/placeholder_test.go`；`types/sqlfragment/node_test.go` 未注册标签断言同步更新
+  - **P1-6 按 namespace 绑定数据源（替代全局 `UseDataSource` 切换）**：新增 `orm/namespace_datasource.go` —— `orm.BindNamespaceDataSource(prefix, ds)` / `UnbindNamespaceDataSource` / `ResetNamespaceDataSourceBindings` / `NamespaceDataSourceBindings`，配置 `mybatis.datasource.bind.<ds>=<namespace 前缀,...>`（`*` 可省略）；匹配「精确优先 → 最长前缀」，未命中回退活跃数据源（存量行为不变）；Mapper 代理分派前按 namespace 注入 ctx 路由（复用 `contextWithRoute`/`routedDB`），`safe-update` / RETURNING 回填 / schema 提示 / `QueryToContext` / 慢 SQL EXPLAIN / snowflake worker-id 等执行链路口径统一到路由后的 `*DB`；新增 `orm.WithTxForNamespace`（绑定源开事务），ctx 事务优先并告警跨源冲突；绑定到非默认源的 namespace 不参与 `mybatis.replicas` 副本路由
+  - 测试：`orm/namespace_datasource_test.go`（双 SQLite 数据源路由与写入、16 goroutine 并发不串库、绑定/解绑与配置校验、WithTxForNamespace 提交回滚、副本路由不劫持绑定源）
 
 - **v0.3.19（框架质量大修：动态 SQL / 分页 / 事务 / API / 代码生成 / 方言 / 运维，A-H 八大系列 24 项修复与增强，2026-10-22）**：按《框架需提升点》清单一次性收口 — 新增能力默认关闭或行为不变，存量代码零破坏 —
 

@@ -157,7 +157,7 @@ func queryRows(ctx context.Context, sqlStr string, args ...interface{}) ([]map[s
 		log.Errorf("fill sql %v result failed: %v", sqlStr, err)
 		return nil, err
 	}
-	schemaHints := buildSchemaHints(sqlStr, colTypes)
+	schemaHints := buildSchemaHints(ctx, sqlStr, colTypes)
 	results, err := fetchRows(ctx, rows, colTypes, schemaHints)
 	if err != nil {
 		log.Errorf("fill sql %v result failed: %v", sqlStr, err)
@@ -167,11 +167,13 @@ func queryRows(ctx context.Context, sqlStr string, args ...interface{}) ([]map[s
 }
 
 // buildSchemaHints 从 SQL 中提取表名，查询表结构缓存，为列构建类型提示。
-func buildSchemaHints(sqlStr string, colTypes []*sql.ColumnType) map[string]*columnSchemaHint {
-	if gDbConn == nil {
+// ctx 用于解析实际执行的数据源（P1-6：namespace 绑定的数据源有自己的 schema 缓存）。
+func buildSchemaHints(ctx context.Context, sqlStr string, colTypes []*sql.ColumnType) map[string]*columnSchemaHint {
+	db := routedDB(ctx)
+	if db == nil {
 		return nil
 	}
-	tableNames := extractTableNamesFromSQL(sqlStr, gDbConn.reservedTableNames())
+	tableNames := extractTableNamesFromSQL(sqlStr, db.reservedTableNames())
 	if len(tableNames) == 0 {
 		return nil
 	}
@@ -179,7 +181,7 @@ func buildSchemaHints(sqlStr string, colTypes []*sql.ColumnType) map[string]*col
 	for _, colType := range colTypes {
 		colName := colType.Name()
 		for _, tbl := range tableNames {
-			hint := gDbConn.lookupColumnSchema(tbl, colName)
+			hint := db.lookupColumnSchema(tbl, colName)
 			if hint != nil {
 				hints[colName] = hint
 				break

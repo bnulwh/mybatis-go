@@ -38,6 +38,17 @@ func (r *dataSources) get(name string) (*DB, bool) {
 	return db, ok
 }
 
+// snapshot 返回 name → *DB 的浅拷贝（诊断/日志遍历用，不持锁返回内部 map）。
+func (r *dataSources) snapshot() map[string]*DB {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make(map[string]*DB, len(r.sources))
+	for name, db := range r.sources {
+		out[name] = db
+	}
+	return out
+}
+
 func (r *dataSources) names() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -87,11 +98,20 @@ func InitializeDataSourcesFromSettings(cm map[string]string) error {
 	if db, ok := gDataSources.get(defaultDataSourceName); ok {
 		gDbConn = db
 	}
+	// P1-6：应用 namespace → 数据源静态绑定（默认不配置则行为不变）
+	ResetNamespaceDataSourceBindings()
+	if err := applyNamespaceBindingConfig(cm); err != nil {
+		errs = append(errs, err)
+	}
 	return combineErrors(err1, combineErrors(errs...))
 }
 
 // UseDataSource 切换当前活跃数据源，影响后续 Mapper 方法 / orm.Execute / orm.Query / Begin。
-// 注意：切换发生在全局层，请避免在并发 goroutine 中交错切换。
+//
+// 注意：切换发生在全局层，并发 goroutine 交错切换会互相劫持（A 请求的 SQL 打到
+// B 的数据源）。多租户/按 Mapper 分库请改用 P1-6 的静态绑定：
+// orm.BindNamespaceDataSource / 配置 mybatis.datasource.bind.<ds>=<namespace 前缀,...>，
+// 绑定优先于本函数的全局切换。
 func UseDataSource(name string) error {
 	db, ok := gDataSources.get(name)
 	if !ok {

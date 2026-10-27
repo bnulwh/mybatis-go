@@ -28,12 +28,16 @@ func InitializeFromSettings(cm map[string]string) error {
 	cfg := NewConfigFromSettings(cm)
 	err1 := gCache.initSqls(cfg.Setting.MapperLocations)
 	db, err2 := Open(cfg)
+	var err3 error
 	if err2 == nil {
 		gDbConn = db
 		gDataSources.closeAll()
 		gDataSources.reset()
 		gDataSources.add(defaultDataSourceName, db)
 		SetPrettySQL(cfg.Setting.PrettySQL)
+		// P1-6：namespace → 数据源绑定（单数据源初始化下通常只指向 default）
+		ResetNamespaceDataSourceBindings()
+		err3 = applyNamespaceBindingConfig(cm)
 	}
 	ensureUpsertFunctions()
 	initSecondCache(cfg.Setting.CacheEnabled, cfg.Setting.LocalCacheSize, cfg.Setting.LocalCacheTTL)
@@ -74,7 +78,7 @@ func InitializeFromSettings(cm map[string]string) error {
 	SetStrictUnknownTags(cfg.Setting.StrictUnknownTags)
 	// G2：启动期提示未开启的生产推荐配置项（每进程一次）
 	warnUnrecommendedSettings(cfg.Setting)
-	return combineErrors(err1, err2)
+	return combineErrors(err1, combineErrors(err2, err3))
 }
 
 // ReConnect 重连当前活跃数据源（兼容旧 API）。
@@ -123,6 +127,7 @@ func InitializeDatabase(dbType, host string, port int, user, pwd, dbName string)
 	gDataSources.closeAll()
 	gDataSources.reset()
 	gDataSources.add(defaultDataSourceName, db)
+	ResetNamespaceDataSourceBindings()
 	SetPrettySQL(false)
 	return nil
 }
@@ -193,6 +198,7 @@ func getRealValue(val string, em map[string]string) string {
 
 func Close() {
 	StopPoolStatsLogger()
+	ResetNamespaceDataSourceBindings()
 	gDataSources.closeAll()
 	gDataSources.reset()
 	gDbConn = nil
