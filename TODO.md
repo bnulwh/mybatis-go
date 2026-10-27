@@ -7,6 +7,11 @@
 
 ## ✅ 已完成
 
+### 未发布（v0.3.19 之后）
+
+- **P0-1 占位符改写字面量/注释感知**（`orm/dialector/placeholder.go`）：旧实现按 `strings.Split(src, "?")` 编号，把字符串字面量、引号标识符、行/块注释、`$$` 美元引用字符串里的 `?` 也计入，并吃掉 jsonb 的 `?` / `?|` / `?&` 操作符（`c = '?' AND id = ?` → 参数错位；`payload ? 'k'` → 语法错；`-- 注释里的 ?` → 占位符越界）。新实现逐字符扫描，只在代码区改写 `$n` / `:n` / `@pn`，字面量与注释原样保留（连同行尾换行，注释不再吞后续 SQL），`E'...'` 反斜杠转义与 PG `#>` / `#>>` 操作符一并覆盖；代码区空白仍折叠为单空格以保证预编译缓存键稳定。回归：`orm/dialector/placeholder_test.go`（15 组反例 + 三方言 + MySQL `#` 注释）
+- **P0-3 `<bind>` 绑定变量 + 未注册标签诊断**：① 新增 `types/sqlfragment/bind.go`——`<bind name value>` 加载期编译（字符串/数字/`null`/`true`/`false`/点号引用、`+`/`||` 拼接与求和，超出子集加载期报错），求值期把结果写回本次渲染的参数 map（调用方 map 浅拷贝不污染），绑定变量名从 `Param.Slots` 剔除、表达式引用并入 Slots（参与按位绑定与 xml2go 签名），`<if>` 体内也可用；② 未注册标签不再执行「日志后丢弃」：保留占位节点（不产出 SQL），注册期按 `mapper.函数` 汇总 `[unknown-tag]` Warn，`mybatis.configuration.strict-unknown-tag` / `orm.SetStrictUnknownTags(true)` 下注册期直接报错；③ `orm/param_type.go` 的「无参函数 + 需参语句」判定改用 `SqlFunction.RequiresCallerArgs()`（<bind> 产生变量不要求函数声明参数）。回归：`types/sqlfragment/bind_test.go`、`orm/bind_test.go`（SQLite 端到端 / map 不污染 / 严格模式注册失败）
+
 ### P4 国际主流数据库 MSSQL/Oracle/DB2/ClickHouse 适配（未发布）
 
 - **P4 MS SQL Server 数据库适配**：独立 `MssqlDialector`（MSSQL 方言族），占位符 `?→@p1/@p2`…（`PlaceholderAtP`），`NeedsReturning` 返回 false（使用 `SCOPE_IDENTITY()` + `LastInsertId()`），`INFORMATION_SCHEMA.COLUMNS` + `INFORMATION_SCHEMA.TABLE_CONSTRAINTS` 表结构查询，分页使用 `OFFSET N ROWS FETCH NEXT M ROWS ONLY`（需 SQL 含 `ORDER BY`），默认 Schema 为 `dbo`，DSN 格式 `sqlserver://user:password@host:port?database=dbname`；新增 `DatabaseFamily.MSSQL` 族、`PlaceholderStyle.PlaceholderAtP`；JDBC URL 支持 `jdbc:sqlserver://` 格式；`ParseDatabaseType` 支持 `mssql`/`sqlserver`/`mssql-server` 别名；`GetDriverName` 返回 `sqlserver`；新增 `cmd/mssqldemo` 示例；`application-mssql.properties` 配置模板；用户需引入 MSSQL 驱动（`_ "github.com/microsoft/go-mssqldb"`）；dialector 单元测试覆盖

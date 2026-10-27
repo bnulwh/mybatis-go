@@ -68,6 +68,15 @@ func (in *mapperInfo) bindSql(smp *types.SqlMapper) error {
 			errs = append(errs, err)
 		} else {
 			validateIfTestFields(in.Name, fi.Name, sf)
+			// P0-3：未注册 XML 标签（如 <selectKey>）——严格模式下注册期报错，
+			// 否则按 mapper.语句 汇总告警（旧实现仅一条无上下文的 error 日志后忽略）。
+			if tags := sf.UnsupportedTags; len(tags) > 0 {
+				if StrictUnknownTags() && IsStrictRegister() {
+					errs = append(errs, fmt.Errorf("%v.%v: unsupported xml tags %v (strict-unknown-tag enabled)", in.Name, fi.Name, tags))
+				} else {
+					log.Warnf("[unknown-tag] %v.%v: unsupported xml tags dropped %v (enable mybatis.configuration.strict-unknown-tag to fail fast)", in.Name, fi.Name, tags)
+				}
+			}
 			// A3：未识别 <if test> 表达式——严格 if-test 模式下注册期直接报错
 			// （宽松注册模式仅告警），否则按语句汇总告警（默认，行为不变）。
 			if u := sf.UnsupportedIfTests; len(u) > 0 {

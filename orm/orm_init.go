@@ -70,6 +70,8 @@ func InitializeFromSettings(cm map[string]string) error {
 	SetPortabilityCheck(cfg.Setting.PortabilityCheck)
 	// A3：<if test> 严格模式（未识别表达式注册期报错 + 求值期按 false）
 	SetStrictIfTest(cfg.Setting.StrictIfTest)
+	// P0-3：未注册标签严格模式（未注册标签注册期报错，默认仅 Warn）
+	SetStrictUnknownTags(cfg.Setting.StrictUnknownTags)
 	// G2：启动期提示未开启的生产推荐配置项（每进程一次）
 	warnUnrecommendedSettings(cfg.Setting)
 	return combineErrors(err1, err2)

@@ -110,10 +110,18 @@ func Test_RegisterNodeParser(t *testing.T) {
 	if got := nodes[0].GenerateSqlWithoutParam(); got != "ok" {
 		t.Error("custom node render =", got, "want ok")
 	}
-	// 未注册标签：解析报错并跳过（ParseFragments log-and-continue）
+	// 未注册标签：P0-3 起不再丢弃，保留占位节点（不产出 SQL），
+	// 供注册期 CollectUnsupportedTags 定位汇总（默认 Warn / strict-unknown-tag 报错）。
 	nodes2, _ := ParseFragments([]XmlElement{{ElementType: XmlNodeElem, Val: XmlNode{Name: "no_such_tag"}}}, nil)
-	if len(nodes2) != 0 {
-		t.Error("unregistered tag should be skipped, got", len(nodes2))
+	if len(nodes2) != 1 {
+		t.Error("unregistered tag should be kept as placeholder node, got", len(nodes2))
+		return
+	}
+	if got := nodes2[0].GenerateSqlWithoutParam(); got != "" {
+		t.Error("unregistered tag should render empty sql, got", got)
+	}
+	if tags := CollectUnsupportedTags(nodes2); len(tags) != 1 || tags[0] != "no_such_tag" {
+		t.Error("CollectUnsupportedTags =", tags, "want [no_such_tag]")
 	}
 }
 

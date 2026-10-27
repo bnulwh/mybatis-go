@@ -20,7 +20,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 
 ## 特性
 
-- **MyBatis 风格**：XML Mapper 定义 SQL，`#{}` / `${}` 参数绑定，完整动态 SQL（`<if>` / `<where>` / `<set>` / `<trim>` / `<foreach>` / `<choose>` / `<include>`），动态 SQL 引擎独立为 `types/sqlfragment` 包（`Node` 接口 + 节点注册表，开放封闭扩展新节点）
+- **MyBatis 风格**：XML Mapper 定义 SQL，`#{}` / `${}` 参数绑定，完整动态 SQL（`<if>` / `<where>` / `<set>` / `<trim>` / `<foreach>` / `<choose>` / `<include>` / `<bind>`），动态 SQL 引擎独立为 `types/sqlfragment` 包（`Node` 接口 + 节点注册表，开放封闭扩展新节点）
 - **反射代理**：Mapper struct 的函数字段在运行时自动注入代理，无需手动实现
 - **结果自动映射**：查询结果自动映射到 Go struct，支持 `resultMap`（含 `<association>` / `<collection>` 嵌套关联类型生成）
 - **自增主键回填**：`useGeneratedKeys` / `keyProperty` 支持，Insert 后自动回填自增主键到入参 struct 指针

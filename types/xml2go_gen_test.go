@@ -494,3 +494,72 @@ func Test_GenerateXml2GoFiles_Samples(t *testing.T) {
 	t.Logf("samples xml2go: %v model files, %v mappers, %v functions, %v skipped",
 		len(result.ModelFiles), len(result.Stats), totalFn, skipped)
 }
+
+// Test_GenerateXml2GoFiles_Bind P0-3：<bind> 语句的签名推导——
+// 绑定变量（pattern）不得作为调用方参数；表达式引用的参数（keyword）必须保留。
+func Test_GenerateXml2GoFiles_Bind(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	xml := `<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.demo.mapper.BindMapper">
+  <resultMap id="bindResult" type="com.demo.domain.BindUser">
+    <id column="id" jdbcType="BIGINT" property="id" />
+    <result column="name" jdbcType="VARCHAR" property="name" />
+  </resultMap>
+  <select id="selectByKeyword" resultMap="bindResult">
+    <bind name="pattern" value="'%' + keyword + '%'"/>
+    select id, name from bind_user where name like #{pattern}
+  </select>
+  <select id="selectByLiteral" resultMap="bindResult">
+    <bind name="status" value="'on'"/>
+    select id, name from bind_user where status = #{status}
+  </select>
+</mapper>`
+	if err := os.WriteFile(filepath.Join(dir, "BindMapper.xml"), []byte(xml), 0644); err != nil {
+		t.Fatal(err)
+	}
+	mps := NewSqlMappers(dir)
+	if len(mps.Mappers) == 0 {
+		t.Error("load BindMapper failed")
+		return
+	}
+	out := t.TempDir()
+	result, err := mps.GenerateXml2GoFiles(&Xml2GoOptions{OutputDir: out, ModulePrefix: "example.com/demo"})
+	if err != nil {
+		t.Error("GenerateXml2GoFiles failed:", err)
+		return
+	}
+	var mapperFile string
+	for _, s := range result.Stats {
+		if GetShortName(s.Mapper) == "BindMapper" {
+			mapperFile = s.MapperFile
+		}
+	}
+	if mapperFile == "" {
+		t.Error("BindMapper file not found")
+		return
+	}
+	if err := ParseQuerierFileSyntax(mapperFile); err != nil {
+		t.Error("mapper file syntax invalid:", err)
+		return
+	}
+	mc, err := os.ReadFile(mapperFile)
+	if err != nil {
+		t.Error("read mapper file failed:", err)
+		return
+	}
+	src := collapseSpace(string(mc))
+	// 引用参数保留、绑定变量剔除
+	if !strings.Contains(src, "SelectByKeyword func(keyword interface{}) ([]models.BindUser, error)") {
+		t.Errorf("SelectByKeyword signature should expose keyword only, got:\n%v", src)
+	}
+	if strings.Contains(src, "pattern interface{}") {
+		t.Errorf("bind variable pattern must not become a caller parameter, got:\n%v", src)
+	}
+	// 纯字面量 <bind>：无调用方参数
+	if !strings.Contains(src, "SelectByLiteral func() ([]models.BindUser, error)") {
+		t.Errorf("SelectByLiteral should take no parameter, got:\n%v", src)
+	}
+}

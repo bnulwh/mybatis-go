@@ -225,11 +225,130 @@ func parseFragmentFromXmlElement(elem XmlElement, sns map[string]*SqlElement) (N
 		xn := elem.Val.(XmlNode)
 		parser, ok := lookupNodeParser(xn.Name)
 		if !ok {
-			return nil, fmt.Errorf("not support sql text type %v", xn.Name)
+			// P0-3：未注册标签不再丢弃——保留占位节点，注册期可定位并汇总
+			// （默认 Warn，strict-unknown-tag 下报错），避免「能启动、一调用才挂」。
+			log.Debugf("unsupported xml tag <%v> in statement body, recorded for registration check", xn.Name)
+			return &unsupportedTagNode{Tag: xn.Name}, nil
 		}
 		return parser(xn, sns)
 	}
 	return nil, fmt.Errorf("wrong type of element type %v", elem.ElementType)
+}
+
+// unsupportedTagNode 未注册标签占位节点（P0-3）：不产出任何 SQL，但保留在片段树中，
+// 使注册期能带上 mapper/语句上下文汇总告警；旧实现仅一条无上下文 error 日志后丢弃。
+type unsupportedTagNode struct {
+	Tag string
+}
+
+func (in *unsupportedTagNode) PrepareSqlWithMap(map[string]interface{}, int) (string, []string) {
+	return "", nil
+}
+
+func (in *unsupportedTagNode) GenerateSqlWithMap(map[string]interface{}, int) string { return "" }
+
+func (in *unsupportedTagNode) PrepareSqlWithParam(interface{}) (string, []string) { return "", nil }
+
+func (in *unsupportedTagNode) GenerateSqlWithParam(interface{}) string { return "" }
+
+func (in *unsupportedTagNode) PrepareSqlWithSlice([]interface{}, int) (string, []string) {
+	return "", nil
+}
+
+func (in *unsupportedTagNode) GenerateSqlWithSlice([]interface{}, int) string { return "" }
+
+func (in *unsupportedTagNode) GenerateSqlWithoutParam() string { return "" }
+
+func (in *unsupportedTagNode) Children() []Node { return nil }
+
+func (in *unsupportedTagNode) CollectSlots() []string { return nil }
+
+func (in *unsupportedTagNode) ContainsForEach() bool { return false }
+
+func (in *unsupportedTagNode) CollectIfTestFields() []string { return nil }
+
+func (in *unsupportedTagNode) UnsupportedIfTests() []string { return nil }
+
+// UnsupportedTag 返回未注册标签名。
+func (in *unsupportedTagNode) UnsupportedTag() string { return in.Tag }
+
+// walkNodeTree 深度优先遍历片段树（含嵌套子片段）。
+func walkNodeTree(items []Node, fn func(Node)) {
+	for _, it := range items {
+		if it == nil {
+			continue
+		}
+		fn(it)
+		walkNodeTree(it.Children(), fn)
+	}
+}
+
+// CollectUnsupportedTags 递归收集片段树中未注册的标签名（去重、按首现序，P0-3）。
+func CollectUnsupportedTags(items []Node) []string {
+	seen := map[string]bool{}
+	var out []string
+	walkNodeTree(items, func(n Node) {
+		p, ok := n.(interface{ UnsupportedTag() string })
+		if !ok {
+			return
+		}
+		tag := p.UnsupportedTag()
+		k := buildKey(tag)
+		if k == "" || seen[k] {
+			return
+		}
+		seen[k] = true
+		out = append(out, tag)
+	})
+	return out
+}
+
+// CollectBoundNames 递归收集 <bind> 绑定的变量名（去重、按首现序）。
+// 这些名字由语句自身产生，不从调用方参数取值（1.1/1.2 的 Slots 需剔除）。
+func CollectBoundNames(items []Node) []string {
+	return collectNodeStrings(items, func(n Node) []string {
+		if p, ok := n.(interface{ BoundName() string }); ok {
+			return []string{p.BoundName()}
+		}
+		return nil
+	})
+}
+
+// CollectBindRefs 递归收集 <bind> 表达式引用的参数路径（去重、按首现序）。
+func CollectBindRefs(items []Node) []string {
+	return collectNodeStrings(items, func(n Node) []string {
+		if p, ok := n.(interface{ BindRefs() []string }); ok {
+			return p.BindRefs()
+		}
+		return nil
+	})
+}
+
+// ContainsBind 判断片段树中是否存在 <bind>。
+func ContainsBind(items []Node) bool {
+	found := false
+	walkNodeTree(items, func(n Node) {
+		if _, ok := n.(interface{ BoundName() string }); ok {
+			found = true
+		}
+	})
+	return found
+}
+
+func collectNodeStrings(items []Node, pick func(Node) []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	walkNodeTree(items, func(n Node) {
+		for _, s := range pick(n) {
+			k := buildKey(s)
+			if k == "" || seen[k] {
+				continue
+			}
+			seen[k] = true
+			out = append(out, s)
+		}
+	})
+	return out
 }
 
 // ParseFragments 将 Mapper 语句体子元素解析为片段列表：

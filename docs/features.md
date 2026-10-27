@@ -273,6 +273,62 @@ orm.SetStrictIfTest(true) // 运行时开关
 无论开关状态，注册期均按语句汇总告警未识别表达式（`[if-test] mapper.func: unsupported
 expressions ...`），语句级清单可通过 `types.SqlFunction.UnsupportedIfTests` 获取。
 
+## `<bind>` 绑定变量
+
+Java MyBatis 的 `<bind>` 在语句上下文里求值一个表达式，并把结果绑定为语句级变量，供后续
+`#{}` 复用（典型场景：`like` 拼接 —— 把 `%` 拼在参数上，避免 `like concat('%', #{x}, '%')`
+的方言差异）：
+
+```xml
+<select id="selectByName" parameterType="map" resultMap="BaseResultMap">
+  <bind name="pattern" value="'%' + keyword + '%'"/>
+  <bind name="minId" value="1"/>
+  select * from t_user where name like #{pattern} and id &gt; #{minId}
+</select>
+```
+
+支持范围（加载期编译，求值期只做取值/拼接）：
+
+| 元素 | 说明 |
+|---|---|
+| 字符串字面量 | `'%'`、`"%"`（`''` 转义） |
+| 数字字面量 | `1`、`-2`、`1.5`（全整数则求和结果为 int64，否则 float64） |
+| 引用 | `keyword`、`user.id`（点号路径，大小写不敏感，与 `#{}` 取值规则一致；可引用前一个 `<bind>`） |
+| 拼接 | `+` / `||`：任一项为字符串即字符串拼接，全数字则求和 |
+| 字面量 | `null` / `true` / `false` |
+
+边界与行为：
+
+- 超出子集（方法调用、三元、`*` `/` `-`）在**加载期报错**（标签被丢弃并记录 mapper/语句），不再运行期静默失效；
+- 语句含 `<bind>` 时统一走 map 渲染路径，绑定变量写回**本次渲染的参数 map**（调用方传入的 map 会被浅拷贝，不产生副作用）；
+- 绑定变量名不计入调用方参数（`Param.Slots` 自动剔除）；表达式引用的参数路径自动并入 Slots（参与按位绑定与 xml2go 签名推导）；
+- 标量参数（`parameterType="String"` + `func(name string)`）按唯一槽位名包装后同样可用；多槽位且只传一个标量时报明确错误。
+
+## 未注册标签诊断（Unknown Tag）
+
+语句体里出现框架未实现的标签（如 Oracle 取号用的 `<selectKey>`、拼错的 `<iff>`）时，旧行为是
+打一条无上下文的 error 日志后丢弃——SQL 少一段、启动却成功。现在未注册标签保留为占位节点
+（不产出 SQL），并在**注册期按 `mapper.函数` 汇总告警**：
+
+```
+[unknown-tag] UserMapper.Insert: unsupported xml tags dropped [selectKey]
+  (enable mybatis.configuration.strict-unknown-tag to fail fast)
+```
+
+严格模式让问题在启动期暴露：
+
+```properties
+mybatis.configuration.strict-unknown-tag=true
+```
+
+```go
+orm.SetStrictUnknownTags(true) // 运行时开关
+```
+
+开启后注册期存在未注册标签即 `RegisterMapper` 返回 error（错误列出标签名）。
+语句级清单可通过 `types.SqlFunction.UnsupportedTags` 获取。
+
+
 
 ## MySQL 方言函数翻译（Function Rewrite）
 

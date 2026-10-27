@@ -57,11 +57,12 @@ func (d *BaseDialector) FormatPrepareSQL(src string) string {
 	return FormatPrepareSQLByStyle(src, d.placeholderStyle)
 }
 
+// FormatPrepareSQLByStyle 按占位符风格改写 SQL：
+// 只有代码区的 `?` 会改写为方言占位符（$n / :n / @pn），字符串字面量、
+// 引号标识符、行/块注释、Postgres 美元引用字符串以及 jsonb 的 ? / ?| / ?&
+// 操作符原样保留（P0-1，见 placeholder.go）。
 func FormatPrepareSQLByStyle(src string, style PlaceholderStyle) string {
-	src = strings.ReplaceAll(src, "\r", " ")
-	src = strings.ReplaceAll(src, "\n", " ")
-	src = strings.ReplaceAll(src, "\t", " ")
-	return formatPlaceholders(src, style)
+	return rewritePlaceholders(src, style)
 }
 
 func (d *BaseDialector) PlaceholderStyle() PlaceholderStyle {
@@ -102,52 +103,7 @@ func (d *BaseDialector) DefaultMaxIdle() int {
 }
 
 func formatPlaceholders(src string, style PlaceholderStyle) string {
-	switch style {
-	case PlaceholderDollar:
-		return formatDollarPlaceholders(src)
-	case PlaceholderColon:
-		return formatColonPlaceholders(src)
-	case PlaceholderAtP:
-		return formatAtPPlaceholders(src)
-	default:
-		return src
-	}
-}
-
-func formatDollarPlaceholders(src string) string {
-	arr := strings.Split(src, "?")
-	var res []string
-	for i, s := range arr {
-		res = append(res, s)
-		if i < len(arr)-1 {
-			res = append(res, fmt.Sprintf("$%d", i+1))
-		}
-	}
-	return strings.Join(res, "")
-}
-
-func formatColonPlaceholders(src string) string {
-	arr := strings.Split(src, "?")
-	var res []string
-	for i, s := range arr {
-		res = append(res, s)
-		if i < len(arr)-1 {
-			res = append(res, fmt.Sprintf(":%d", i+1))
-		}
-	}
-	return strings.Join(res, "")
-}
-
-func formatAtPPlaceholders(src string) string {
-	arr := strings.Split(src, "?")
-	var res []string
-	for i, s := range arr {
-		res = append(res, s)
-		if i < len(arr)-1 {
-			res = append(res, fmt.Sprintf("@p%d", i+1))
-		}
-	}
-	return strings.Join(res, "")
+	return rewritePlaceholders(src, style)
 }
 
 // ApplyPagination 把分页子句拼到 query 尾部（B2 修复）：

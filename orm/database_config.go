@@ -70,6 +70,9 @@ type MyBatisSetting struct {
 	// StrictIfTest <if test> 严格模式开关（mybatis.configuration.strict-if-test，A3，
 	// 默认关）：开启后注册期存在未识别 test 表达式即报错，求值期整个 test 未识别按 false 处理。
 	StrictIfTest bool
+	// StrictUnknownTags 未注册标签严格模式开关（mybatis.configuration.strict-unknown-tag，
+	// P0-3，默认关）：开启后注册期存在未注册 XML 标签即报错；默认仅按语句汇总 Warn。
+	StrictUnknownTags bool
 }
 
 type Config struct {
@@ -214,6 +217,7 @@ func parseDatabaseConfig(m map[string]string) *Config {
 			FunctionRewrite:    parseBool(m, "mybatis.configuration.function-rewrite", false),
 			PortabilityCheck:   parseBool(m, "mybatis.configuration.portability-check", false),
 			StrictIfTest:       parseBool(m, "mybatis.configuration.strict-if-test", false),
+			StrictUnknownTags:  parseBool(m, "mybatis.configuration.strict-unknown-tag", false),
 		},
 		MaxIdle:      int(ic),
 		MaxOpen:      oc,

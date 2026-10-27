@@ -28,6 +28,15 @@ type SqlFunction struct {
 	// MaxRows 语句级行数上限覆盖（<select maxRows="N">，B3）：
 	// 0=未设置（沿用全局 DefaultRowLimit），-1=不限制，>0=语句级上限。
 	MaxRows int64
+	// HasBind 语句内含 <bind>（P0-3）：渲染必须走 map 路径（绑定变量写回参数 map）。
+	HasBind bool
+	// BoundNames 语句内 <bind> 产生的变量名（不从调用方取值，已在 Slots/AllSlots 中剔除）。
+	BoundNames []string
+	// BindRefs <bind> 表达式引用的参数路径（调用方需提供，已并入 Slots/AllSlots）。
+	BindRefs []string
+	// UnsupportedTags 语句内未注册的 XML 标签（P0-3，去重按首现序）：
+	// 注册期默认汇总 Warn，strict-unknown-tag 严格模式下报错。
+	UnsupportedTags []string
 	UseGeneratedKeys   bool   // <insert useGeneratedKeys="true">：自增主键回填开关（S-11）
 	KeyProperty        string // 回填目标属性名（如 jobId）
 	KeyColumn          string // 回填目标列名（如 job_id，可选）
@@ -107,6 +116,56 @@ func (in *SqlFunction) updateGenerate(start time.Time) {
 	atomic.AddInt64(&in.GenerateDuration, time.Since(start).Milliseconds())
 }
 
+// RequiresCallerArgs 语句是否需要调用方提供参数（占位符或 <foreach> 集合）。
+// 与 Param.Need 的区别：<bind> 产生的绑定变量与纯字面量 <bind> 不计入——
+// 它们由语句自身求值，不要求函数声明对应参数（P0-3）。
+func (in *SqlFunction) RequiresCallerArgs() bool {
+	return len(in.Param.Slots) > 0 || sqlfragment.ContainsForEach(in.Items)
+}
+
+// bindParamMap 把调用参数规整为可写入绑定变量的渲染 map（P0-3）：
+// 无参 → 空 map；多参 → 按 Slots 按位绑定（1.2）；单参 map/struct → 拷贝/转换；
+// 标量参数无法命名注入，返回明确错误（不再把 #{bindVar} 原样发给数据库）。
+func (in *SqlFunction) bindParamMap(args []interface{}) (map[string]interface{}, error) {
+	switch {
+	case len(args) == 0:
+		return map[string]interface{}{}, nil
+	case len(args) > 1:
+		return in.buildParamMap(args), nil
+	}
+	v := reflect.Indirect(reflect.ValueOf(args[0]))
+	if !v.IsValid() {
+		return map[string]interface{}{}, nil
+	}
+	switch v.Kind() {
+	case reflect.Map:
+		if v.Type().Key().Kind() != reflect.String {
+			break
+		}
+		out := make(map[string]interface{}, v.Len())
+		iter := v.MapRange()
+		for iter.Next() {
+			key := iter.Key().String()
+			val := iter.Value().Interface()
+			out[key] = val
+			// 键名大小写不敏感：同步 buildKey 别名，与 #{} / <if test> 取值规则一致
+			if k := buildKey(key); k != key {
+				if _, exists := out[k]; !exists {
+					out[k] = val
+				}
+			}
+		}
+		return out, nil
+	case reflect.Struct:
+		return convert2Map(v), nil
+	}
+	// 标量参数：按语句首个（唯一）参数名包装，保持与 Base 渲染路径等价。
+	if len(in.Param.Slots) == 1 {
+		return map[string]interface{}{in.Param.Slots[0]: args[0]}, nil
+	}
+	return nil, fmt.Errorf("sql function %v: <bind> requires a map/struct parameter or a single named slot, got %v (slots=%v)", in.Id, v.Kind(), in.Param.Slots)
+}
+
 // effectiveParamType 结合静态 parameterType 与实际参数类型决定渲染路径：
 // 实际传入切片/数组时走 Slice 路径（如 parameterType="Long" + collection="array" 批量删除），
 // 标量走 Base，map/struct（time.Time 除外）走 Map；无法判定时回退静态类型。
@@ -152,6 +211,20 @@ func (in *SqlFunction) GenerateSQL(args ...interface{}) (string, []interface{}, 
 		log.Warnf("sql function %v got nil param", in.Id)
 		return "", []interface{}{}, fmt.Errorf("sql function %v param is nil", in.Id)
 	}
+	if in.HasBind {
+		// P0-3：语句含 <bind>，绑定变量需写回参数 map —— 必须走 map 渲染路径
+		// （含无参语句：bind 字面量也在此求值，避免 #{bindVar} 原样下发）。
+		if len(args) > 0 && in.effectiveParamType(args) == SliceSqlParam {
+			// 顶层切片参数：bind 只在 <foreach> 体内的逐项 map 上下文生效
+			smp := sliceArgsFrom(args)
+			return in.generateSqlWithSlice(smp), []interface{}{}, nil
+		}
+		mp, err := in.bindParamMap(args)
+		if err != nil {
+			return "", []interface{}{}, err
+		}
+		return in.generateSqlWithMap(mp), []interface{}{}, nil
+	}
 	if !in.Param.Need && len(args) == 0 {
 		return in.generateSqlWithoutParam(), []interface{}{}, nil
 	}
@@ -184,6 +257,20 @@ func (in *SqlFunction) PrepareSQL(args ...interface{}) (string, []string, error)
 		// S-09：nil 参数反射零值 panic 防御（无 parameterType 的函数走 validParam 前已放行）
 		log.Warnf("sql function %v got nil param", in.Id)
 		return "", nil, fmt.Errorf("sql function %v param is nil", in.Id)
+	}
+	if in.HasBind {
+		// P0-3：<bind> 语句统一走 map 渲染路径（同 GenerateSQL）。
+		if len(args) > 0 && in.effectiveParamType(args) == SliceSqlParam {
+			smp := sliceArgsFrom(args)
+			sqlstr, results := in.prepareSqlWithSlice(smp)
+			return sqlstr, results, nil
+		}
+		mp, err := in.bindParamMap(args)
+		if err != nil {
+			return "", nil, err
+		}
+		sqlstr, results := in.prepareSqlWithMap(mp)
+		return sqlstr, results, nil
 	}
 	if !in.Param.Need && len(args) == 0 {
 		return in.generateSqlWithoutParam(), []string{}, nil
@@ -351,13 +438,18 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 	tp := parseSqlFunctionType(node.Name)
 	items, _ := sqlfragment.ParseFragments(node.Elements, sns)
 	param := parseSqlParamFromXmlAttrs(node.Attrs)
-	slots := sqlfragment.CollectSqlSlots(items)
+	// P0-3：<bind> 产生的变量由语句自身求值，不再要求调用方传参；
+	// 表达式引用的参数路径则并入 Slots/AllSlots（参与按位绑定与签名推导）。
+	boundNames := sqlfragment.CollectBoundNames(items)
+	bindRefs := sqlfragment.CollectBindRefs(items)
+	hasBind := sqlfragment.ContainsBind(items)
+	slots := mergeSqlSlots(sqlfragment.CollectSqlSlots(items), boundNames, bindRefs)
 	if !param.Need { // 无显式 parameterType：由语句占位符推导（1.1)
 		param.AutoDerive = true
 		param.Need = len(slots) > 0 || sqlfragment.ContainsForEach(items)
 	}
 	param.Slots = slots
-	param.AllSlots = sqlfragment.CollectAllSqlSlots(items)
+	param.AllSlots = mergeSqlSlots(sqlfragment.CollectAllSqlSlots(items), boundNames, bindRefs)
 	return &SqlFunction{
 		Id:                 node.Id,
 		Owner:              owner,
@@ -365,6 +457,10 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		Param:              param,
 		Result:             parseSqlResultFromXmlAttrs(node.Attrs, rms),
 		Items:              items,
+		HasBind:            hasBind,
+		BoundNames:         boundNames,
+		BindRefs:           bindRefs,
+		UnsupportedTags:    sqlfragment.CollectUnsupportedTags(items),
 		IfTestFields:       sqlfragment.CollectIfTestFieldNames(items),
 		UnsupportedIfTests: sqlfragment.CollectUnsupportedIfTests(items),
 		MaxRows:            parseMaxRowsAttr(node.Attrs["maxRows"], owner, node.Id),
@@ -379,6 +475,35 @@ func parseSqlFunctionFromXmlNode(node xmlNode, rms map[string]*ResultMap, sns ma
 		GenerateDuration:   0,
 		GenerateCount:      0,
 	}
+}
+
+// mergeSqlSlots 合并占位符名与绑定变量（P0-3）：
+//   - 剔除 <bind> 产生的名字（不是调用方参数）；
+//   - 并入 <bind> 表达式引用的参数路径（调用方需提供）；
+//
+// 去重按首现序，保持与 1.2 按位绑定、xml2go 签名推导的顺序语义一致。
+func mergeSqlSlots(slots, boundNames, bindRefs []string) []string {
+	bound := make(map[string]bool, len(boundNames))
+	for _, n := range boundNames {
+		bound[strings.ToLower(n)] = true
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(slots)+len(bindRefs))
+	appendSlot := func(name string) {
+		k := strings.ToLower(strings.TrimSpace(name))
+		if k == "" || bound[k] || seen[k] {
+			return
+		}
+		seen[k] = true
+		out = append(out, name)
+	}
+	for _, s := range slots {
+		appendSlot(s)
+	}
+	for _, s := range bindRefs {
+		appendSlot(s)
+	}
+	return out
 }
 
 // parseMaxRowsAttr 解析 <select maxRows="N"> 语句级行数上限属性（B3）：

@@ -423,6 +423,7 @@ mybatis.mapper-locations= resources/mapper
 | `mybatis.configuration.function-rewrite` | MySQL 方言函数翻译（`ifnull`/`find_in_set`/`date_format`/反引号 → PG 等价形式），仅 PG 族数据源生效，详见[功能文档](features.md) | false |
 | `mybatis.configuration.portability-check` | `||` 跨模式语义差异检测：MySQL 族/金仓执行 SQL 含 `\|\|` 时告警（每条 SQL 一次），详见[功能文档](features.md) | false |
 | `mybatis.configuration.strict-if-test` | `<if test>` 严格模式：注册期存在未识别 test 表达式即报错，求值期整个 test 未识别按 false 处理（不渲染）；默认未识别表达式恒真兼容存量，详见[功能文档](features.md) | false |
+| `mybatis.configuration.strict-unknown-tag` | 未注册 XML 标签严格模式：注册期存在未注册标签（如 `<selectKey>`）即报错；默认仅按语句汇总 Warn（标签内容不再静默丢弃），详见[功能文档](features.md) | false |
 | `mybatis.max-rows` | 全局查询返回行数上限（默认 10000，负数不限制；语句级可用 `<select maxRows="N">` 覆盖），详见[功能文档](features.md) | 10000 |
 | `mybatis.configuration.row-limit-strict` | 严格行数上限模式：达到上限返回 `ErrRowLimitExceeded` 而非静默截断（截断记录可经 `orm.LastQueryTruncated()` 查询） | false |
 | `mybatis.configuration.pretty-sql` | 日志中 SQL 格式化输出（参数绑定替换 + 关键字换行缩进，仅用于调试） | false |

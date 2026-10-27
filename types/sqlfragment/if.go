@@ -351,24 +351,16 @@ func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []XmlElement, sns 
 	if len(elems) < 1 {
 		return nil, fmt.Errorf("wrong input for if test sql")
 	}
+	// P0-3：复用统一片段解析入口（不再各自维护一份「已注册标签」分支）：
+	// <bind> 等新节点可直接用于 <if> 体内；未注册标签保留占位节点，
+	// 由 CollectUnsupportedTags 在注册期汇总（不再无上下文丢弃）。
 	var sts []Node
 	for _, elem := range elems {
-		switch elem.ElementType {
-		case XmlTextElem:
-			sts = append(sts, parseSimpleSqlFromText(elem.Val.(string)))
-		case XmlNodeElem:
-			xn := elem.Val.(XmlNode)
-			parser, ok := lookupNodeParser(xn.Name)
-			if !ok {
-				log.Errorf("not support sql node type %v in if test", xn.Name)
-				continue
-			}
-			stemp, err := parser(xn, sns)
-			if err != nil {
-				return nil, err
-			}
-			sts = append(sts, stemp)
+		st, err := parseFragmentFromXmlElement(elem, sns)
+		if err != nil {
+			return nil, err
 		}
+		sts = append(sts, st)
 	}
 	conds, unsupported := parseIfTestConditions(ts)
 	return &sqlIfTest{

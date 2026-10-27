@@ -17,7 +17,9 @@ type ParamType struct {
 
 
 func (in *ParamType) checkSql(f *types.SqlFunction, name string) error {
-	if in.ArgsLen == 0 && f.Param.Need {
+	// P0-3：判断依据改为「语句是否真的需要调用方参数」——<bind> 产生的绑定变量
+	// 由语句自身求值，不要求函数声明对应参数（需与 Param.Need 区分）。
+	if in.ArgsLen == 0 && f.RequiresCallerArgs() {
 		return fmt.Errorf("%v check sql function %v failed, need func args: %v", name, f.Id, f.Param.Slots)
 	}
 	// 1.1（M-06）：有参函数 + 语句无显式 parameterType 不再失败。
