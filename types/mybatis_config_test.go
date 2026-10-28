@@ -189,3 +189,20 @@ func Test_ExpandMapperLocations_FallbackBases(t *testing.T) {
 		t.Errorf("expect fallback to parent dir finds 1 xml, got %v (%v)", len(files), files)
 	}
 }
+
+// Test_globStaticRoot_PreservesAbsolute 回归（CI 长期红）：模式为绝对路径时，
+// 静态根必须保留根分隔符。旧实现用 FieldsFunc 拆分路径段会丢掉前导空段，
+// POSIX 绝对模式因此退化为相对路径（WalkDir 找不到文件）。
+func Test_globStaticRoot_PreservesAbsolute(t *testing.T) {
+	if root := globStaticRoot("/a/b/*.xml"); !strings.HasPrefix(filepath.ToSlash(root), "/") {
+		t.Errorf("globStaticRoot(/a/b/*.xml) = %q, want POSIX absolute root", root)
+	}
+	base := t.TempDir()
+	pattern := filepath.Join(base, "mapper", "*.xml")
+	if root := globStaticRoot(pattern); !filepath.IsAbs(root) {
+		t.Errorf("globStaticRoot(%q) = %q, want absolute path", pattern, root)
+	}
+	if root := globStaticRoot("mapper/*.xml"); root != "." && root != "mapper" {
+		t.Errorf("relative pattern root = %q", root)
+	}
+}

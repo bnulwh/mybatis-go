@@ -446,10 +446,14 @@ func globRegexp(pattern string) (*regexp.Regexp, error) {
 }
 
 // globStaticRoot 取模式中第一个含通配符目录段之前的静态根目录（相对模式无静态前缀时为 "."）。
-// Windows 盘符卷名（如 D:）单独拼接（filepath.Join 会把 "D:" 当相对路径）。
+// Windows 盘符卷名（如 D:）单独拼接（filepath.Join 会把 "D:" 当相对路径）；
+// POSIX 绝对路径必须保留根分隔符——FieldsFunc 会丢掉前导空段，绝对模式曾因此
+// 退化为相对路径（WalkDir 找不到文件，Linux CI 长期报 no mapper xml resolved）。
 func globStaticRoot(pattern string) string {
 	vol := filepath.VolumeName(pattern)
 	rest := pattern[len(vol):]
+	// 去掉卷名后仍以分隔符开头 → 绝对路径（POSIX 的 /、Windows 的 \）
+	absolute := strings.HasPrefix(rest, "/") || strings.HasPrefix(rest, `\`)
 	dir := ""
 	if idx := strings.LastIndexAny(rest, `/\`); idx >= 0 {
 		dir = rest[:idx+1]
@@ -462,14 +466,21 @@ func globStaticRoot(pattern string) string {
 		}
 		keep = append(keep, s)
 	}
+	sep := string(filepath.Separator)
 	if len(keep) == 0 {
 		if vol != "" {
-			return vol + string(filepath.Separator)
+			return vol + sep
+		}
+		if absolute {
+			return sep
 		}
 		return "."
 	}
 	if vol != "" {
-		return vol + string(filepath.Separator) + filepath.Join(keep...)
+		return vol + sep + filepath.Join(keep...)
+	}
+	if absolute {
+		return sep + filepath.Join(keep...)
 	}
 	return filepath.Join(keep...)
 }
