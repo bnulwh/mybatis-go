@@ -27,6 +27,12 @@ logs/
 /temp/
 /orm/test.xml
 
+# 测试运行产物（SQLite 临时库）
+/orm/test.db
+
+# 根目录测试生成 XML
+/test.xml
+
 # 本机工具配置
 /reasonix.toml
 
