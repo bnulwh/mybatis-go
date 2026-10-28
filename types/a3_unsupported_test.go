@@ -15,7 +15,7 @@ func a3UnsupportedFS() fstest.MapFS {
     select * from t_user
     <where>
       <if test="name != null and name != ''">and name like #{name}</if>
-      <if test="a == b">and dept = #{dept}</if>
+      <if test="a.toUpperCase() == 'X'">and dept = #{dept}</if>
       <choose>
         <when test="flag != null and flag != 0">and flag = #{flag}</when>
         <otherwise>and flag is null</otherwise>
@@ -41,8 +41,8 @@ func Test_SqlFunction_UnsupportedIfTests(t *testing.T) {
 		return
 	}
 	got := sf.UnsupportedIfTests
-	if len(got) != 1 || got[0] != "a == b" {
-		t.Errorf("UnsupportedIfTests = %v, want [a == b]", got)
+	if len(got) != 1 || got[0] != "a.toUpperCase() == 'X'" {
+		t.Errorf("UnsupportedIfTests = %v, want [a.toUpperCase() == 'X']", got)
 	}
 	// 已识别条件字段不受影响
 	if len(sf.IfTestFields) == 0 {

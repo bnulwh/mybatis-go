@@ -248,12 +248,38 @@ report := orm.LastConvertReport("SysUserMapper", "selectUserList") // 无记录�
 </select>
 ```
 
+## `<if test>` 表达式（动态条件）
+
+`<if test="...">` / `<when test="...">` 的表达式在**加载期编译成 AST**，求值期只做取值，
+支持 Java MyBatis/OGNL 的常用子集：
+
+| 能力 | 写法示例 |
+|---|---|
+| 逻辑 | `a != null and b != null`、`a or b`、`not flag`、`!flag`、`&&` / `\|\|`、括号 |
+| 判空/空串 | `x == null`、`x != null`、`x == ''`、`x != ''`、`null == x` |
+| 比较 | `x == 5`、`x > 18`、`x <= 0`、`status == 'active'`、`x == y`（引用互相比较）、`eq/neq/lt/lte/gt/gte` |
+| 数值/字符串 | `count + 1 > 2`、`price * 2 >= 100`、`name + '!' == 'abc!'`、一元 `-1` |
+| 集合长度 | `ids.length > 0`、`ids.size > 0`（`<foreach>` 配合） |
+| 嵌套取值 | `user.deptId != null`、`params.beginTime != null`（点号路径，大小写不敏感） |
+| 布尔 | `flag == true`、裸标识符 `deptCheckStrictly`（仅 `bool true` 通过，S-07） |
+
+语义约定：
+
+- `x != null` / `x != ''` 保持**存量「有效值」语义**：`null`、空字符串、空集合视为「空」
+  （数值恒为有效值），因此 `name != null` 对 `""` 为假——与历史行为完全一致；
+  新增的 `x == null` / `x == ''` 与之严格对称；
+- 两侧都是字符串时按字符串比较（不会把 `'05'` 与 `'5'` 数值化）；字符串与数字比较时按数值；
+- 缺失参数按 `null` 处理（`x == null` 为真）。
+
+超出子集（方法调用 `a.toUpperCase()`、三元 `flag ? 1 : 0`、单等号 `a = 1` 等）在加载期
+编译失败，自动回退旧的正则解析（已识别部分照旧求值、无法识别的子表达式进入下面的 A3 清单），
+**存量语义不变**。
+
 ## 未识别 `<if test>` 严格模式（Strict If Test）
 
-`<if test="...">` 只识别 5 种条件模式：`x != null`、`x != ''`、`x == 'literal'`（字符串比较）、
-`x != 0 / x > 18 / x.length > 0`（数值比较）、裸标识符（布尔）。未命中任何模式的子表达式
-（如 `a == b`、`flag ? 1 : 0`、`'x'.toString() == 'y'`）默认被丢弃——空条件恒真，条件体
-**恒渲染**（解析期已输出 Warn 日志，兼容存量行为）。
+AST 编译失败时回退旧正则解析：已识别条件照旧求值，未识别子表达式（如 `a.toUpperCase() == 'x'`、
+`flag ? 1 : 0`）默认被丢弃——空条件恒真，条件体**恒渲染**（解析期已输出 Warn 日志，
+兼容存量行为）。
 
 开启严格模式后，未识别表达式从「静默恒真」变为「显式失败」：
 

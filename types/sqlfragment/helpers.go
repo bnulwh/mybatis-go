@@ -189,6 +189,13 @@ func lookupParam(m map[string]interface{}, name string) (interface{}, bool) {
 	}
 	parts := strings.Split(name, ".")
 	if len(parts) < 2 {
+		// 大小写不敏感兜底：调用方直接传 camelCase 键的 map（如 map{"deptCheckStrictly": true}）
+		key := buildKey(name)
+		for k, v := range m {
+			if buildKey(k) == key {
+				return v, true
+			}
+		}
 		return nil, false
 	}
 	cur, ok := m[buildKey(parts[0])]

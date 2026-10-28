@@ -13,6 +13,7 @@ Go 语言实现的 MyBatis 风格 ORM 框架。通过 XML Mapper 文件定义 SQ
 | PG/金仓自增主键回填（RETURNING） | v0.1.12（M-03） | `useGeneratedKeys` + `keyProperty` |
 | 分页（PageHelper 等价） | v0.3.0（M-07） | `*orm.PageParam` → `*orm.Page` |
 | `<if>` 字符串等值（`field == 'value'`） | v0.3.12 | 原生支持 |
+| `<if test>` 表达式 AST（`or`/`not`/`== null`/括号/算术） | 未发布（P0-2） | 原生支持（加载期编译，未识别写法回退旧解析 + A3 清单） |
 | 二级缓存 | v0.3.8（P1-3） | `mybatis.configuration.cache-enabled` |
 | 严格结果模式（行级丢弃可感知） | v0.3.19（D3） | `mybatis.configuration.strict-result` + `orm.LastConvertReport` |
 | MySQL→PG 族函数翻译（ifnull/find_in_set/date_format/反引号） | v0.3.19（F1） | `mybatis.configuration.function-rewrite` |

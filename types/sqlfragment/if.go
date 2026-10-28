@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/bnulwh/mybatis-go/log"
@@ -37,6 +38,15 @@ type sqlIfTest struct {
 	// Unsupported test 中未命中任何已知模式、被静默丢弃的子表达式（A3）。
 	// 解析期记录，供注册期汇总与严格模式判断；默认行为不变（空条件恒真）。
 	Unsupported []string
+	// Expr P0-2：加载期编译的 test 表达式 AST；为 nil 表示编译失败，
+	// 已回退 legacy 正则解析（Conditions/Unsupported），A3 语义保持不变。
+	Expr ifExpr
+	// ExprBare test 为单标识符（S-07）：按布尔求值，非 bool 值一律不通过。
+	ExprBare bool
+	// ExprFields AST 引用的参数名（供 IfTestFields 字段存在性校验）。
+	ExprFields []string
+
+	evalWarn sync.Once
 }
 
 // strictIfTest <if test> 严格模式开关（A3，默认关）：
@@ -185,6 +195,9 @@ func (in *sqlIfTest) ContainsForEach() bool {
 // CollectIfTestFields 自身条件引用的字段名 + 子片段递归聚合。
 func (in *sqlIfTest) CollectIfTestFields() []string {
 	names := ifTestFieldNames(in.Conditions)
+	if in.Expr != nil {
+		names = ifTestExprFieldNames(in.ExprFields)
+	}
 	for _, item := range in.Sql {
 		if item == nil {
 			continue
@@ -196,6 +209,9 @@ func (in *sqlIfTest) CollectIfTestFields() []string {
 
 func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 	log.Debugf("sql if test check conditions with param: %v", m)
+	if in.Expr != nil {
+		return in.checkExpr(m)
+	}
 	// A3 严格模式：整个 test 未识别（无已知条件但有被丢弃的表达式）时按 false 处理，
 	// 不再恒真；默认（非严格）保持恒真以兼容存量行为。
 	if len(in.Conditions) == 0 && len(in.Unsupported) > 0 && strictIfTest.Load() {
@@ -209,6 +225,27 @@ func (in *sqlIfTest) checkConditions(m map[string]interface{}) bool {
 		}
 	}
 	return true
+}
+
+// checkExpr AST 求值（P0-2）：引擎错误按 false 处理并只告警一次，
+// 避免类型不匹配的语句在热路径上刷日志；S-07 裸标识符保持「仅 bool true 通过」。
+func (in *sqlIfTest) checkExpr(m map[string]interface{}) bool {
+	v, err := in.Expr.eval(m)
+	if err != nil {
+		in.evalWarn.Do(func() {
+			log.Warnf("[if-test] %q evaluation failed: %v (treated as false, body not rendered)", in.Test, err)
+		})
+		return false
+	}
+	if in.ExprBare {
+		b, ok := v.(bool)
+		if !ok {
+			log.Debugf("[if-test] bare identifier %q got non-bool value %v (%T)", in.Test, v, v)
+			return false
+		}
+		return b
+	}
+	return ifTruthy(v)
 }
 
 // UnsupportedIfTests 返回本节点 test 中未识别的子表达式（仅自身，不含嵌套子片段；
@@ -341,6 +378,23 @@ func ifTestFieldNames(conds []ifCondition) []string {
 	return names
 }
 
+// ifTestExprFieldNames AST 字段名归一化：仅取根段（user.deptId → user），
+// 跳过 params. 前缀（通用 map 参数无法静态校验）。
+func ifTestExprFieldNames(fields []string) []string {
+	var names []string
+	for _, f := range fields {
+		name := f
+		if idx := strings.Index(name, "."); idx > 0 {
+			name = name[:idx]
+		}
+		if name == "" || strings.HasPrefix(name, "params.") || strings.EqualFold(name, "params") {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
 // parseSqlIfTestFromXmlNode 解析 <if test="...">；嵌套标签经统一注册表解析
 // （已注册标签均支持；未注册标签记日志跳过）。
 func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []XmlElement, sns map[string]*SqlElement) (*sqlIfTest, error) {
@@ -361,6 +415,17 @@ func parseSqlIfTestFromXmlNode(attrs map[string]string, elems []XmlElement, sns 
 			return nil, err
 		}
 		sts = append(sts, st)
+	}
+	// P0-2：优先编译为表达式 AST（支持 or/括号/取反/== null/算术）；
+	// 编译失败（方法调用、三元、单等号等）回退 legacy 正则解析，A3 记录不变。
+	if expr, err := parseIfExpr(ts); err == nil {
+		return &sqlIfTest{
+			Test:       ts,
+			Sql:        sts,
+			Expr:       expr,
+			ExprBare:   isBareIfTest(ts),
+			ExprFields: expr.fields(),
+		}, nil
 	}
 	conds, unsupported := parseIfTestConditions(ts)
 	return &sqlIfTest{

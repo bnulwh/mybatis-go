@@ -35,10 +35,11 @@ func Test_parseIfTestConditions_UnsupportedCollected(t *testing.T) {
 	}
 }
 
-// Test_sqlIfTest_UnsupportedIfTests 解析 <if test="a == b"> 后可经访问器取回未识别表达式。
+// Test_sqlIfTest_UnsupportedIfTests 解析含方法调用的 test 后可经访问器取回未识别表达式
+// （P0-2 起 `a == b` 已由表达式 AST 支持，未识别判定改用真正超出子集的写法）。
 func Test_sqlIfTest_UnsupportedIfTests(t *testing.T) {
 	xn := mustParseNamedChild(t,
-		`<mapper><if test="a == b">X</if></mapper>`, "if")
+		`<mapper><if test="a.toUpperCase() == 'X'">X</if></mapper>`, "if")
 	node := mustParseFragment(t, xn, nil)
 	if node == nil {
 		return
@@ -49,8 +50,8 @@ func Test_sqlIfTest_UnsupportedIfTests(t *testing.T) {
 		return
 	}
 	got := p.UnsupportedIfTests()
-	if len(got) != 1 || got[0] != "a == b" {
-		t.Errorf("UnsupportedIfTests = %v, want [a == b]", got)
+	if len(got) != 1 || got[0] != "a.toUpperCase() == 'X'" {
+		t.Errorf("UnsupportedIfTests = %v, want [a.toUpperCase() == 'X']", got)
 	}
 }
 
@@ -58,15 +59,15 @@ func Test_sqlIfTest_UnsupportedIfTests(t *testing.T) {
 // 的未识别表达式经 Children() 遍历收集并去重。
 func Test_CollectUnsupportedIfTests_Nested(t *testing.T) {
 	xn := mustParseNamedChild(t,
-		`<mapper><if test="flag != null">OUTER <if test="a == b">MID <if test="a == b">INNER</if></if> TAIL</if></mapper>`,
+		`<mapper><if test="flag != null">OUTER <if test="a.toUpperCase() == 'X'">MID <if test="a.toUpperCase() == 'X'">INNER</if></if> TAIL</if></mapper>`,
 		"if")
 	outer := mustParseFragment(t, xn, nil)
 	if outer == nil {
 		return
 	}
 	got := CollectUnsupportedIfTests([]Node{outer})
-	if len(got) != 1 || got[0] != "a == b" {
-		t.Errorf("CollectUnsupportedIfTests nested if = %v, want [a == b] (deduped)", got)
+	if len(got) != 1 || got[0] != "a.toUpperCase() == 'X'" {
+		t.Errorf("CollectUnsupportedIfTests nested if = %v, want [a.toUpperCase() == 'X'] (deduped)", got)
 	}
 
 	cxn := mustParseNamedChild(t,
@@ -99,7 +100,7 @@ func Test_StrictIfTest_EvalFalse(t *testing.T) {
 	defer SetStrictIfTest(StrictIfTest()) // 恢复原值
 
 	xn := mustParseNamedChild(t,
-		`<mapper><if test="a == b">X</if></mapper>`, "if")
+		`<mapper><if test="a.toUpperCase() == 'X'">X</if></mapper>`, "if")
 	node := mustParseFragment(t, xn, nil)
 	if node == nil {
 		return

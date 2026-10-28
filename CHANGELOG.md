@@ -1,6 +1,6 @@
 # 更新日志
 
-- **未发布（占位符改写正确性 + `<bind>` / 未注册标签诊断 + namespace 数据源绑定，2026-10-27）**：
+- **未发布（占位符改写正确性 + `<bind>` / 未注册标签诊断 + namespace 数据源绑定 + if 表达式 AST，2026-10-28）**：
 
   - **P0-1 占位符改写字面量/注释感知**（新增 `orm/dialector/placeholder.go`）：旧 `formatDollar/Colon/AtPPlaceholders` 用 `strings.Split(src, "?")` 顺序编号，会改写字符串字面量、引号标识符、行/块注释、`$$` 美元引用字符串内的 `?`，并把 jsonb 的 `?` / `?|` / `?&` 操作符当占位符——`SELECT * FROM t WHERE c = '?' AND id = ?` 曾产出 `c = '$1' … id = $2`（参数错位），`payload ? 'k'` 曾产出 `payload $1 'k'`（语法错）。新实现逐字符扫描，只有代码区 `?` 改写为 `$n` / `:n` / `@pn`，字面量与注释原样保留（行注释连同行尾换行保留，归一化后不再吞后续 SQL），补充 `E'...'` 反斜杠转义与 PG `#>` / `#>>` 操作符处理；代码区空白折叠行为保留（预编译缓存键稳定）。测试：`orm/dialector/placeholder_test.go`
   - **P0-3 `<bind>` 绑定变量（对标 Java MyBatis）**：新增 `types/sqlfragment/bind.go`（`RegisterNodeParser("bind")`）——加载期编译表达式子集（字符串/数字/`null`/`true`/`false`、点号引用、`+` / `||` 拼接与纯数字求和；方法调用/三元/`*` `/` `-` 加载期报错），求值期写入本次渲染的参数 map；`SqlFunction` 新增 `HasBind` / `BoundNames` / `BindRefs`，`<bind>` 语句强制 map 渲染（含无参语句），调用方 map 浅拷贝不产生副作用，绑定变量从 `Param.Slots` 剔除、表达式引用并入 Slots（按位绑定与 xml2go 签名一致）；`<if>` 子解析改走统一注册表入口（`parseFragmentFromXmlElement`），`<bind>`/新节点在 `<if>` 体内同样可用

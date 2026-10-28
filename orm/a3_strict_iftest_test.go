@@ -22,7 +22,7 @@ func a3StrictFS() fstest.MapFS {
 <mapper namespace="A3StrictMapper">
   <select id="selectUsers" resultType="map">
     select * from t_user
-    <if test="name != null and a == b">and name = #{name}</if>
+    <if test="name != null and a.toUpperCase() == 'X'">and name = #{name}</if>
   </select>
 </mapper>`)},
 	}
@@ -57,7 +57,7 @@ func Test_bindSql_StrictIfTestError(t *testing.T) {
 		t.Error("strict if-test should fail bindSql on unsupported expressions")
 		return
 	}
-	if !strings.Contains(err.Error(), "a == b") {
+	if !strings.Contains(err.Error(), "a.toUpperCase()") {
 		t.Errorf("error should list unsupported expression, got %v", err)
 	}
 }
